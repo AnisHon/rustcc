@@ -1,0 +1,15 @@
+use std::error::Error;
+
+pub mod lex;
+
+pub type ErrResult<T> = Result<T, Box<dyn Error>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+       
+    }
+}
