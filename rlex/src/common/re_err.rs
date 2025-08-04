@@ -12,14 +12,20 @@ pub struct ReError {
 }
 
 impl ReError {
-    pub fn new(msg: String, pos: usize, re: String) -> ReError {
-        ReError { msg, pos, re }
+    pub fn new(msg: &str, pos: usize) -> ReError {
+        ReError { msg: msg.to_string(), pos, re: String::new()}
     }
+
+    pub fn with_re(mut self, re: &str) -> Self{
+        self.re = re.to_string();
+        self
+    }
+
 }
 
 impl Display for ReError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Error in Regex[{}]: {} \nMessage: {}", self.re, self.pos, self.msg)
+        write!(f, "Error in Regex[{}]: {} \nMessage: {}", self.pos, self.re, self.msg)
     }
 }
 

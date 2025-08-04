@@ -1,2 +1,5 @@
+pub mod automata_builder;
+pub mod char_class;
+pub mod common;
 pub mod lex;
-mod parser;
+pub mod parser;
