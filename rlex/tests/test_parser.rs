@@ -6,7 +6,7 @@ use rlex::parser::parser::ReParser;
 
 #[test]
 fn test_re_parser() {
-    let tokens = match re2tokens(r"(abc{1,2}|cde*)|f[a-z]|(d*)e?s+as(d(s))f") {
+    let tokens = match re2tokens("\"([^\"\\n]|\\.)*\"") {
         Ok(tokens) => tokens,
         Err(e) => panic!("{:}", e),
     };
@@ -29,7 +29,7 @@ fn test_re_parser() {
     println!("AST : {:?}", parser.get_ast());
 
     let builder = CharClassBuilder::new((0, 0x10FFFF));
-    let c = builder.build_char_class_set(parser.get_ast());
+    let c = builder.build_char_class_set(vec![parser.get_ast()]);
     // println!("{:?}", c.find_interval('a', 'z'));
     // println!("{:?}", c.find_reverse_interval('a', 'z'));
 

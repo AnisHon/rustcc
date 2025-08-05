@@ -1,5 +1,5 @@
 use common::lex::state_id_factory::IncrementalStateIDFactory;
-use common::lex::{ClassID, DFA, NFA, NFASymbol, StateID, StateMeta};
+use common::lex::{ClassID, DFA, NFA, NFASymbol, StateID};
 use common::utils::unique_id_factory::UniqueIDFactory;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -7,25 +7,29 @@ pub struct DFABuilder {
     nfa: NFA,
     stride: usize,
     id_factory: IncrementalStateIDFactory,
+    priority_status: fn(&NFA, &BTreeSet<StateID>) -> StateID,
 }
 
 impl DFABuilder {
-    pub fn new(nfa: NFA, stride: usize) -> Self {
+    pub fn new(
+        nfa: NFA,
+        stride: usize,
+        priority_status: fn(&NFA, &BTreeSet<StateID>) -> StateID,
+    ) -> Self {
         Self {
             nfa,
             stride,
             id_factory: IncrementalStateIDFactory::new(0),
+            priority_status,
         }
     }
 
-    pub fn build(&mut self) -> DFA {
+    pub fn build(mut self) -> DFA {
         let transaction_table = self.build_translate_table();
         let state_table = self.build_status_table(&transaction_table);
-        let terminate_set = self.build_terminate_set(&state_table);
-        let mut dfa = self.build_dfa(transaction_table, state_table);
-        for state_id in terminate_set {
-            dfa.get_meta_mut(state_id).terminate = true;
-        }
+        // let terminate_set = self.build_terminate_set(&state_table);
+        let dfa = self.build_dfa(transaction_table, state_table);
+
         dfa
     }
 
@@ -138,8 +142,12 @@ impl DFABuilder {
         let init_state = state_table[&init_state];
         let mut dfa = DFA::new(init_state, state_table.len(), self.stride);
 
-        state_table.iter().for_each(|(_, &state_id)| {
-            dfa.add_state(state_id, StateMeta::default());
+        state_table.iter().for_each(|(state_set, &state_id)| {
+            if state_set.is_empty() {
+                return;
+            }
+            let state = (self.priority_status)(&self.nfa, state_set);
+            dfa.add_state(state_id, self.nfa.get_status(state).clone());
         });
 
         translate_table
@@ -149,24 +157,5 @@ impl DFABuilder {
             });
 
         dfa
-    }
-
-    fn build_terminate_set(
-        &self,
-        state_table: &HashMap<BTreeSet<StateID>, StateID>,
-    ) -> BTreeSet<StateID> {
-        let mut terminate_set = BTreeSet::new();
-        let terminate_states = self.nfa.get_terminated_states();
-
-        state_table.iter().for_each(|(nfa_state_ids, &state)| {
-            for nfa_state_id in terminate_states {
-                if nfa_state_ids.contains(&nfa_state_id) {
-                    terminate_set.insert(state);
-                    return;
-                }
-            }
-        });
-
-        terminate_set
     }
 }

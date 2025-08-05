@@ -33,6 +33,18 @@ impl CharClassSet {
         self.ranges.len()
     }
 
+    pub fn get_raw_ranges(&self) -> &Vec<(u32, u32)> {
+        &self.ranges
+    }
+
+    pub fn get_raw_class_map(&self) -> &Vec<usize> {
+        &self.class_map
+    }
+
+    pub fn get_raw_ascii_mapping(&self) -> &[usize; 128] {
+        &self.ascii_mapping
+    }
+
     fn build_class_id_table(ranges: &Vec<(u32, u32, HashSet<usize>)>) -> Vec<usize> {
         let mut tag_class_map: HashMap<Vec<usize>, usize> = HashMap::new();
         let mut next_class_id = 0;

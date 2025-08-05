@@ -77,6 +77,10 @@ impl DFA {
         self.states[state_id].as_mut().unwrap()
     }
 
+    pub fn get_raw_matrix(&self) -> &Vec<Vec<Option<StateID>>> {
+        &self.transitions
+    }
+
     pub fn get_symbols(&self, state_id: StateID) -> Vec<ClassID> {
         self.transitions[state_id]
             .iter()

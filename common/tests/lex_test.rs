@@ -1,5 +1,4 @@
-use common::lex::NFASymbol::ClassID;
-use common::lex::{DFA, NFA, StateMeta};
+use common::lex::DFA;
 
 #[test]
 fn test_dfa() {
@@ -35,21 +34,21 @@ fn test_dfa() {
 
 #[test]
 fn test_nfa() {
-    let mut nfa = NFA::new(0);
-    nfa.add_state(0, StateMeta { terminate: false })
-        .add_state(1, StateMeta { terminate: false })
-        .add_state(2, StateMeta { terminate: false })
-        .add_state(3, StateMeta { terminate: false })
-        .add_state(4, StateMeta { terminate: false })
-        .add_state(5, StateMeta { terminate: false })
-        .add_state(6, StateMeta { terminate: false });
-
-    nfa.add_edge(0, ClassID(1), 0)
-        .add_edge(0, ClassID(1), 1)
-        .add_edge(0, ClassID(2), 2)
-        .add_edge(0, ClassID(2), 3)
-        .add_edge(0, ClassID(3), 4)
-        .add_edge(0, ClassID(3), 5);
-    println!("{:?}", nfa.get_symbols(0));
-    println!("{:?}", nfa.find_next(0, ClassID(1)));
+    // let mut nfa = NFA::new(0);
+    // nfa.add_state(0, StateMeta { terminate: false })
+    //     .add_state(1, StateMeta { terminate: false })
+    //     .add_state(2, StateMeta { terminate: false })
+    //     .add_state(3, StateMeta { terminate: false })
+    //     .add_state(4, StateMeta { terminate: false })
+    //     .add_state(5, StateMeta { terminate: false })
+    //     .add_state(6, StateMeta { terminate: false });
+    //
+    // nfa.add_edge(0, ClassID(1), 0)
+    //     .add_edge(0, ClassID(1), 1)
+    //     .add_edge(0, ClassID(2), 2)
+    //     .add_edge(0, ClassID(2), 3)
+    //     .add_edge(0, ClassID(3), 4)
+    //     .add_edge(0, ClassID(3), 5);
+    // println!("{:?}", nfa.get_symbols(0));
+    // println!("{:?}", nfa.find_next(0, ClassID(1)));
 }

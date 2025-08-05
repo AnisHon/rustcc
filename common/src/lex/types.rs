@@ -7,11 +7,19 @@ pub type ClassID = usize;
 ///
 #[derive(Debug, Clone)]
 pub struct StateMeta {
+    pub id: StateID,
+    pub name: Option<String>,
+    pub priority: usize,
     pub terminate: bool, // 其他
 }
 
 impl StateMeta {
     pub fn default() -> StateMeta {
-        StateMeta { terminate: false }
+        StateMeta {
+            id: StateID::MAX,
+            priority: StateID::MAX,
+            name: None,
+            terminate: false,
+        }
     }
 }

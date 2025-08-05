@@ -1,0 +1,81 @@
+pub enum TokenType {
+    {%- for item in enums -%}
+        {{ item }},
+    {% endfor %}
+}
+
+const STATE_MAP: [Option<TokenType>; {{ state_map_size }}] = [
+    {%- for item in state_map -%}
+        {%- if item %}Some(TokenType::{{ item }}){%- else %}None{%- endif -%},
+    {%- endfor -%}
+];
+
+const CHAR_CLASS: [(usize, usize); {{ char_class_size }}] = [
+    {%- for item in char_class -%}({{ item[0] }}, {{ item[1] }}),{%- endfor -%}
+];
+
+const CHAR_CLASS_MAP: [usize; {{ char_class_size }}] = [
+    {%- for item in char_class_map -%}{{ item }},{%- endfor -%}
+];
+
+const ASCII_MAPPING: [usize; 128] = [
+    {%- for item in ascii_map -%}{{ item }},{%- endfor -%}
+];
+
+const TABLE: [[Option<usize>; {{ stride }}]; {{ rows }}] = [
+{% for row in table %}[
+        {%- for item in row -%}
+            {%- if item %}Some({{ item }}){%- else %}None{%- endif -%},
+        {%- endfor -%}
+    ],
+{% endfor %}
+];
+
+pub fn find_token(state_id: usize) -> Option<TokenType> {
+    STATE_MAP[state_id]
+}
+
+pub fn find_next(state_id: usize, class_id: usize) -> Option<StateID> {
+    self.transitions[state_id][class_id]
+}
+
+pub fn find_char(chr: char) -> usize {
+    let idx = find_idx(chr);
+    CHAR_CLASS_MAP[idx]
+}
+
+fn find_idx(chr: char) -> usize {
+    if chr.is_ascii() {
+        // 快速路径
+        ASCII_MAPPING[chr as usize]
+    } else {
+        // 慢路径
+        binary_search(CHAR_CLASS, chr as u32) // 出错会触发panic
+    }
+}
+
+/// 二分查找
+pub fn binary_search(ranges: &Vec<(u32, u32)>, chr: u32) -> usize {
+    let mut idx_left = 0;
+    let mut idx_right = ranges.len() - 1; // 左闭右闭
+
+    while idx_left <= idx_right {
+        let idx_mid = (idx_left + idx_right) / 2;
+        let (l, r) = ranges[idx_mid];
+
+        if l <= chr && chr <= r {
+            return idx_mid;
+        }
+
+        if l < chr {
+            idx_left = idx_mid + 1;
+        } else {
+            idx_right = idx_mid - 1;
+        }
+    }
+
+    // 在我的设计下，会有一个覆盖全集的大范围，不会出现这种情况
+    panic!("Not Find {}", chr)
+}
+
+

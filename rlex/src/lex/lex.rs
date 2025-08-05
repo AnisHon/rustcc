@@ -25,7 +25,6 @@ pub fn re2tokens(regex: &str) -> ReResult<Vec<ReToken>> {
         .map_err(|err| err.with_re(regex))?;
     let tokens = range_token(tokens) // 构建char class
         .map_err(|err| err.with_re(regex))?;
-
     Ok(tokens)
 }
 
@@ -111,6 +110,7 @@ fn handle_escape(chars: &mut Enumerate<Chars>) -> Result<ReToken, String> {
         ReToken::new(typ, chr.to_string(), 0)
     } else {
         let value = match chr {
+            '"' => Ok('"'),
             't' => Ok('\t'),
             'n' => Ok('\n'),
             'r' => Ok('\r'),

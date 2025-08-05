@@ -18,12 +18,22 @@ fn test_dfa_builder() {
     };
 
     let builder = CharClassBuilder::new((0, 0x10FFFF));
-    let char_class_set = builder.build_char_class_set(parser.get_ast());
+    let char_class_set = builder.build_char_class_set(vec![parser.get_ast()]);
 
     let mut builder = NFABuilder::new(char_class_set.clone());
     let nfa = builder.build(parser.get_ast());
 
-    let mut dfa_builder = DFABuilder::new(nfa, char_class_set.size());
+    let dfa_builder = DFABuilder::new(nfa, char_class_set.size(), |x, y| {
+        let mut prev = 0;
+        for &i in y {
+            let states = x.get_status(i);
+            prev = states.priority;
+            if states.terminate {
+                break;
+            }
+        }
+        prev
+    });
     let dfa = dfa_builder.build();
     let optimizer = DFAOptimizer::new(
         dfa,

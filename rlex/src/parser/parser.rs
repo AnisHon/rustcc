@@ -130,7 +130,8 @@ impl ReParser {
                 | ReTokenType::Range
                 | ReTokenType::Literal
                 | ReTokenType::LParen
-                | ReTokenType::CharClass => {
+                | ReTokenType::CharClass
+                | ReTokenType::Dot => {
                     // first遇到这些，继续解析
                     flag = false;
                     nodes.push(self.parse_sequence()?);
@@ -174,7 +175,13 @@ impl ReParser {
                 | ReTokenType::Range
                 | ReTokenType::Literal
                 | ReTokenType::LParen
-                | ReTokenType::CharClass => {
+                | ReTokenType::CharClass
+                | ReTokenType::DigitClass
+                | ReTokenType::NonDigitClass
+                | ReTokenType::WordClass
+                | ReTokenType::NonWordClass
+                | ReTokenType::NonSpaceClass
+                | ReTokenType::Dot => {
                     // first遇到这些，继续解析
                     nodes.push(self.parse_quantified()?);
                 }
@@ -209,14 +216,23 @@ impl ReParser {
             | ReTokenType::RParen
             | ReTokenType::Literal
             | ReTokenType::Pipe
-            | ReTokenType::CharClass => {
+            | ReTokenType::CharClass
+            | ReTokenType::DigitClass
+            | ReTokenType::NonDigitClass
+            | ReTokenType::WordClass
+            | ReTokenType::NonWordClass
+            | ReTokenType::NonSpaceClass
+            | ReTokenType::Dot => {
                 // 如果当前是 | ( Literal [ 则结束
                 return Ok(CSTNode::Quantified(Box::new(left)));
             }
             _ => {
                 // 错误处理
                 return Err(ReError::new(
-                    &format!("Illegal '{}' In Quantifier", next_token.value),
+                    &format!(
+                        "Illegal '{}'({:?}) In Quantifier",
+                        next_token.value, next_token.typ
+                    ),
                     next_token.pos,
                 ));
             }
@@ -242,6 +258,7 @@ impl ReParser {
             | ReTokenType::NonDigitClass
             | ReTokenType::WordClass
             | ReTokenType::NonWordClass
+            | ReTokenType::SpaceClass
             | ReTokenType::NonSpaceClass => CSTNode::MetaChar(token),
 
             _ => {
@@ -349,10 +366,13 @@ fn resolve_char_class(token: &ReToken) -> ReResult<ASTClassNode> {
         next = chars.get(i + 1);
 
         if curr == '-' {
+            // 非范围符
             if matches!(last, None) || matches!(next, None) || matches!(next, Some('^')) {
                 node_chars.push('-');
+            } else {
+                // 范围符号
+                node_ranges.push((last.unwrap(), *next.unwrap()));
             }
-            node_ranges.push((last.unwrap(), *next.unwrap()));
             i += 2;
         } else {
             node_chars.push(curr);
