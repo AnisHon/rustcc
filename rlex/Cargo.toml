@@ -6,7 +6,5 @@ edition = "2024"
 [dependencies]
 common.workspace = true
 tera = "1"
-heck = "0.4"
-
-
-
+heck = "0.5.0"
+bitvec = "1.0"

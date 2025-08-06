@@ -1,3 +1,4 @@
+#[derive(Copy, Clone, Debug)]
 pub enum TokenType {
     {%- for item in enums -%}
         {{ item }},
@@ -10,7 +11,7 @@ const STATE_MAP: [Option<TokenType>; {{ state_map_size }}] = [
     {%- endfor -%}
 ];
 
-const CHAR_CLASS: [(usize, usize); {{ char_class_size }}] = [
+const CHAR_CLASS: [(u32, u32); {{ char_class_size }}] = [
     {%- for item in char_class -%}({{ item[0] }}, {{ item[1] }}),{%- endfor -%}
 ];
 
@@ -22,24 +23,51 @@ const ASCII_MAPPING: [usize; 128] = [
     {%- for item in ascii_map -%}{{ item }},{%- endfor -%}
 ];
 
-const TABLE: [[Option<usize>; {{ stride }}]; {{ rows }}] = [
-{% for row in table %}[
-        {%- for item in row -%}
-            {%- if item %}Some({{ item }}){%- else %}None{%- endif -%},
-        {%- endfor -%}
-    ],
-{% endfor %}
+const BASE: [Option<usize>; {{ state_map_size }}] = [
+    {%- for item in base -%}
+        {%- if item %}Some({{ item }}){%- else %}None{%- endif -%},
+    {%- endfor -%}
 ];
+
+const NEXT: [usize; {{ next_size }}] = [
+    {%- for item in next -%}{{ item }},{%- endfor -%}
+];
+
+const CHECK: [Option<usize>; {{ next_size }}] = [
+    {%- for item in check -%}
+            {%- if item %}Some({{ item }}){%- else %}None{%- endif -%},
+    {%- endfor -%}
+];
+
+pub const INIT_STATE: usize = {{ init_state }};
 
 pub fn find_token(state_id: usize) -> Option<TokenType> {
     STATE_MAP[state_id]
 }
 
-pub fn find_next(state_id: usize, class_id: usize) -> Option<StateID> {
-    self.transitions[state_id][class_id]
+pub fn find_next(state_id: usize, chr: char) -> Option<usize> {
+
+    let class_id = find_char(chr);
+    let base = BASE[state_id];
+    if base.is_none() {
+        return None
+    }
+
+    let idx = base.unwrap() + class_id;
+    let check = CHECK[idx];
+    if check.is_none() {
+        return None
+    }
+
+
+    if check.unwrap() == state_id {
+        Some(NEXT[idx])
+    } else {
+        None
+    }
 }
 
-pub fn find_char(chr: char) -> usize {
+fn find_char(chr: char) -> usize {
     let idx = find_idx(chr);
     CHAR_CLASS_MAP[idx]
 }
@@ -50,12 +78,13 @@ fn find_idx(chr: char) -> usize {
         ASCII_MAPPING[chr as usize]
     } else {
         // 慢路径
-        binary_search(CHAR_CLASS, chr as u32) // 出错会触发panic
+        binary_search(chr as u32) // 出错会触发panic
     }
 }
 
 /// 二分查找
-pub fn binary_search(ranges: &Vec<(u32, u32)>, chr: u32) -> usize {
+fn binary_search(chr: u32) -> usize {
+    let ranges = &CHAR_CLASS;
     let mut idx_left = 0;
     let mut idx_right = ranges.len() - 1; // 左闭右闭
 
@@ -77,5 +106,7 @@ pub fn binary_search(ranges: &Vec<(u32, u32)>, chr: u32) -> usize {
     // 在我的设计下，会有一个覆盖全集的大范围，不会出现这种情况
     panic!("Not Find {}", chr)
 }
+
+
 
 
