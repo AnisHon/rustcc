@@ -7,7 +7,7 @@ use rlex::parser::parser::ReParser;
 
 #[test]
 fn test_dfa_builder() {
-    let tokens = match re2tokens(r"a(a|b)cd*e?f{2,4}") {
+    let tokens = match re2tokens(r"'([^\\'\n]|\\.)*'") {
         Ok(tokens) => tokens,
         Err(e) => panic!("{:}", e),
     };
@@ -27,7 +27,7 @@ fn test_dfa_builder() {
         let mut prev = 0;
         for &i in y {
             let states = x.get_status(i);
-            prev = states.priority;
+            prev = i;
             if states.terminate {
                 break;
             }
@@ -54,7 +54,7 @@ fn test_dfa_builder() {
 
     let mut state = dfa.get_init_state();
 
-    for chr in "aacddddeffff".to_string().chars() {
+    for chr in r"'\n'".to_string().chars() {
         println!("{:?}", dfa.get_meta(state));
         let chr = char_class_set.find_char(chr);
         state = match dfa.find_next(state, chr) {

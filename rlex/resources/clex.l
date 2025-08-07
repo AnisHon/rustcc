@@ -97,8 +97,8 @@ OCT                 0[0-7]*([uU]?[lL]{0,2}|[lL]{1,2}[uU]?)?
 INT                 (0|[1-9][0-9]*)([uU]?[lL]{0,2}|[lL]{1,2}[uU]?)?
 FLOAT               (([0-9]+\.[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)([fFlL])?
 
-STRING_LITERAL      \"([^"\\\n]|.)*\"
-CHARACTER_CONSTANT  '(\\.|[^\\'\n])+'
+STRING_LITERAL      \"([^"\\\n]|\\.)*\"
+CHARACTER_CONSTANT  '([^\\'\n]|\\.)*'
 
 LINE_COMMENT        //.*
 BLOCK_COMMENT       /\*

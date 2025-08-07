@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
-static STR_TO_ENUM: OnceLock<HashMap<char, ReTokenType>> = OnceLock::new();
+static STR_TO_ENUM: OnceLock<BTreeMap<char, ReTokenType>> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ReTokenType {

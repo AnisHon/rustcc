@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TokenType {
     {%- for item in enums -%}
         {{ item }},
@@ -23,21 +23,13 @@ const ASCII_MAPPING: [usize; 128] = [
     {%- for item in ascii_map -%}{{ item }},{%- endfor -%}
 ];
 
-const BASE: [Option<usize>; {{ state_map_size }}] = [
-    {%- for item in base -%}
-        {%- if item %}Some({{ item }}){%- else %}None{%- endif -%},
-    {%- endfor -%}
-];
+const BASE: [Option<usize>; {{ state_map_size }}] = {{ base }};
 
 const NEXT: [usize; {{ next_size }}] = [
     {%- for item in next -%}{{ item }},{%- endfor -%}
 ];
 
-const CHECK: [Option<usize>; {{ next_size }}] = [
-    {%- for item in check -%}
-            {%- if item %}Some({{ item }}){%- else %}None{%- endif -%},
-    {%- endfor -%}
-];
+const CHECK: [Option<usize>; {{ next_size }}] = {{ check }};
 
 pub const INIT_STATE: usize = {{ init_state }};
 

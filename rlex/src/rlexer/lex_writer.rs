@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use crate::rlexer::lexer::Lexer;
 use bitvec::bitvec;
 use bitvec::prelude::BitVec;
@@ -5,7 +6,6 @@ use common::lex::{ClassID, StateID};
 use heck::ToUpperCamelCase;
 use std::fs;
 use tera::{Context, Tera};
-
 const TEMPLATE: &str = include_str!("../../resources/lex.rs.tera");
 pub struct LexWriter {
     path: String,
@@ -15,6 +15,24 @@ pub struct LexWriter {
 impl LexWriter {
     pub fn new(path: String, lexer: Lexer) -> Self {
         Self { path, lexer }
+    }
+
+    /// Tera真不好用，远不如Thymeleaf 和 JSP
+    /// 自己转字符串
+    fn optional_to_string<T>(vec: Vec<Option<T>>) -> String
+    where T: Display
+    {
+        let mut value = "[".to_string();
+        for x in vec {
+            let to_string = match x {
+                None => "None",
+                Some(x) => &format!("Some({})", x)
+            };
+            value.push_str(to_string);
+            value.push(',')
+        }
+        value.push(']');
+        value
     }
 
     pub fn write(self) {
@@ -40,7 +58,8 @@ impl LexWriter {
             .collect();
 
         let (base, next, check) = self.compress_dfa();
-
+        let base = Self::optional_to_string(base);
+        let check = Self::optional_to_string(check);
 
         // 准备上下文
         let mut context = Context::new();
@@ -71,7 +90,7 @@ impl LexWriter {
 
     }
 
-    /// 压缩DFA矩阵
+    /// 压缩DFA矩阵 134
     fn compress_dfa(&self) -> (Vec<Option<usize>>, Vec<usize>, Vec<Option<StateID>>) {
         let dfa = self.lexer.get_dfa();
         let mut bitmap = bitvec![0; dfa.get_stride()];
@@ -109,6 +128,7 @@ impl LexWriter {
             }
             base[state] = Some(offset);
         }
+
         (base, next, check)
     }
 
@@ -161,8 +181,9 @@ impl LexWriter {
 
 #[test]
 fn test_lex_writer() {
+    println!("{}", LexWriter::optional_to_string(vec![None, Some(1), Some(0)]));
     // 构造二维数组
-    let table = vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]];
-    let mut tera = Tera::default();
-    tera.add_raw_template("lex_yy.tera", TEMPLATE).unwrap();
+    // let table = vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]];
+    // let mut tera = Tera::default();
+    // tera.add_raw_template("lex_yy.tera", TEMPLATE).unwrap();
 }
