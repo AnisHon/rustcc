@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 ///
 /// 通过二分查找获取ranges的索引，通过class_map查询 索引 -> class_id
@@ -11,7 +11,7 @@ pub struct CharClassSet {
 }
 
 impl CharClassSet {
-    pub fn new(ranges: Vec<(u32, u32, HashSet<usize>)>) -> Self {
+    pub fn new(ranges: Vec<(u32, u32, BTreeSet<usize>)>) -> Self {
         let class_map = Self::build_class_id_table(&ranges); // 通过 tag_ids 构建 class_id表
         let ranges: Vec<_> = ranges // 转换为结构体ranges类型
             .into_iter()
@@ -45,8 +45,8 @@ impl CharClassSet {
         &self.ascii_mapping
     }
 
-    fn build_class_id_table(ranges: &Vec<(u32, u32, HashSet<usize>)>) -> Vec<usize> {
-        let mut tag_class_map: HashMap<Vec<usize>, usize> = HashMap::new();
+    fn build_class_id_table(ranges: &Vec<(u32, u32, BTreeSet<usize>)>) -> Vec<usize> {
+        let mut tag_class_map: BTreeMap<Vec<usize>, usize> = BTreeMap::new();
         let mut next_class_id = 0;
         let mut class_map = Vec::new();
         class_map.reserve(ranges.len());
@@ -95,10 +95,10 @@ impl CharClassSet {
     }
 
     /// 查询区间 [begin, end]
-    pub fn find_interval(&self, begin: char, end: char) -> HashSet<usize> {
+    pub fn find_interval(&self, begin: char, end: char) -> BTreeSet<usize> {
         let begin_idx = self.find_idx(begin);
         let end_idx = self.find_idx(end);
-        let mut interval = HashSet::new(); // class_id相对离散，无法连续表示，但是好在范围足够小
+        let mut interval = BTreeSet::new(); // class_id相对离散，无法连续表示，但是好在范围足够小
         // 一般区间查询都是供给内部使用，应当都是切分点，否则一定出错
         assert_eq!(begin as u32, self.ranges[begin_idx].0);
         assert_eq!(end as u32, self.ranges[end_idx].1);
@@ -109,13 +109,13 @@ impl CharClassSet {
     }
 
     /// 查询翻转区间 全集U U - [begin, end]
-    pub fn find_reverse_interval(&self, begin: char, end: char) -> HashSet<usize> {
+    pub fn find_reverse_interval(&self, begin: char, end: char) -> BTreeSet<usize> {
         let begin_idx = self.find_idx(begin);
         let end_idx = self.find_idx(end);
-        let mut interval = HashSet::new();
+        let mut interval = BTreeSet::new();
         assert_eq!(begin as u32, self.ranges[begin_idx].0);
         assert_eq!(end as u32, self.ranges[end_idx].1);
-
+        
         interval.extend(&self.class_map[..begin_idx]); // [0, begin_idx)
         interval.extend(&self.class_map[end_idx + 1..]); // (end_idx, max]
 

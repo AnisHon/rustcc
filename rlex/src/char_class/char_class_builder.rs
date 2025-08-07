@@ -1,6 +1,7 @@
 use crate::char_class::char_class_set::CharClassSet;
 use crate::parser::ast::ASTNode;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeSet, VecDeque};
+use bitvec::macros::internal::funty::Fundamental;
 
 pub struct CharClassBuilder {
     total_set: (u32, u32), // 字符集 全集比如 0-127 比如 0-0x10FFFF
@@ -14,6 +15,7 @@ impl CharClassBuilder {
     pub fn build_char_class_set(&self, ast_vec: Vec<&ASTNode>) -> CharClassSet {
         let mut ranges = get_ranges(ast_vec);
         ranges.insert(self.total_set); // 添加一个 unicode 全集
+
         let ranges = build_range(ranges);
         CharClassSet::new(ranges)
     }
@@ -47,13 +49,13 @@ enum Status {
 /// 1. 假设区间[l, r]可以通过二分查找到l的区间和r的索引计作a, b
 /// 2. 维护一个表记录每个索引对应的class_id，这个class_id是通过active集合计算的，active集合相同则class_id相同
 /// 3. 遍历a..=b 得到多个class_id 返回Vec<usize>
-fn build_range(ranges: HashSet<(u32, u32)>) -> Vec<(u32, u32, HashSet<usize>)> {
+fn build_range(ranges: BTreeSet<(u32, u32)>) -> Vec<(u32, u32, BTreeSet<usize>)> {
     if ranges.is_empty() {
         return Vec::new();
     }
     // [(l/r, status, tag_id), ...]，pointes采用左闭右开区间
     let mut points: Vec<(u32, Status, usize)> = Vec::new();
-    let mut active_tag = HashSet::new();
+    let mut active_tag = BTreeSet::new();
     let mut results = Vec::new();
     for (i, (l, r)) in ranges.into_iter().enumerate() {
         let tag_id = i;
@@ -81,8 +83,8 @@ fn build_range(ranges: HashSet<(u32, u32)>) -> Vec<(u32, u32, HashSet<usize>)> {
 }
 
 /// 迭代遍历节点获取所有出现的字符
-fn get_ranges(ast: Vec<&ASTNode>) -> HashSet<(u32, u32)> {
-    let mut ranges: HashSet<(u32, u32)> = HashSet::new();
+fn get_ranges(ast: Vec<&ASTNode>) -> BTreeSet<(u32, u32)> {
+    let mut ranges: BTreeSet<(u32, u32)> = BTreeSet::new();
     let mut queue = VecDeque::from_iter(ast);
 
     while !queue.is_empty() {
@@ -102,6 +104,9 @@ fn get_ranges(ast: Vec<&ASTNode>) -> HashSet<(u32, u32)> {
                     let (l, r) = x;
                     ranges.insert((*l as u32, *r as u32));
                 });
+                if node.dot {
+                    ranges.insert(('\n'.as_u32(), '\n'.as_u32()));
+                }
             }
             ASTNode::Star(node)
             | ASTNode::Question(node)

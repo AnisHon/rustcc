@@ -1,7 +1,8 @@
 use common::lex::state_id_factory::IncrementalStateIDFactory;
 use common::lex::{ClassID, DFA, NFA, NFASymbol, StateID};
 use common::utils::unique_id_factory::UniqueIDFactory;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use common::utils::to_btree::to_btree_map;
 
 pub struct DFABuilder {
     nfa: NFA,
@@ -120,7 +121,7 @@ impl DFABuilder {
     fn build_status_table(
         &mut self,
         translate_table: &Vec<(BTreeSet<StateID>, ClassID, BTreeSet<StateID>)>,
-    ) -> HashMap<BTreeSet<StateID>, StateID> {
+    ) -> BTreeMap<BTreeSet<StateID>, StateID> {
         let mut table = HashMap::new();
 
         translate_table.iter().for_each(|(states, _, goto_states)| {
@@ -130,13 +131,13 @@ impl DFABuilder {
                 .or_insert_with(|| self.id());
         });
 
-        table
+        to_btree_map(table) // 减少不确定性
     }
 
     fn build_dfa(
         &self,
         translate_table: Vec<(BTreeSet<StateID>, ClassID, BTreeSet<StateID>)>,
-        state_table: HashMap<BTreeSet<StateID>, StateID>,
+        state_table: BTreeMap<BTreeSet<StateID>, StateID>,
     ) -> DFA {
         let init_state = self.epsilon_closure(&BTreeSet::from([self.nfa.get_init_state()]));
         let init_state = state_table[&init_state];

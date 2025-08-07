@@ -1,9 +1,9 @@
 use crate::char_class::char_class_set::CharClassSet;
 use crate::parser::ast::{ASTClassNode, ASTNode, ASTRangeNode};
 use common::lex::state_id_factory::IncrementalStateIDFactory;
-use common::lex::{ClassID, NFA, NFASymbol, StateID, StateMeta};
+use common::lex::{ClassID, NFASymbol, StateID, StateMeta, NFA};
 use common::utils::unique_id_factory::UniqueIDFactory;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 struct PartialNFA(NFA, usize);
 
@@ -33,12 +33,12 @@ impl NFABuilder {
     }
 
     /// 同上 [begin, end]
-    fn interval(&self, beg: char, end: char) -> HashSet<usize> {
+    fn interval(&self, beg: char, end: char) -> BTreeSet<usize> {
         self.char_class_set.find_interval(beg, end)
     }
 
     /// 同上 U - [begin, end]
-    fn reverse_interval(&self, beg: char, end: char) -> HashSet<usize> {
+    fn reverse_interval(&self, beg: char, end: char) -> BTreeSet<usize> {
         self.char_class_set.find_reverse_interval(beg, end)
     }
 
@@ -152,7 +152,7 @@ impl NFABuilder {
                     .iter()
                     .map(|chr| self.reverse_interval(*chr, *chr)),
             ) // 处理反转字符
-            .reduce(|a, b| a.intersection(&b).cloned().collect::<HashSet<_>>());
+            .reduce(|a, b| a.intersection(&b).cloned().collect::<BTreeSet<_>>());
 
         if let Some(interval) = interval {
             // 设置边

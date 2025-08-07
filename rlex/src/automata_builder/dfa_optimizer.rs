@@ -2,6 +2,7 @@ use common::lex::state_id_factory::IncrementalStateIDFactory;
 use common::lex::{ClassID, DFA, StateID, StateMeta};
 use common::utils::unique_id_factory::UniqueIDFactory;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use common::utils::to_btree::{to_btree_map, to_btree_set};
 
 /// DFA优化，惰性求值
 ///
@@ -175,7 +176,7 @@ impl DFAOptimizer {
     }
 
     /// hopcroft 最小化等价类划分算法
-    fn hopcroft(&self) -> HashSet<BTreeSet<StateID>> {
+    fn hopcroft(&self) -> BTreeSet<BTreeSet<StateID>> {
         let vec = self.init_partition(); // 初始划分
         let mut partition = HashSet::from_iter(vec.into_iter());
         let mut worklist = partition.clone();
@@ -204,11 +205,11 @@ impl DFAOptimizer {
             }
         }
 
-        partition
+        to_btree_set(partition) // 减少不确定性
     }
 
     // 构建划分表 旧状态 -> 新状态
-    fn build_partition_table(&mut self, partition: HashSet<BTreeSet<StateID>>) -> Vec<StateID> {
+    fn build_partition_table(&mut self, partition: BTreeSet<BTreeSet<StateID>>) -> Vec<StateID> {
         let mut table = Vec::new();
         table.resize(self.states.len(), 0);
 
@@ -226,7 +227,7 @@ impl DFAOptimizer {
     fn build_transaction_table(
         &self,
         partition: &Vec<StateID>,
-    ) -> HashMap<(StateID, ClassID), StateID> {
+    ) -> BTreeMap<(StateID, ClassID), StateID> {
         let mut transaction_table = HashMap::new();
 
         for (from, symbols) in self.symbol_table.iter().enumerate() {
@@ -240,14 +241,14 @@ impl DFAOptimizer {
             }
         }
 
-        transaction_table
+        to_btree_map(transaction_table)  // 减少不确定性
     }
 
     /// 构建DFA
     fn build_dfa(
         &self,
         partition_table: Vec<StateID>,
-        transaction_table: HashMap<(StateID, ClassID), StateID>,
+        transaction_table: BTreeMap<(StateID, ClassID), StateID>,
     ) -> DFA {
         let reverse_partition_table = self.build_reverse_partition_table(&partition_table);
 
@@ -280,8 +281,8 @@ impl DFAOptimizer {
         let mut reverse_partition_table = Vec::new();
         reverse_partition_table.resize_with(states.len(), BTreeSet::new);
 
-        for (new_state, &old_state) in partition_table.iter().enumerate() {
-            reverse_partition_table[old_state].insert(new_state);
+        for (old_state, &new_state) in partition_table.iter().enumerate() {
+            reverse_partition_table[new_state].insert(old_state);
         }
 
         reverse_partition_table
