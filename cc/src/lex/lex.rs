@@ -190,40 +190,8 @@ fn test_lex() {
         let tok = tok.unwrap();
         println!("{:?}", tok);
     }
-
-    // for i in 0..=81usize {
-    //     let offset = BASE[139];
-    //     if offset.is_none() {
-    //         print!("None");
-    //         continue;
-    //     }
-    //     let pos = offset.unwrap() + i;
-    //     println!("{:?}", CHECK[pos])
-    //
-    // }
-
-    // let mut state = INIT_STATE;
-
-    // for chr in "23".chars() {
-    //     state = find_next(state, chr).unwrap();
-    //     println!("{:?}", find_token(state));
-    // }
-
-    //
-    // println!("{:?}", find_token(207));
-    //
-    // println!("{:?}", BASE[207]);
-
-
-    // let mut state = INIT_STATE;
-    // for x in "// abc".chars() {
-    //     state = find_next(state, x).unwrap();
-    //     println!("{:?}", find_token(state));
-    // }
-
-
-
-
-
+    
+    
+    
 
 }

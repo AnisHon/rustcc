@@ -13,8 +13,8 @@ pub struct LexWriter {
 }
 
 impl LexWriter {
-    pub fn new(path: String, lexer: Lexer) -> Self {
-        Self { path, lexer }
+    pub fn new(path: &str, lexer: Lexer) -> Self {
+        Self { path: path.to_string(), lexer }
     }
 
     /// Tera真不好用，远不如Thymeleaf 和 JSP

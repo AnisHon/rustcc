@@ -565,6 +565,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rparser"
+version = "0.1.0"
+dependencies = [
+ "common",
+]
+
+[[package]]
 name = "rustcc"
 version = "0.1.0"
 
