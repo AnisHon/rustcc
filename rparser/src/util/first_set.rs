@@ -1,6 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::str::from_boxed_utf8_unchecked;
-use crate::common::grammar::{Grammar, SymbolBound, Rule, RuleID, RuleVec, Symbol, EpsilonSymbol};
+use crate::common::grammar::{EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
+use std::collections::{BTreeMap, BTreeSet};
 //
 // struct FirstSetBuilder<T> {
 //
@@ -31,7 +30,7 @@ pub fn get_rules<T: SymbolBound>(grammar: &Grammar<T>) -> BTreeMap<usize, &RuleV
     rules
 }
 
-/// 为推导式构建first set
+/// 为推导式构建增量first set，并非构建完整first，只处理change=True的增量部分
 fn calc_first_set<T: SymbolBound>(
     alter_rule: &RuleVec<T>,
     first_map: &FirstMap<T>,
@@ -103,7 +102,7 @@ pub fn build_first<T: SymbolBound>(grammar: &Grammar<T>) -> FirstMap<T> {
         changes = false;
 
         for (&rule_id, alter_rules) in rules.iter() {
-            let mut next_first_set = calc_first_set(alter_rules, &first_map, &change_tracker); // 计算规则的first
+            let mut next_first_set = calc_first_set(alter_rules, &first_map, &change_tracker); // 计算规则的增量 first
 
             let first_set = first_map.get_mut(&rule_id).unwrap(); // 更新规则的first
 

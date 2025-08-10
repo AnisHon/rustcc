@@ -1,4 +1,9 @@
+//! 文法相关的类型
+//! 大致结构是 Symbol(T|NT) -> Rule(vec<SymbolVec>|Epsilon) -> Grammar(Vec<RuleVec>)
+//! EndSymbol EpsilonSymbol 适用于特殊情况，只需要终结符、结束符 和 只需要终结符 空字符的情况
+//! 比如first set 与 follow set lookahead
 use std::fmt::Debug;
+use std::hash::Hash;
 use crate::common::grammar::Symbol::{NonTerminal, Terminal};
 
 pub type RuleID = usize;
@@ -8,13 +13,12 @@ pub type SymbolVec<T> = Vec<Symbol<T>>;  // 表示一个推导式
 pub type RuleVec<T> = Vec<Rule<T>>;
 
 
-pub trait SymbolBound: Clone + Debug + Ord + PartialOrd + Eq + PartialEq {}
-impl<T> SymbolBound for T where T: Clone + Debug + Ord + PartialOrd + Eq + PartialEq {}
+pub trait SymbolBound: Clone + Debug + Ord + PartialOrd + Eq + PartialEq + Hash {}
+impl<T> SymbolBound for T where T: Clone + Debug + Ord + PartialOrd + Eq + PartialEq + Hash {}
 
 #[derive(Clone, Debug)]
 pub struct RuleMeta {
     pub name: String,   // 推导式的名字
-    pub optional: bool, // 是否是可选的，是否能推导出空
 }
 
 /// 单个符号类型
@@ -25,7 +29,8 @@ pub enum Symbol<T: SymbolBound> {
 }
 
 /// 用于lookahead follow的Symbol类型，结束符号和终结符号
-#[derive(PartialOrd, PartialEq, Eq, Ord)]
+#[derive(PartialOrd, PartialEq, Eq, Ord, Clone)]
+#[derive(Hash)]
 pub enum EndSymbol<T: SymbolBound> {
     End,
     Symbol(T),
@@ -54,6 +59,15 @@ impl<T: SymbolBound> Debug for Symbol<T> {
 pub enum Rule<T: SymbolBound> {
     Epsilon, // 空推导式
     Expression(SymbolVec<T>),
+}
+
+impl<T: SymbolBound> Rule<T> {
+    pub fn unwrap_expr(&self) -> &SymbolVec<T> {
+        match self {
+            Rule::Epsilon => panic!("Rule Is Epsilon"),
+            Rule::Expression(x) => x
+        }
+    }
 }
 
 /// 文法规则
@@ -109,7 +123,5 @@ impl<T: SymbolBound> Grammar<T> {
         self.rule_meta[rule_id] = Some(meta);
         
     }
-    
-
 }
 

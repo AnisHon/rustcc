@@ -1,19 +1,24 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+//! 
+//! LR0分析器转移构建，不负责生成最终转移表
+//!
+use crate::common::grammar::{Grammar, Rule, RuleID, RuleMeta, RuleVec, Symbol, SymbolBound};
+use crate::common::lr_type::{ItemID, LRItemManager};
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
-use crate::common::grammar::{Grammar, SymbolBound, RuleID, SymbolVec, Symbol, RuleVec, RuleMeta, Rule};
-use crate::common::lr_type::LR0Item;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// 只构建DFA状态机不检查冲突
 pub struct LR0Builder<'a, T: SymbolBound> {
     grammar: &'a Grammar<T>,
+    manager: LRItemManager<'a, T>,
     id_factory: IncIDFactory,
 }
 
 impl<'a, T: SymbolBound> LR0Builder<'a, T> {
 
     pub fn new(grammar: &'a Grammar<T>) -> Self {
-        Self { grammar, id_factory: IncIDFactory::new(0) }
+        let manager = LRItemManager::new(grammar);
+        Self { grammar, id_factory: IncIDFactory::new(0), manager }
     }
 
 
@@ -22,16 +27,18 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
         self.grammar.get_rule(rule_id).expect(format!("rule id {} not found", rule_id).as_str())
     }
 
+    fn get_manager(&self) -> &LRItemManager<T> {
+        &self.manager
+    }
+
     /// 项目集闭包
-    fn item_closure(&self, items: BTreeSet<LR0Item<T>>) -> BTreeSet<LR0Item<T>> {
-        let mut closure_set = BTreeSet::from_iter(items.iter().cloned()); // 集合初始化默认元素
-        let mut queue: VecDeque<LR0Item<T>> =  // 初始化队列，不会压入重复元素
-            VecDeque::from_iter(items.into_iter());
+    fn item_closure(&mut self, items: BTreeSet<ItemID>) -> BTreeSet<ItemID> {
+        let mut closure_set: BTreeSet<ItemID> = items.clone(); // 集合初始化默认元素
+        let mut queue: VecDeque<ItemID> = VecDeque::from_iter(items.into_iter()); // 初始化队列，不会压入重复元素
 
         while !queue.is_empty(){
-            let item = queue.pop_front().unwrap();
-            let next_symbol = item.next_symbol();
-
+            let item_id = queue.pop_front().unwrap();
+            let next_symbol = self.manager.next_symbol(item_id);
 
             // 下一个symbol
             let symbol = match next_symbol {
@@ -47,7 +54,8 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
 
             // 非终结符
             let alter_rules = self.get_rule(rule_id);
-            let items = alter_rules.iter().map(LR0Item::from_rule);
+            let items = (0..alter_rules.len())
+                .map(|alter_idx| self.manager.lr0_item(rule_id, alter_idx));
             // 拓展非终结符
             for item in items {
                 // 新项目压入队列，继续闭包
@@ -66,14 +74,14 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     /// ### parameters
     /// items: 内部的LR0Item项目集，必须全是经过symbol转移的，该函数不负责过滤
     /// symbol: 下一次转移符号
-    ///
-    fn item_goto(&self, items: BTreeSet<&LR0Item<T>>, symbol: Symbol<T>) -> BTreeSet<LR0Item<T>> {
+    fn item_goto(&mut self, items: BTreeSet<ItemID>, symbol: Symbol<T>) -> BTreeSet<ItemID> {
         let items: BTreeSet<_> = items.iter()// 移动GO操作
-            .map(|item| {
-                assert!(item.next_symbol().is_some()); // 非规约项目
-                assert_eq!(item.next_symbol().unwrap(), symbol); // 下一个符号是当前符号
-                item.move_next() // 转移
-            }).collect();
+            .map(|&item_id| {
+                assert!(self.manager.next_symbol(item_id).is_some()); // 非规约项目
+                assert_eq!(self.manager.next_symbol(item_id).unwrap(), symbol); // 下一个符号是当前符号
+                self.manager.move_next(item_id)
+            })
+            .collect();
 
         if items.is_empty() {
             BTreeSet::new()
@@ -83,30 +91,33 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     }
 
     /// 获取项目集转移符号
-    fn item_symbols(&self, items: &'a BTreeSet<LR0Item<T>>) -> BTreeMap<Symbol<T>, BTreeSet<&'a LR0Item<T>>> {
+    fn item_symbols(&self, items: &BTreeSet<ItemID>) -> BTreeMap<Symbol<T>, BTreeSet<ItemID>> {
         let mut symbols_table = BTreeMap::new();
-        for item in items.iter() {
-            let symbol = match item.next_symbol() {
+        for &item_id in items.iter() {
+            let symbol = match self.manager.next_symbol(item_id) {
                 None => continue,
                 Some(x) => x
             };
-            symbols_table.entry(symbol).or_insert(BTreeSet::new()).insert(item);
+            symbols_table.entry(symbol).or_insert(BTreeSet::new()).insert(item_id);
         }
         symbols_table
     }
 
     /// 获取初始集合
-    fn init_item_set(&self) -> BTreeSet<LR0Item<T>> {
+    fn init_item_set(&mut self) -> BTreeSet<ItemID> {
         let start_rule_id = self.grammar.get_start_rule();
-        let start = self.grammar.get_rule(start_rule_id).unwrap().into_iter().map(LR0Item::from_rule);
-        self.item_closure(BTreeSet::from_iter(start))
+        let alter_sz = self.grammar.get_rule(start_rule_id).unwrap().len();
+        let start: BTreeSet<_> =
+            (0..alter_sz).map(|idx| self.manager.lr0_item(start_rule_id, idx)).collect();
+
+        self.item_closure(start)
     }
 
     /// 构建表
     /// ### return
     /// id2items_table: id映射表items_id -> item_set
     /// lr0_table: LR0表，使用三元组表示(items_id, symbol, items_id)
-    pub fn build_table(&mut self) -> (BTreeMap<usize, BTreeSet<LR0Item<T>>>, Vec<(usize, Symbol<T>, usize)>) {
+    pub fn build_table(&mut self) -> (BTreeMap<usize, BTreeSet<ItemID>>, Vec<(usize, Symbol<T>, usize)>) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set]);
         let mut items2id_table = BTreeMap::new(); // item_set -> item_id
@@ -136,13 +147,6 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
             .collect();
         (id2items_table, lr0_table)
     }
-
-
-
-
-
-
-
 }
 
 
@@ -172,26 +176,23 @@ fn test() {
 
     let mut grammar = Grammar::new(0);
     for (idx, alter_rules) in rules.into_iter().enumerate() {
-        grammar.add_rule(idx, alter_rules, RuleMeta {name: idx.to_string(), optional: false});
+        grammar.add_rule(idx, alter_rules, RuleMeta {name: idx.to_string()});
     }
-
-    let init = grammar.get_rule(grammar.get_start_rule()).unwrap().into_iter().map(LR0Item::from_rule);
-    let init = BTreeSet::from_iter(init);
 
     let mut builder = LR0Builder::new(&grammar);
     let (id2items_table,  transition) = builder.build_table();
     // println!("{:#?}", );
 
-    // for (from, sym, to) in transition {
-    //     let from = id2items_table.get(&from).unwrap();
-    //     let to  = id2items_table.get(&to).unwrap();
-    //     let sym: &str = match sym {
-    //         Symbol::Terminal(x) => &x.to_string(),
-    //         Symbol::NonTerminal(x) => &grammar.get_meta(x).unwrap().name,
-    //     };
-    //
-    //     println!("{:?}\n\t{:?} -> {:?}", from, sym, to);
-    // }
+    for (from, sym, to) in transition {
+        let from = id2items_table.get(&from).unwrap();
+        let to  = id2items_table.get(&to).unwrap();
+        let sym: &str = match sym {
+            Symbol::Terminal(x) => &x.to_string(),
+            Symbol::NonTerminal(x) => &grammar.get_meta(x).unwrap().name,
+        };
+
+        println!("{:?}\n\t{:?} -> {:?}", from, sym, to);
+    }
 
     // let first = build_first(&grammar);
     // println!("{:?}", first);
