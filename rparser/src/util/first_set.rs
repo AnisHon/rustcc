@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::str::from_boxed_utf8_unchecked;
 use crate::common::grammar::{Grammar, SymbolBound, Rule, RuleID, RuleVec, Symbol, EpsilonSymbol};
 //
 // struct FirstSetBuilder<T> {
@@ -11,16 +12,9 @@ use crate::common::grammar::{Grammar, SymbolBound, Rule, RuleID, RuleVec, Symbol
 //     fn build(grammar: Grammar<T>)
 //
 // }
+
+/// FirstMap类型
 pub type FirstMap<T> = BTreeMap<RuleID, BTreeSet<EpsilonSymbol<T>>>;
-pub fn is_optional<T: SymbolBound>(rule_vec: &RuleVec<T>) -> bool {
-    for rule in rule_vec {
-        match rule {
-            Rule::Epsilon => return true,
-            Rule::Expression(_) => continue
-        }
-    }
-    false
-}
 
 
 pub fn get_rules<T: SymbolBound>(grammar: &Grammar<T>) -> BTreeMap<usize, &RuleVec<T>> {
@@ -37,26 +31,33 @@ pub fn get_rules<T: SymbolBound>(grammar: &Grammar<T>) -> BTreeMap<usize, &RuleV
     rules
 }
 
-fn compute_first_set<T: SymbolBound>(alter_rule: &RuleVec<T>, first_map: &FirstMap<T>) -> BTreeSet<EpsilonSymbol<T>> {
+/// 为推导式构建first set
+fn calc_first_set<T: SymbolBound>(
+    alter_rule: &RuleVec<T>,
+    first_map: &FirstMap<T>,
+    change_tracker: &BTreeMap<RuleID, bool>
+) -> BTreeSet<EpsilonSymbol<T>> {
     let mut first_set = BTreeSet::new();
-    let mut optional = false; // 全局角度能否推出空
+    let mut nullable = false; // 全局角度能否推出空
 
     for rule in alter_rule.iter() {
         let expr = match rule {
             Rule::Epsilon => {
                 first_set.insert(EpsilonSymbol::Epsilon);
-                continue
+                nullable = true; // 直接推导出Epsilon
+                continue  // Epsilon什么都不用处理，跳过
             },
             Rule::Expression(x) => x
         };
 
-        let mut is_epsilon = true; // 局部追踪能否推导空
+        let mut expr_nullable = true; // 局部追踪能否推导空
         assert!(!expr.is_empty()); // 空集合不应该出现在这里，应该被构建为Epsilon
 
         for sym in expr {
+            // 非终结符继续构造，合并first，确定nullable
             let next_rule_id = match sym {
                 Symbol::Terminal(x) => {
-                    is_epsilon = false; // 推出终结符不能推导空
+                    expr_nullable = false; // 推出终结符不能推导空
                     first_set.insert(EpsilonSymbol::Symbol(x.clone()));
                     break; // 终结符停止构造
                 },
@@ -64,51 +65,57 @@ fn compute_first_set<T: SymbolBound>(alter_rule: &RuleVec<T>, first_map: &FirstM
             };
 
             let next_first_set = first_map.get(&next_rule_id).unwrap();
-            first_set.extend(next_first_set.iter().cloned());
+            if change_tracker[next_rule_id] { // 有改变，则合并，否则跳过
+                first_set.extend(next_first_set.iter().cloned());
+            }
 
-            if !next_first_set.contains(&EpsilonSymbol::Epsilon) { // 停止构造
-                is_epsilon = false; // 推出不推导空的非终结符不能推导空
+            // 不推导空，停止构造
+            if !next_first_set.contains(&EpsilonSymbol::Epsilon) {
+                expr_nullable = false; // 当前也一定不能推导空
                 break;
             }
         }
 
-        optional = optional || is_epsilon; // 表示ture优先，只要存在ture则optional为ture
+        nullable = nullable || expr_nullable; // 表示ture优先，只要存在ture则optional为ture
     }
 
-    if !optional { // 不能推导空直接删掉空
+    if !nullable { // 不能推导空就直接删掉空
         first_set.remove(&EpsilonSymbol::Epsilon);
     }
 
     first_set
 }
-pub fn build_first_set<T: SymbolBound>(grammar: &Grammar<T>) {
+
+/// 计算文法规则的first集
+/// ### return
+/// FistMap<T>: RuleId -> First Set(BTreeSet<Symbol>)
+pub fn build_first<T: SymbolBound>(grammar: &Grammar<T>) -> FirstMap<T> {
     let rules = get_rules(grammar);
-    let mut first_map: FirstMap<T> = BTreeMap::new(); // 推导式到first集合的表
-
-    for (&rule_id, _) in rules.iter() {
-        first_map.insert(rule_id, BTreeSet::new()); // 初始化一下
-    }
-
-
+    let mut first_map: FirstMap<T> = rules.iter()   // 推导式到first集合的表
+        .map(|(&rule_id, _)| (rule_id, BTreeSet::new()))// 初始化表
+        .collect();
+    let mut change_tracker: BTreeMap<RuleID, bool> = rules.iter()// first set变化表，跳过无变化项目
+        .map(|(&rule_id, _)| (rule_id, false)) // 初始值为false，因为初始first是空的，可以跳过
+        .collect();
     let mut changes = true; // 增量迭代法
 
     while changes {
         changes = false;
 
-        for (rule_id, alter_rules) in rules.iter() {
-            let mut next_first_set = compute_first_set(alter_rules, &first_map); // 计算规则的first
+        for (&rule_id, alter_rules) in rules.iter() {
+            let mut next_first_set = calc_first_set(alter_rules, &first_map, &change_tracker); // 计算规则的first
 
             let first_set = first_map.get_mut(&rule_id).unwrap(); // 更新规则的first
 
-            let before = first_set.len(); // 增量判断
+            let prev_sz = first_set.len(); // 增量判断
             first_set.append(&mut next_first_set);
-            let after = first_set.len();
+            let new_sz = first_set.len();
 
-            changes = changes || before != after; // ture优先
-
+            change_tracker.insert(rule_id, prev_sz != new_sz); // 写两遍交给编译器局部优化
+            changes = changes || prev_sz != new_sz; // ture优先
         }
     }
-
+    first_map
 }
 
 
