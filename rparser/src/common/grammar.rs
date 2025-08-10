@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use crate::common::grammar::Symbol::{NonTerminal, Terminal};
-use crate::util::first_set::is_optional;
 
 pub type RuleID = usize;
 
@@ -32,7 +31,7 @@ pub enum EndSymbol<T: SymbolBound> {
     Symbol(T),
 }
 /// 用于first set等需要空符号的场景，只包含空和终结符
-#[derive(PartialOrd, PartialEq, Eq, Ord, Clone)]
+#[derive(PartialOrd, PartialEq, Eq, Ord, Clone, Debug)]
 pub enum EpsilonSymbol<T: SymbolBound> {
     Epsilon,
     Symbol(T),
@@ -105,9 +104,6 @@ impl<T: SymbolBound> Grammar<T> {
 
         assert!(self.rules[rule_id].is_none());     // 不允许覆盖
         assert!(self.rule_meta[rule_id].is_none());
-
-        
-        meta.optional = is_optional(&rule);
         
         self.rules[rule_id] = Some(rule);
         self.rule_meta[rule_id] = Some(meta);

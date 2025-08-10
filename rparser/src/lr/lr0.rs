@@ -24,29 +24,33 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
 
     /// 项目集闭包
     fn item_closure(&self, items: BTreeSet<LR0Item<T>>) -> BTreeSet<LR0Item<T>> {
-        let mut closure_set = BTreeSet::new();
-        let mut queue: VecDeque<LR0Item<T>> =  // 构建队列，不会压入重复元素
+        let mut closure_set = BTreeSet::from_iter(items.iter().cloned()); // 集合初始化默认元素
+        let mut queue: VecDeque<LR0Item<T>> =  // 初始化队列，不会压入重复元素
             VecDeque::from_iter(items.into_iter());
 
         while !queue.is_empty(){
             let item = queue.pop_front().unwrap();
             let next_symbol = item.next_symbol();
-            closure_set.insert(item);
 
 
+            // 下一个symbol
             let symbol = match next_symbol {
-                None => continue,
+                None => continue, // 规约项目无需闭包
                 Some(x) => x
             };
 
+            // symbol是非终结符
             let rule_id = match symbol {
-                Symbol::Terminal(_) => continue,
+                Symbol::Terminal(_) => continue, // 终结符无需闭包
                 Symbol::NonTerminal(rule_id) => rule_id
             };
 
+            // 非终结符
             let alter_rules = self.get_rule(rule_id);
             let items = alter_rules.iter().map(LR0Item::from_rule);
+            // 拓展非终结符
             for item in items {
+                // 新项目压入队列，继续闭包
                 if !closure_set.contains(&item) {  // 保证不压入重复元素
                     closure_set.insert(item.clone());
                     queue.push_back(item);  // 入队
@@ -59,15 +63,16 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     }
 
     /// 项目集go操作
-    fn item_goto(&self, items: &BTreeSet<LR0Item<T>>, symbol: Symbol<T>) -> BTreeSet<LR0Item<T>> {
+    /// ### parameters
+    /// items: 内部的LR0Item项目集，必须全是经过symbol转移的，该函数不负责过滤
+    /// symbol: 下一次转移符号
+    ///
+    fn item_goto(&self, items: BTreeSet<&LR0Item<T>>, symbol: Symbol<T>) -> BTreeSet<LR0Item<T>> {
         let items: BTreeSet<_> = items.iter()// 移动GO操作
-            .filter(|item| {
-                match item.next_symbol() { // 过滤无关项目
-                    None => false,
-                    Some(x) => x == symbol
-                }
-            }).map(|item| {
-                item.move_next() // 有关项目移动一次
+            .map(|item| {
+                assert!(item.next_symbol().is_some()); // 非规约项目
+                assert_eq!(item.next_symbol().unwrap(), symbol); // 下一个符号是当前符号
+                item.move_next() // 转移
             }).collect();
 
         if items.is_empty() {
@@ -78,17 +83,16 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     }
 
     /// 获取项目集转移符号
-    fn item_symbols(&self, items: &BTreeSet<LR0Item<T>>) -> BTreeSet<Symbol<T>> {
-        let mut symbols = BTreeSet::new();
+    fn item_symbols(&self, items: &'a BTreeSet<LR0Item<T>>) -> BTreeMap<Symbol<T>, BTreeSet<&'a LR0Item<T>>> {
+        let mut symbols_table = BTreeMap::new();
         for item in items.iter() {
             let symbol = match item.next_symbol() {
                 None => continue,
                 Some(x) => x
             };
-            symbols.insert(symbol);
+            symbols_table.entry(symbol).or_insert(BTreeSet::new()).insert(item);
         }
-
-        symbols
+        symbols_table
     }
 
     /// 获取初始集合
@@ -100,31 +104,37 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
 
     /// 构建表
     /// ### return
-    /// LR0Set ID table, Translation Table
-    pub fn build_table(&mut self) -> (BTreeMap<BTreeSet<LR0Item<T>>, usize>, Vec<(usize, Symbol<T>, usize)>) {
+    /// id2items_table: id映射表items_id -> item_set
+    /// lr0_table: LR0表，使用三元组表示(items_id, symbol, items_id)
+    pub fn build_table(&mut self) -> (BTreeMap<usize, BTreeSet<LR0Item<T>>>, Vec<(usize, Symbol<T>, usize)>) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set]);
-        let mut item_set_id_table = BTreeMap::new();
+        let mut items2id_table = BTreeMap::new(); // item_set -> item_id
         let mut lr0_table = Vec::new();
 
         while !queue.is_empty() {
             let item_set = queue.pop_front().unwrap();
-            let item_set_id = *item_set_id_table
+            let items_id = *items2id_table
                 .entry(item_set.clone())
                 .or_insert_with(|| self.id_factory.next_id());
 
-            let symbols = self.item_symbols(&item_set);
-            for symbol in symbols {
-                let goto_set = self.item_goto(&item_set, symbol.clone());
+            let symbol_table = self.item_symbols(&item_set);
 
-                let goto_set_id = *item_set_id_table.entry(goto_set.clone()).or_insert_with(|| {
+            // 转移边symbol，对应的转移集合items
+            for (symbol, items) in symbol_table {
+                let goto_set = self.item_goto(items, symbol.clone());
+
+                let goto_set_id = *items2id_table.entry(goto_set.clone()).or_insert_with(|| {
                     queue.push_back(goto_set.clone());
                    self.id_factory.next_id()
                 });
-                lr0_table.push((item_set_id, symbol ,goto_set_id));
+                lr0_table.push((items_id, symbol, goto_set_id));
             }
         }
-        (item_set_id_table, lr0_table)
+        let id2items_table = items2id_table.into_iter()
+            .map(|(k, v)| (v, k))
+            .collect();
+        (id2items_table, lr0_table)
     }
 
 
@@ -136,23 +146,27 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
 }
 
 
+
+
 #[test]
 fn test() {
     let rules: Vec<RuleVec<char>> = vec![
         vec![
             Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::NonTerminal(0), Symbol::Terminal('a')]),
             Rule::Expression(vec![Symbol::NonTerminal(1), Symbol::Terminal('b')]),
-            Rule::Expression(vec![Symbol::NonTerminal(2), Symbol::Terminal('c')])
+            Rule::Expression(vec![Symbol::Terminal('c'), Symbol::NonTerminal(2)]),
+            Rule::Epsilon
         ],
         vec![
             Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::Terminal('d')]),
             Rule::Expression(vec![Symbol::NonTerminal(3), Symbol::Terminal('e')]),
+            Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::NonTerminal(0)])
         ],
         vec![
             Rule::Expression(vec![Symbol::NonTerminal(3), Symbol::Terminal('f')]),
         ],
         vec![
-            Rule::Expression(vec![Symbol::NonTerminal(3), Symbol::Terminal('e')]),
+            Rule::Expression(vec![Symbol::Terminal('e'), Symbol::NonTerminal(3)]),
         ]
     ];
 
@@ -165,14 +179,27 @@ fn test() {
     let init = BTreeSet::from_iter(init);
 
     let mut builder = LR0Builder::new(&grammar);
-    println!("{:?}", builder.build_table());
+    let (id2items_table,  transition) = builder.build_table();
+    // println!("{:#?}", );
+
+    // for (from, sym, to) in transition {
+    //     let from = id2items_table.get(&from).unwrap();
+    //     let to  = id2items_table.get(&to).unwrap();
+    //     let sym: &str = match sym {
+    //         Symbol::Terminal(x) => &x.to_string(),
+    //         Symbol::NonTerminal(x) => &grammar.get_meta(x).unwrap().name,
+    //     };
+    //
+    //     println!("{:?}\n\t{:?} -> {:?}", from, sym, to);
+    // }
+
+    // let first = build_first(&grammar);
+    // println!("{:?}", first);
 
     // println!("{:#?}", grammar);
     // println!("{:#?}", grammar.get_size());
 
     // println!("{:?}", LR0Builder::new(grammar).item_closure());
-
-
 
 }
 
