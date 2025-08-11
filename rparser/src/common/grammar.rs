@@ -31,6 +31,7 @@ pub enum Symbol<T: SymbolBound> {
 /// 用于lookahead follow的Symbol类型，结束符号和终结符号
 #[derive(PartialOrd, PartialEq, Eq, Ord, Clone)]
 #[derive(Hash)]
+#[derive(Debug)]
 pub enum EndSymbol<T: SymbolBound> {
     End,
     Symbol(T),
@@ -42,6 +43,14 @@ pub enum EpsilonSymbol<T: SymbolBound> {
     Symbol(T),
 }
 
+impl<T: SymbolBound> EpsilonSymbol<T> {
+    pub fn unwrap_symbol(&self) -> T {
+        match self {
+            EpsilonSymbol::Epsilon => panic!("Unwarp Epsilon"),
+            EpsilonSymbol::Symbol(x) => x.clone()
+        }
+    }
+}
 
 impl<T: SymbolBound> Debug for Symbol<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
