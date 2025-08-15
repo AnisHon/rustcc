@@ -7,5 +7,10 @@ edition = "2024"
 members = [ "cc","common", "rlex", "rparser", ]
 resolver = "2"  # 统一依赖解析
 
+
 [workspace.dependencies]
 common = { path = "common" }
+tera = "1"
+heck = "0.5.0"
+bitvec = "1.0"
+petgraph = "0.8.2"

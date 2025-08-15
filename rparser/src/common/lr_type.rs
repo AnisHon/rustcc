@@ -17,7 +17,7 @@ impl LRItem {
 
     /// 创建一个LR项目，Lookahead为空
     pub fn new(rule_id: RuleID, idx: usize) -> LRItem {
-        LRItem {rule: (rule_id, idx), pos: idx}
+        LRItem {rule: (rule_id, idx), pos: 0}
     }
 
     fn get_rule<T: SymbolBound>(grammar: &Grammar<T>,rule_id: RuleID, idx: usize) -> &Rule<T> {
@@ -46,13 +46,10 @@ impl LRItem {
     }
 
     /// 向后移动
-    pub fn move_next<T: SymbolBound>(&self, grammar: &Grammar<T>) -> Self {
+    pub fn move_next<T: SymbolBound>(mut self, grammar: &Grammar<T>) -> Self {
         assert!(!self.is_reduced(grammar)); // 规约项目不能在移动
-
-        Self {
-            rule: self.rule,
-            pos: self.pos + 1,
-        }
+        self.pos += 1;
+        self
     }
 
 }

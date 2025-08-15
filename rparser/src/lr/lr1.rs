@@ -2,8 +2,12 @@ use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, Ru
 use crate::common::lr_type::LRItem;
 use crate::util::first_set::build_first;
 use common::utils::id_util::IncIDFactory;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use common::utils::unique_id_factory::UniqueIDFactory;
+use petgraph::data::Build;
+use petgraph::dot::Dot;
+use petgraph::visit::NodeRef;
+use petgraph::Graph;
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 #[derive(Debug, Clone)]
 #[derive(Eq, Ord, PartialEq, PartialOrd)]
@@ -130,11 +134,14 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
 
     /// 项目集go操作
     fn item_goto(&mut self, item_set: LR1ItemSet<T>, symbol: Symbol<T>) -> LR1ItemSet<T> {
-        let mut next_item_set = LR1ItemSet {item_set: BTreeSet::new(), lookahead_map: item_set.lookahead_map };
+        let mut next_item_set = LR1ItemSet {item_set: BTreeSet::new(), lookahead_map: BTreeMap::new() };
         next_item_set.item_set.extend(item_set.item_set.into_iter().map(|item| {
             assert!(item.next_symbol(self.grammar).is_some()); // 非规约项目
             assert_eq!(item.next_symbol(self.grammar).unwrap(), symbol); // 下一个符号是当前符号
-            item.move_next(self.grammar)
+            let lookahead = item_set.lookahead_map.get(&item).unwrap().clone();
+            let next_item = item.move_next(self.grammar);
+            next_item_set.lookahead_map.insert(next_item.clone(), lookahead); // 继承lookahead
+            next_item
         }));
 
         self.item_closure(&mut next_item_set);
@@ -233,32 +240,101 @@ fn test() {
 
     let mut grammar = Grammar::new(0);
     for (idx, alter_rules) in rules.into_iter().enumerate() {
-        grammar.add_rule(idx, alter_rules, RuleMeta {name: idx.to_string()});
+        let name = char::from_u32((idx + 'A' as usize) as u32).unwrap().to_string();
+        grammar.add_rule(idx, alter_rules, RuleMeta { name });
     }
 
     let mut builder = LR1Builder::new(&grammar);
     let (id2items_table,  transition) = builder.build_table();
     // println!("{:#?}", );
 
-    for (from, sym, to) in transition {
-        let from = id2items_table.get(&from).unwrap();
-        let to  = id2items_table.get(&to).unwrap();
-        let sym: &str = match sym {
-            Symbol::Terminal(x) => &x.to_string(),
-            Symbol::NonTerminal(x) => &grammar.get_meta(x).unwrap().name,
-        };
+    // for (from, sym, to) in transition {
+    //     let from = id2items_table.get(&from).unwrap();
+    //     let to  = id2items_table.get(&to).unwrap();
+    //     let sym: &str = match sym {
+    //         Symbol::Terminal(x) => &x.to_string(),
+    //         Symbol::NonTerminal(x) => &grammar.get_meta(x).unwrap().name,
+    //     };
+    //
+    //     println!("{:?}\n\t{:?} -> {:?}", from, sym, to);
+    // }
 
-        println!("{:?}\n\t{:?} -> {:?}", from, sym, to);
+    let mut graph = Graph::<String, String>::new();
+    let mut node_map = HashMap::new();
+
+    for (id, item_set) in id2items_table {
+        let mut format_str = String::new();
+
+        for item in item_set.item_set.iter() {
+            format_str.push('[');
+            let (rule_id, idx) = item.rule;
+            let name = &grammar.get_meta(rule_id).unwrap().name;
+
+            let rule = match &grammar.get_rule(rule_id).unwrap()[idx] {
+                Rule::Epsilon => "ε".to_string(),
+                Rule::Expression(x) =>
+                x.iter().map(|sym| match sym {
+                    Symbol::Terminal(x) => x.to_string(),
+                    Symbol::NonTerminal(id) => grammar.get_meta(*id).unwrap().name.clone(),
+                }).collect()
+            };
+
+            format_str.push_str(name);
+            format_str.push_str(" -> ");
+            format_str.push_str(&rule[0..item.pos]);
+            format_str.push('·');
+            if item.pos < rule.len() {
+                format_str.push_str(&rule[item.pos..]);
+            }
+
+            let lookahead = &item_set.lookahead_map[item];
+            format_str.push_str(", ");
+
+            for x in lookahead {
+                let symbol = match x {
+                    EndSymbol::End => "$$$".to_string(),
+                    EndSymbol::Symbol(x) => x.to_string()
+                };
+                format_str.push_str(symbol.as_str());
+                format_str.push(' ')
+            }
+
+            format_str.push_str("]\n");
+        }
+
+        // println!("{}", format_str);
+        let index = graph.add_node(format_str);
+        node_map.insert(id, index);
     }
 
-    // let first = build_first(&grammar);
-    // println!("{:?}", first);
+    for (from, symbol,  to ) in transition {
+        let symbol = match symbol {
+            Symbol::Terminal(x) => x.to_string(),
+            Symbol::NonTerminal(id) => grammar.get_meta(id).unwrap().name.clone()
+        };
 
-    // println!("{:#?}", grammar);
-    // println!("{:#?}", grammar.get_size());
+        graph.add_edge(node_map[&from], node_map[&to], symbol);
+    }
 
-    // println!("{:?}", LR0Builder::new(grammar).item_closure());
 
+    println!(
+        "{}",
+        Dot::with_attr_getters(
+            &graph,
+            &[],
+            &|_graph, edge| {
+                let node = edge.weight();
+                // 节点属性
+                let label = node.replace("\n", "\\n"); // Graphviz 识别换行
+                format!("shape=box,label=\"{}\"", label)
+            },
+            &|_graph, (_idx, edge)| {
+                // 边属性
+                format!("shape=box,label=\"{}\"", edge)
+
+            }
+        )
+    );
 }
 
 

@@ -71,8 +71,8 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     /// ### parameters
     /// items: 内部的LR0Item项目集，必须全是经过symbol转移的，该函数不负责过滤
     /// symbol: 下一次转移符号
-    fn item_goto(&mut self, items: BTreeSet<&LRItem>, symbol: Symbol<T>) -> LR0ItemSet {
-        let items: BTreeSet<_> = items.iter()// 移动GO操作
+    fn item_goto(&mut self, items: BTreeSet<LRItem>, symbol: Symbol<T>) -> LR0ItemSet {
+        let items: BTreeSet<_> = items.into_iter()// 移动GO操作
             .map(|item| {
                 assert!(item.next_symbol(self.grammar).is_some()); // 非规约项目
                 assert_eq!(item.next_symbol(self.grammar).unwrap(), symbol); // 下一个符号是当前符号
@@ -88,14 +88,14 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     }
 
     /// 获取项目集转移符号
-    fn item_symbols(&self, items: &'a LR0ItemSet) -> BTreeMap<Symbol<T>, BTreeSet<&'a LRItem>> {
+    fn item_symbols(&self, items: &LR0ItemSet) -> BTreeMap<Symbol<T>, BTreeSet<LRItem>> {
         let mut symbols_table = BTreeMap::new();
         for item in items.iter() {
             let symbol = match item.next_symbol(self.grammar) {
                 None => continue,
                 Some(x) => x
             };
-            symbols_table.entry(symbol).or_insert(BTreeSet::new()).insert(item);
+            symbols_table.entry(symbol).or_insert(BTreeSet::new()).insert(item.clone());
         }
         symbols_table
     }
@@ -114,24 +114,24 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     /// ### return
     /// id2items_table: id映射表items_id -> item_set
     /// lr0_table: LR0表，使用三元组表示(items_id, symbol, items_id)
-    pub fn build_table(&mut self) -> (BTreeMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>) {
+    pub fn build_table(mut self) -> (BTreeMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set]);
         let mut items2id_table = BTreeMap::new(); // item_set -> item_id
         let mut lr0_table = Vec::new();
-
+        
         while !queue.is_empty() {
             let item_set = queue.pop_front().unwrap();
             let items_id = *items2id_table
                 .entry(item_set.clone())
                 .or_insert_with(|| self.id_factory.next_id());
-
+        
             let symbol_table = self.item_symbols(&item_set);
-
+        
             // 转移边symbol，对应的转移集合items
             for (symbol, items) in symbol_table {
                 let goto_set = self.item_goto(items, symbol.clone());
-
+        
                 let goto_set_id = *items2id_table.entry(goto_set.clone()).or_insert_with(|| {
                     queue.push_back(goto_set.clone());
                    self.id_factory.next_id()
