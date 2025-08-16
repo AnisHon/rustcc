@@ -8,6 +8,7 @@ use petgraph::dot::Dot;
 use petgraph::visit::NodeRef;
 use petgraph::Graph;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use crate::util::set_utils;
 
 #[derive(Debug, Clone)]
 #[derive(Eq, Ord, PartialEq, PartialOrd)]
@@ -117,12 +118,13 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
             let next_lookahead = self.calc_lookahead(&item, lookahead);
             // 拓展非终结符
             for item in items {
-                lookahead_map.entry(item.clone())
-                    .or_insert_with(BTreeSet::new)
-                    .extend(next_lookahead.iter().cloned());
+                let item_lookahead = lookahead_map.entry(item.clone())
+                    .or_insert_with(BTreeSet::new);
 
+                let changed = set_utils::extend(item_lookahead, next_lookahead.iter());
+                
                 // 新项目压入队列，继续闭包
-                if !closure_set.contains(&item) {  // 保证不压入重复元素
+                if !closure_set.contains(&item) || changed {  // 保证不压入重复元素
                     closure_set.insert(item.clone());
                     queue.push_back(item);  // 入队
                 }
