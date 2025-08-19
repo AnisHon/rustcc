@@ -52,7 +52,7 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
         let expr = self.get_expr(rule_id, alter_idx).unwrap_expr();
         
         let mut nullable = true; 
-        for idx in ((item.pos + 1)..expr.len()) {
+        for idx in (item.pos + 1)..expr.len() {
             let rule_id = match &expr[idx] {
                 Symbol::Terminal(x) => { // 终结符不能推出空，非nullable，停止迭代
                     lookahead_first_set.insert(EndSymbol::Symbol(x.clone()));

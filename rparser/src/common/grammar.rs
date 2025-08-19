@@ -117,7 +117,7 @@ impl<T: SymbolBound> Grammar<T> {
         self.rules.len()
     }
     
-    pub fn add_rule(&mut self, rule_id: RuleID, rule: RuleVec<T>, mut meta: RuleMeta) {
+    pub fn add_rule(&mut self, rule_id: RuleID, rule: RuleVec<T>, meta: RuleMeta) {
         if rule_id >= self.rules.len() {
             self.rules.resize(rule_id + 1, None);
         }

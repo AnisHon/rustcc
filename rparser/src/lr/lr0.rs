@@ -176,7 +176,7 @@ fn test() {
         grammar.add_rule(idx, alter_rules, RuleMeta {name: idx.to_string()});
     }
 
-    let mut builder = LR0Builder::new(&grammar);
+    let builder = LR0Builder::new(&grammar);
     let (id2items_table,  transition) = builder.build_table();
     // println!("{:#?}", );
 

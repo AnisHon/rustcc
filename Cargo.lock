@@ -626,6 +626,8 @@ name = "rparser"
 version = "0.1.0"
 dependencies = [
  "common",
+ "pest",
+ "pest_derive",
  "petgraph",
 ]
 

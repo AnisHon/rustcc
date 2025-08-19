@@ -1,0 +1,21 @@
+WHITESPACE = _{ " " | "\t" | "\n" }
+COMMENT    = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" | "//" ~ (!"\n" ~ ANY)* }
+
+file       = { decls ~ "%%" ~ rules ~ "%%" ~ user_code? }
+
+decls      = { (decl)* }
+decl       = { token_decl | assoc_decl }
+token_decl = { "%token" ~ ident+ }
+assoc_decl = { ("%left" | "%right" | "%nonassoc") ~ ident+ }
+
+rules      = { (rule_decl)+ }
+rule_decl  = { ident ~ ":" ~ production ~ ("|" ~ production)* ~ ";" }
+
+production = { (symbol | action)* }
+symbol     = { ident | STRING }
+action     = { "{" ~ (!"}" ~ ANY)* ~ "}" }
+
+user_code  = { (!EOI ~ ANY)* }
+
+ident      = @{ (ASCII_ALPHANUMERIC | "_")+ }
+STRING     = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }

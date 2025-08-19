@@ -1,7 +1,6 @@
 //! 声明LR相关的类型
-//! 
-use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, Symbol, SymbolBound};
-use std::collections::{BTreeSet, HashMap};
+//!
+use crate::common::grammar::{Grammar, Rule, RuleID, Symbol, SymbolBound};
 
 pub type ItemID = usize;
 
