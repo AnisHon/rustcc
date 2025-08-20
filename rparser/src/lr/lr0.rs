@@ -5,7 +5,7 @@ use crate::common::grammar::{Grammar, Rule, RuleID, RuleMeta, RuleVec, Symbol, S
 use crate::common::lr_type::{LRItem};
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 pub type LR0ItemSet = BTreeSet<LRItem>;
 
@@ -114,9 +114,9 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     /// ### return
     /// id2items_table: id映射表items_id -> item_set
     /// lr0_table: LR0表，使用三元组表示(items_id, symbol, items_id)
-    pub fn build_table(mut self) -> (BTreeMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>) {
+    pub fn build_table(mut self) -> (HashMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let init_set = self.init_item_set();
-        let mut queue = VecDeque::from(vec![init_set]);
+        let mut queue = VecDeque::from(vec![init_set.clone()]);
         let mut items2id_table = BTreeMap::new(); // item_set -> item_id
         let mut lr0_table = Vec::new();
         
@@ -139,10 +139,13 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
                 lr0_table.push((items_id, symbol, goto_set_id));
             }
         }
+
+        let init_state = items2id_table[&init_set];
         let id2items_table = items2id_table.into_iter()
             .map(|(k, v)| (v, k))
             .collect();
-        (id2items_table, lr0_table)
+        
+        (id2items_table, lr0_table, init_state)
     }
 }
 
@@ -173,11 +176,11 @@ fn test() {
 
     let mut grammar = Grammar::new(0);
     for (idx, alter_rules) in rules.into_iter().enumerate() {
-        grammar.add_rule(idx, alter_rules, RuleMeta {name: idx.to_string()});
+        grammar.add_rule(idx, alter_rules, RuleMeta::new(idx, idx.to_string()));
     }
 
     let builder = LR0Builder::new(&grammar);
-    let (id2items_table,  transition) = builder.build_table();
+    let (id2items_table,  transition, _) = builder.build_table();
     // println!("{:#?}", );
 
     for (from, sym, to) in transition {

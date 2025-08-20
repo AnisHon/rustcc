@@ -8,6 +8,8 @@ use crate::common::grammar::Symbol::{NonTerminal, Terminal};
 
 pub type RuleID = usize;
 
+pub type SymbolID = usize;
+
 pub type SymbolVec<T> = Vec<Symbol<T>>;  // 表示一个推导式
 
 pub type RuleVec<T> = Vec<Rule<T>>;
@@ -16,10 +18,38 @@ pub type RuleVec<T> = Vec<Rule<T>>;
 pub trait SymbolBound: Clone + Debug + Ord + PartialOrd + Eq + PartialEq + Hash {}
 impl<T> SymbolBound for T where T: Clone + Debug + Ord + PartialOrd + Eq + PartialEq + Hash {}
 
+
+// 推导式信息
 #[derive(Clone, Debug)]
 pub struct RuleMeta {
-    pub name: String,   // 推导式的名字
+    pub id: RuleID,      // ID
+    pub name: String,    // 推导式的名字
+    pub is_right: Vec<bool>,  // 是否右结合
+    pub priority: Vec<usize>, // 优先级
+    pub action: Vec<Option<String>>, // 动作
 }
+
+impl RuleMeta {
+    pub fn new(id: RuleID, name: String) -> Self {
+        Self { id, name, is_right: Vec::new(), priority: Vec::new(), action: Vec::new() }
+    }
+}
+
+// 符号信息
+#[derive(Clone, Debug)]
+pub struct SymbolMeta {
+    pub id: SymbolID,   // ID
+    pub content: String,   // 终结符内容
+    pub is_right: bool,  // 是否右结合
+    pub priority: usize // 优先级
+}
+
+impl SymbolMeta {
+    pub fn new(id: SymbolID, content: String) -> Self {
+        Self { id, content, is_right: false, priority: 0 }
+    }
+}
+
 
 /// 单个符号类型
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]

@@ -1,2 +1,3 @@
 pub mod lr0;
-mod lr1;
+pub mod lr1;
+pub mod lalr1;

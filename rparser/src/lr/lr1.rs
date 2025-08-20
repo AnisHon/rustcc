@@ -183,9 +183,9 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
         item_set
     }
 
-    pub fn build_table(&mut self) -> (BTreeMap<usize, LR1ItemSet<T>>, Vec<(usize, Symbol<T>, usize)>) {
+    pub fn build_table(&mut self) -> (HashMap<usize, LR1ItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let init_set = self.init_item_set();
-        let mut queue = VecDeque::from(vec![init_set]);
+        let mut queue = VecDeque::from(vec![init_set.clone()]);
         let mut items2id_table = BTreeMap::new(); // item_set -> item_id
         let mut lr1_table = Vec::new();
 
@@ -209,10 +209,11 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
             }
         }
 
+        let init_state = items2id_table[&init_set];
         let id2items_table = items2id_table.into_iter()
             .map(|(k, v)| (v, k))
             .collect();
-        (id2items_table, lr1_table)
+        (id2items_table, lr1_table, init_state)
     }
 }
 
@@ -243,11 +244,11 @@ fn test() {
     let mut grammar = Grammar::new(0);
     for (idx, alter_rules) in rules.into_iter().enumerate() {
         let name = char::from_u32((idx + 'A' as usize) as u32).unwrap().to_string();
-        grammar.add_rule(idx, alter_rules, RuleMeta { name });
+        grammar.add_rule(idx, alter_rules, RuleMeta::new(idx, name));
     }
 
     let mut builder = LR1Builder::new(&grammar);
-    let (id2items_table,  transition) = builder.build_table();
+    let (id2items_table,  transition, _) = builder.build_table();
     // println!("{:#?}", );
 
     // for (from, sym, to) in transition {
