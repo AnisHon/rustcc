@@ -1,5 +1,5 @@
 use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, RuleMeta, RuleVec, Symbol, SymbolBound};
-use crate::common::lr_type::LRItem;
+use crate::common::lr_type::{LRItem, LookaheadItemSet};
 use crate::util::first_set::build_first;
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
@@ -10,12 +10,7 @@ use petgraph::Graph;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use crate::util::set_utils;
 
-#[derive(Debug, Clone)]
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
-pub struct LR1ItemSet<T: SymbolBound> {
-    item_set: BTreeSet<LRItem>,
-    lookahead_map: BTreeMap<LRItem, BTreeSet<EndSymbol<T>>>
-}
+
 
 /// 只构建DFA状态机不检查冲突
 pub struct LR1Builder<'a, T: SymbolBound> {
@@ -84,9 +79,9 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
     
 
     /// 项目集闭包
-    fn item_closure(&mut self, item_set: &mut LR1ItemSet<T>) {
+    fn item_closure(&mut self, item_set: &mut LookaheadItemSet<T>) {
         let lookahead_map = &mut item_set.lookahead_map;
-        let closure_set = &mut item_set.item_set; // 集合初始化默认元素
+        let closure_set = &mut item_set.core_set; // 集合初始化默认元素
         let mut queue: VecDeque<LRItem> = VecDeque::from_iter(closure_set.iter().cloned()); // 初始化队列，不会压入重复元素
 
         while !queue.is_empty(){
@@ -135,9 +130,9 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
     }
 
     /// 项目集go操作
-    fn item_goto(&mut self, item_set: LR1ItemSet<T>, symbol: Symbol<T>) -> LR1ItemSet<T> {
-        let mut next_item_set = LR1ItemSet {item_set: BTreeSet::new(), lookahead_map: BTreeMap::new() };
-        next_item_set.item_set.extend(item_set.item_set.into_iter().map(|item| {
+    fn item_goto(&mut self, item_set: LookaheadItemSet<T>, symbol: Symbol<T>) -> LookaheadItemSet<T> {
+        let mut next_item_set = LookaheadItemSet { core_set: BTreeSet::new(), lookahead_map: BTreeMap::new() };
+        next_item_set.core_set.extend(item_set.core_set.into_iter().map(|item| {
             assert!(item.next_symbol(self.grammar).is_some()); // 非规约项目
             assert_eq!(item.next_symbol(self.grammar).unwrap(), symbol); // 下一个符号是当前符号
             let lookahead = item_set.lookahead_map.get(&item).unwrap().clone();
@@ -151,23 +146,23 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
     }
 
     /// 获取项目集转移符号
-    fn item_symbols(&self, item_set: &'a LR1ItemSet<T>) -> BTreeMap<Symbol<T>, LR1ItemSet<T>> {
+    fn item_symbols(&self, item_set: &'a LookaheadItemSet<T>) -> BTreeMap<Symbol<T>, LookaheadItemSet<T>> {
         let mut symbols_table = BTreeMap::new();
-        for item in item_set.item_set.iter() {
+        for item in item_set.core_set.iter() {
             let symbol = match item.next_symbol(self.grammar) {
                 None => continue,
                 Some(x) => x
             };
             let next_item_set = symbols_table.entry(symbol)
-                .or_insert_with(|| LR1ItemSet { item_set: BTreeSet::new(), lookahead_map: BTreeMap::new() });
-            next_item_set.item_set.insert(item.clone());
+                .or_insert_with(|| LookaheadItemSet { core_set: BTreeSet::new(), lookahead_map: BTreeMap::new() });
+            next_item_set.core_set.insert(item.clone());
             next_item_set.lookahead_map.insert(item.clone(), item_set.lookahead_map[item].clone());
         }
         symbols_table
     }
 
     /// 获取初始集合
-    fn init_item_set(&mut self) -> LR1ItemSet<T> {
+    fn init_item_set(&mut self) -> LookaheadItemSet<T> {
         let start_rule_id = self.grammar.get_start_rule();
         let alter_sz = self.grammar.get_rule(start_rule_id).unwrap().len();
 
@@ -175,15 +170,15 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
         let items: BTreeSet<_> = (0..alter_sz).map(|idx| LRItem::new(start_rule_id, idx)).collect();
         let lookahead_map = items.iter().cloned()// 初始化结束符
             .map(|item| (item, BTreeSet::from([EndSymbol::End]))).collect();
-        let mut item_set = LR1ItemSet {
-            item_set: items,
+        let mut item_set = LookaheadItemSet {
+            core_set: items,
             lookahead_map
         };
         self.item_closure(&mut item_set);
         item_set
     }
 
-    pub fn build_table(&mut self) -> (HashMap<usize, LR1ItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
+    pub fn build_table(&mut self) -> (HashMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set.clone()]);
         let mut items2id_table = BTreeMap::new(); // item_set -> item_id
@@ -268,7 +263,7 @@ fn test() {
     for (id, item_set) in id2items_table {
         let mut format_str = String::new();
 
-        for item in item_set.item_set.iter() {
+        for item in item_set.core_set.iter() {
             format_str.push('[');
             let (rule_id, idx) = item.rule;
             let name = &grammar.get_meta(rule_id).unwrap().name;

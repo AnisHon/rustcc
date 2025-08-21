@@ -1,6 +1,8 @@
 //! 声明LR相关的类型
 //!
-use crate::common::grammar::{Grammar, Rule, RuleID, Symbol, SymbolBound};
+
+use std::collections::{BTreeMap, BTreeSet};
+use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, Symbol, SymbolBound};
 
 pub type ItemID = usize;
 
@@ -11,7 +13,6 @@ pub struct LRItem {
     pub rule: (RuleID, usize), //通过rule_id和alter索引引用rule
     pub pos: usize,
 }
-
 impl LRItem {
 
     /// 创建一个LR项目，Lookahead为空
@@ -50,5 +51,11 @@ impl LRItem {
         self.pos += 1;
         self
     }
+}
 
+#[derive(Debug, Clone)]
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+pub struct LookaheadItemSet<T: SymbolBound> {
+    pub core_set: BTreeSet<LRItem>,
+    pub lookahead_map: BTreeMap<LRItem, BTreeSet<EndSymbol<T>>>
 }
