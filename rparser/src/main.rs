@@ -1,4 +1,4 @@
-use rparser::file_parser::reader::{get_grammar, GrammarParser};
+use rparser::file_parser::reader::{get_grammar, GrammarConfigParser};
 use rparser::lr::lr0::LR0Builder;
 
 fn main() {
@@ -23,11 +23,11 @@ term:
 /* user C code */
 int main() { return yyparse(); }
 "#;
-    let grammar = GrammarParser::new(input.to_owned()).parse();
+    let grammar = GrammarConfigParser::new(input.to_owned()).parse();
 
-    let x = LR0Builder::new(&grammar).build_table();
+    // let x = LR0Builder::new(&grammar).build_table();
 
-    println!("{:?}", x);
+    // println!("{:?}", x);
 
 
     // println!("{:#?}", grammar);

@@ -39,19 +39,19 @@ pub struct Production {
     pub rules: Vec<(Vec<String>, Option<String>)>,
 }
 
-pub struct GrammarParser {
+pub struct GrammarConfigParser {
     input: String,
     tokens: Vec<String>,
     assoc: Vec<AssocType>,
     productions: Vec<Production>
 }
 
-impl GrammarParser {
+impl GrammarConfigParser {
     pub fn new(input: String) -> Self {
         Self { input, tokens: Vec::new(), assoc: Vec::new(), productions: Vec::new() }
     }
 
-    pub fn parse(mut self) -> Grammar<usize> {
+    pub fn parse(mut self) -> GrammarConfig {
         let input = self.input.clone();
         let pairs = BisonParser::parse(Rule::file, input.as_str()).unwrap();
 
@@ -60,8 +60,7 @@ impl GrammarParser {
         for pair in pairs {
             self.parse_file(pair);
         }
-
-        get_grammar( GrammarConfig { tokens: self.tokens, assoc: self.assoc, productions: self.productions })
+        GrammarConfig { tokens: self.tokens, assoc: self.assoc, productions: self.productions }
     }
 
     fn parse_file(&mut self, file: Pair<Rule>) {
@@ -143,7 +142,7 @@ impl GrammarParser {
 
 
 
-pub fn get_grammar(config: GrammarConfig) -> Grammar<usize> {
+pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) {
 
     let mut grammar = Grammar::new(0);
 
@@ -152,14 +151,15 @@ pub fn get_grammar(config: GrammarConfig) -> Grammar<usize> {
         .collect();
 
     let (token_meta, token_map) = build_token_map(&config, &non_terminal);
-
+    
     // 构建推导式
-    for (rule_id, production) in config.productions.into_iter().enumerate() {
+    for (rule_id, production) in config.productions.iter().enumerate() {
         let mut meta = RuleMeta::new(rule_id, production.name.clone()); // 构建Meta
         let mut rule_vec = RuleVec::new();
 
         // 遍历所有alter
-        for (symbols, action) in production.rules.into_iter() {
+        for (symbols, action) in production.rules.iter() {
+            let action = action.clone();
             let mut priority = 0;
             let mut is_right = false;
             let rule = if symbols.is_empty() { // 空 epsilon
@@ -167,10 +167,10 @@ pub fn get_grammar(config: GrammarConfig) -> Grammar<usize> {
             } else {
                 // 非空，遍历所有symbol
                 let symbol_vec: SymbolVec<_> = symbols.into_iter().map(|symbol|{
-                    if non_terminal.contains_key(&symbol) {
-                        Symbol::NonTerminal(non_terminal[&symbol]) // 查Rule ID
+                    if non_terminal.contains_key(symbol) {
+                        Symbol::NonTerminal(non_terminal[symbol]) // 查Rule ID
                     } else {
-                        let tid = token_map[&symbol];
+                        let tid = token_map[symbol];
                         let meta = &token_meta[tid];
                         priority = meta.priority;   // 推导式以最后的终结符为准
                         is_right = meta.is_right;
@@ -189,7 +189,7 @@ pub fn get_grammar(config: GrammarConfig) -> Grammar<usize> {
         grammar.add_rule(rule_id, rule_vec, meta.clone());
     }
 
-    grammar
+    (grammar, token_meta)
 }
 
 fn build_token_map(config: &GrammarConfig, non_terminal: &HashMap<String, usize>) -> (Vec<SymbolMeta>, HashMap<String, usize>) {

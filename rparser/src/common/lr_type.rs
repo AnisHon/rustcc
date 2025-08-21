@@ -59,3 +59,12 @@ pub struct LookaheadItemSet<T: SymbolBound> {
     pub core_set: BTreeSet<LRItem>,
     pub lookahead_map: BTreeMap<LRItem, BTreeSet<EndSymbol<T>>>
 }
+
+/// LR表格的规约移入操作
+#[derive(Debug, Clone)]
+pub enum LRAction {
+    Reduce(usize), // 规约 推导式ID
+    Shift(usize),  // 移入 状态ID
+    End(usize),    // 结束规约 推导式ID
+    Error          // 出错Error
+}

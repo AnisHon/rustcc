@@ -53,6 +53,7 @@ impl SymbolMeta {
 
 /// 单个符号类型
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Hash)]
 pub enum Symbol<T: SymbolBound> {
     Terminal(T),
     NonTerminal(RuleID),
