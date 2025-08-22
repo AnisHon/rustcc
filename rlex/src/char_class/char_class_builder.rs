@@ -1,7 +1,8 @@
 use crate::char_class::char_class_set::CharClassSet;
 use crate::parser::ast::ASTNode;
-use std::collections::{BTreeSet, VecDeque};
 use bitvec::macros::internal::funty::Fundamental;
+use indexmap::IndexSet;
+use std::collections::{BTreeSet, VecDeque};
 
 pub struct CharClassBuilder {
     total_set: (u32, u32), // 字符集 全集比如 0-127 比如 0-0x10FFFF
@@ -49,7 +50,7 @@ enum Status {
 /// 1. 假设区间[l, r]可以通过二分查找到l的区间和r的索引计作a, b
 /// 2. 维护一个表记录每个索引对应的class_id，这个class_id是通过active集合计算的，active集合相同则class_id相同
 /// 3. 遍历a..=b 得到多个class_id 返回Vec<usize>
-fn build_range(ranges: BTreeSet<(u32, u32)>) -> Vec<(u32, u32, BTreeSet<usize>)> {
+fn build_range(ranges: IndexSet<(u32, u32)>) -> Vec<(u32, u32, BTreeSet<usize>)> {
     if ranges.is_empty() {
         return Vec::new();
     }
@@ -83,8 +84,8 @@ fn build_range(ranges: BTreeSet<(u32, u32)>) -> Vec<(u32, u32, BTreeSet<usize>)>
 }
 
 /// 迭代遍历节点获取所有出现的字符
-fn get_ranges(ast: Vec<&ASTNode>) -> BTreeSet<(u32, u32)> {
-    let mut ranges: BTreeSet<(u32, u32)> = BTreeSet::new();
+fn get_ranges(ast: Vec<&ASTNode>) -> IndexSet<(u32, u32)> {
+    let mut ranges: IndexSet<(u32, u32)> = IndexSet::new();
     let mut queue = VecDeque::from_iter(ast);
 
     while !queue.is_empty() {

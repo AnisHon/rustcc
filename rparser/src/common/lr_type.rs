@@ -1,8 +1,8 @@
 //! 声明LR相关的类型
 //!
 
-use std::collections::{BTreeMap, BTreeSet};
 use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, Symbol, SymbolBound};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub type ItemID = usize;
 
@@ -54,7 +54,7 @@ impl LRItem {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct LookaheadItemSet<T: SymbolBound> {
     pub core_set: BTreeSet<LRItem>,
     pub lookahead_map: BTreeMap<LRItem, BTreeSet<EndSymbol<T>>>

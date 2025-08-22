@@ -618,6 +618,7 @@ dependencies = [
  "bitvec",
  "common",
  "heck",
+ "indexmap",
  "tera",
 ]
 
@@ -626,6 +627,7 @@ name = "rparser"
 version = "0.1.0"
 dependencies = [
  "common",
+ "indexmap",
  "pest",
  "pest_derive",
  "petgraph",

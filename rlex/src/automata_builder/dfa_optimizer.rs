@@ -1,8 +1,8 @@
 use common::lex::state_id_factory::IncrementalStateIDFactory;
-use common::lex::{ClassID, DFA, StateID, StateMeta};
+use common::lex::{ClassID, StateID, StateMeta, DFA};
 use common::utils::unique_id_factory::UniqueIDFactory;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use common::utils::to_btree::{to_btree_map, to_btree_set};
+use indexmap::{IndexMap, IndexSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// DFA优化，惰性求值
 ///
@@ -106,7 +106,7 @@ impl DFAOptimizer {
 
     /// 初始划分
     fn init_partition(&self) -> Vec<BTreeSet<StateID>> {
-        let mut partition: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
+        let mut partition: IndexMap<_, BTreeSet<_>> = IndexMap::new();
 
         // 根据 key 分组
         for &state_id in self.states.iter() {
@@ -141,8 +141,8 @@ impl DFAOptimizer {
     // 对Hopcroft内partition worklist进行更新
     fn do_partition_update(
         predecessors: &BTreeSet<StateID>,
-        partition: &mut HashSet<BTreeSet<StateID>>,
-        worklist: &mut HashSet<BTreeSet<StateID>>,
+        partition: &mut IndexSet<BTreeSet<StateID>>,
+        worklist: &mut IndexSet<BTreeSet<StateID>>,
     ) {
         let mut update = Vec::new();
 
@@ -158,13 +158,13 @@ impl DFAOptimizer {
 
         // 更新
         for (set, intersection, difference) in update {
-            partition.remove(&set); // 更新Partition
+            partition.swap_remove(&set); // 更新Partition
             partition.insert(intersection.clone());
             partition.insert(difference.clone());
 
             if worklist.contains(&set) {
                 // 更新worklist
-                worklist.remove(&set);
+                worklist.swap_remove(&set);
                 worklist.insert(intersection);
                 worklist.insert(difference);
             } else if intersection.len() > difference.len() {
@@ -176,9 +176,9 @@ impl DFAOptimizer {
     }
 
     /// hopcroft 最小化等价类划分算法
-    fn hopcroft(&self) -> BTreeSet<BTreeSet<StateID>> {
+    fn hopcroft(&self) -> IndexSet<BTreeSet<StateID>> {
         let vec = self.init_partition(); // 初始划分
-        let mut partition = HashSet::from_iter(vec.into_iter());
+        let mut partition = IndexSet::from_iter(vec.into_iter());
         let mut worklist = partition.clone();
 
         let sigma = self.dfa.get_stride(); // 输入符号全集
@@ -188,7 +188,7 @@ impl DFAOptimizer {
                 .iter() // 当前分割集
                 .next()
                 .cloned()
-                .and_then(|s| worklist.take(&s))
+                .and_then(|s| worklist.swap_take(&s))
                 .unwrap();
 
             // 遍历所有输入符号
@@ -205,11 +205,11 @@ impl DFAOptimizer {
             }
         }
 
-        to_btree_set(partition) // 减少不确定性
+        partition
     }
 
     // 构建划分表 旧状态 -> 新状态
-    fn build_partition_table(&mut self, partition: BTreeSet<BTreeSet<StateID>>) -> Vec<StateID> {
+    fn build_partition_table(&mut self, partition: IndexSet<BTreeSet<StateID>>) -> Vec<StateID> {
         let mut table = Vec::new();
         table.resize(self.states.len(), 0);
 
@@ -227,8 +227,8 @@ impl DFAOptimizer {
     fn build_transaction_table(
         &self,
         partition: &Vec<StateID>,
-    ) -> BTreeMap<(StateID, ClassID), StateID> {
-        let mut transaction_table = HashMap::new();
+    ) -> IndexMap<(StateID, ClassID), StateID> {
+        let mut transaction_table = IndexMap::new();
 
         for (from, symbols) in self.symbol_table.iter().enumerate() {
             for &symbol in symbols {
@@ -241,14 +241,14 @@ impl DFAOptimizer {
             }
         }
 
-        to_btree_map(transaction_table)  // 减少不确定性
+        transaction_table
     }
 
     /// 构建DFA
     fn build_dfa(
         &self,
         partition_table: Vec<StateID>,
-        transaction_table: BTreeMap<(StateID, ClassID), StateID>,
+        transaction_table: IndexMap<(StateID, ClassID), StateID>,
     ) -> DFA {
         let reverse_partition_table = self.build_reverse_partition_table(&partition_table);
 

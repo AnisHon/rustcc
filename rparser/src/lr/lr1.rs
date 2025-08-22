@@ -8,6 +8,7 @@ use petgraph::dot::Dot;
 use petgraph::visit::NodeRef;
 use petgraph::Graph;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use indexmap::IndexMap;
 use crate::util::set_utils;
 
 
@@ -16,7 +17,7 @@ use crate::util::set_utils;
 pub struct LR1Builder<'a, T: SymbolBound> {
     grammar: &'a Grammar<T>,
     id_factory: IncIDFactory,
-    first_map: BTreeMap<RuleID, BTreeSet<EpsilonSymbol<T>>>
+    first_map: IndexMap<RuleID, BTreeSet<EpsilonSymbol<T>>>
 }
 
 
@@ -178,10 +179,10 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
         item_set
     }
 
-    pub fn build_table(&mut self) -> (HashMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
+    pub fn build_table(&mut self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set.clone()]);
-        let mut items2id_table = BTreeMap::new(); // item_set -> item_id
+        let mut items2id_table = IndexMap::new(); // item_set -> item_id
         let mut lr1_table = Vec::new();
 
         while !queue.is_empty() {

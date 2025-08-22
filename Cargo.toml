@@ -16,3 +16,5 @@ bitvec = "1.0"
 petgraph = "0.8.2"
 pest = "2"
 pest_derive = "2"
+indexmap = "2.10.0"
+

@@ -1,18 +1,19 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use common::utils::id_util::IncIDFactory;
-use common::utils::unique_id_factory::UniqueIDFactory;
 use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, RuleMeta, RuleVec, Symbol, SymbolBound};
 use crate::common::lr_type::{LRItem, LookaheadItemSet};
 use crate::lr::lr0::{LR0Builder, LR0ItemSet};
-use crate::lr::lr1::{LR1Builder};
+use crate::lr::lr1::LR1Builder;
 use crate::util::first_set::{build_first, FirstMap};
 use crate::util::set_utils::extend;
+use common::utils::id_util::IncIDFactory;
+use common::utils::unique_id_factory::UniqueIDFactory;
+use indexmap::IndexMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 pub struct LALR1Builder<'a, T: SymbolBound> {
 
     grammar: &'a Grammar<T>,
     first_map: FirstMap<T>,
-    id2item_map: HashMap<usize, LR0ItemSet>,
+    id2item_map: IndexMap<usize, LR0ItemSet>,
     transition_table: Vec<(usize, Symbol<T>, usize)>,
     init_state: usize,
 }
@@ -34,7 +35,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
 
     /// 构建Table
-    pub fn build_table(self) -> (HashMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
+    pub fn build_table(self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let (id_state_item_map, state_item_id_map) = self.item_state_map();
         let (graph, mut lookahead_item_set_map) = self.init_propagation(&state_item_id_map);
 
@@ -76,14 +77,13 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
 
     /// 构建 id -> (state, LRItem) 的 Map
-    fn item_state_map(&self) -> (Vec<(usize, LRItem)>, HashMap<(usize, LRItem), usize>) {
-        let mut id_state_item_map: Vec<_> = self.id2item_map.iter()
+    fn item_state_map(&self) -> (Vec<(usize, LRItem)>, IndexMap<(usize, LRItem), usize>) {
+        let id_state_item_map: Vec<_> = self.id2item_map.iter()
             .map(|(state, item_set)|
                 item_set.iter().cloned().map(|item| (state.clone(), item))
             ).flatten()
             .collect();
-        id_state_item_map.sort(); // 防止Hash可能出现的不确定问题
-        let state_item_id_map: HashMap<_, _> = id_state_item_map.iter()
+        let state_item_id_map: IndexMap<_, _> = id_state_item_map.iter()
             .cloned().enumerate()
             .map(|(idx, item)| (item, idx))
             .collect();
@@ -95,12 +95,12 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     /// ### return
     /// Vec<BTreeSet<usize>>，依赖图（邻接表）
     /// Vec<LookaheadItemSet<T>> LALR item set表
-    fn init_propagation(&self, state_item_id_map: &HashMap<(usize, LRItem), usize>) -> (Vec<BTreeSet<usize>>, HashMap<usize, LookaheadItemSet<T>>) {
+    fn init_propagation(&self, state_item_id_map: &IndexMap<(usize, LRItem), usize>) -> (Vec<BTreeSet<usize>>, IndexMap<usize, LookaheadItemSet<T>>) {
         let mut graph = Vec::new();
         graph.resize_with(state_item_id_map.len(), || BTreeSet::new());
 
         // 转换为LookaheadItemSet
-        let mut id2lookahead_map: HashMap<_, _> = self.id2item_map.iter().map(|(&idx, item_set)| {
+        let mut id2lookahead_map: IndexMap<_, _> = self.id2item_map.iter().map(|(&idx, item_set)| {
             let core_set = item_set.clone();
             let lookahead_map: BTreeMap<_, BTreeSet<EndSymbol<T>>> = core_set.iter()
                 .cloned()
@@ -136,7 +136,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
         // 处理转移传播
         for (from, symbol, to) in self.transition_table.iter() {
-            let from_item_set = &self.id2item_map[&from];
+            let from_item_set = &self.id2item_map[from];
             for item in from_item_set {
                 let next_symbol = match item.next_symbol(self.grammar) {
                     None => continue,
@@ -238,7 +238,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
 /// 使用LR1合并算法构建LALR
 pub struct AdvancedLALR1Builder<T: SymbolBound> {
-    id2item_map: HashMap<usize, LookaheadItemSet<T>>,
+    id2item_map: IndexMap<usize, LookaheadItemSet<T>>,
     transition_table: Vec<(usize, Symbol<T>, usize)>,
     init_state: usize,
     id_factory: IncIDFactory,
@@ -256,19 +256,18 @@ impl<T: SymbolBound> AdvancedLALR1Builder<T> {
     }
 
     /// 合并LR1
-    pub fn build_table(mut self) -> (HashMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
-        let id2item_map: BTreeMap<_, _> = self.id2item_map.iter().collect(); // 使结果确定
+    pub fn build_table(mut self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let mut id_map = HashMap::new();
         let mut core_id_map = HashMap::new();
         let mut transitions = HashSet::new(); // 去重
         // 构建通信集表
-        for (&old_id, item_set) in id2item_map.into_iter() {
+        for (&old_id, item_set) in self.id2item_map.iter() {
             let new_id = *core_id_map
                 .entry(item_set.core_set.clone())
                 .or_insert_with(|| self.id_factory.next_id());
             id_map.insert(old_id, new_id);
         }
-        let mut lookahead_map: HashMap<_, _> = core_id_map.iter().map(|(item_set, &id)|
+        let mut lookahead_map: IndexMap<_, _> = core_id_map.iter().map(|(item_set, &id)|
             (id, LookaheadItemSet { core_set: item_set.clone(), lookahead_map: BTreeMap::new() }))
             .collect();
 

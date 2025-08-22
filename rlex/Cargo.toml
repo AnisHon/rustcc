@@ -8,3 +8,4 @@ common.workspace = true
 tera.workspace = true
 heck.workspace = true
 bitvec.workspace = true
+indexmap.workspace = true

@@ -2,10 +2,11 @@
 //! LR0分析器转移构建，不负责生成最终转移表
 //!
 use crate::common::grammar::{Grammar, Rule, RuleID, RuleMeta, RuleVec, Symbol, SymbolBound};
-use crate::common::lr_type::{LRItem};
+use crate::common::lr_type::LRItem;
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use indexmap::IndexMap;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub type LR0ItemSet = BTreeSet<LRItem>;
 
@@ -114,7 +115,7 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     /// ### return
     /// id2items_table: id映射表items_id -> item_set
     /// lr0_table: LR0表，使用三元组表示(items_id, symbol, items_id)
-    pub fn build_table(mut self) -> (HashMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>, usize) {
+    pub fn build_table(mut self) -> (IndexMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set.clone()]);
         let mut items2id_table = BTreeMap::new(); // item_set -> item_id

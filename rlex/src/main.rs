@@ -1,5 +1,4 @@
 use rlex::rlexer::lex_reader::LexReader;
-use rlex::rlexer::lex_writer::LexWriter;
 use rlex::rlexer::lexer::Lexer;
 
 fn get_path(path: &str) -> String {
@@ -45,6 +44,6 @@ fn main() {
     }
     println!("edges: {}", sum);
 
-    let lex_writer = LexWriter::new(&get_path("/resources/lex_yy.rs"), lex, );
-    lex_writer.write();
+    // let lex_writer = LexWriter::new(&get_path("/resources/lex_yy.rs"), lex, );
+    // lex_writer.write();
 }

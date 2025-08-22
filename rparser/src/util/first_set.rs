@@ -1,5 +1,6 @@
 use crate::common::grammar::{EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
 use std::collections::{BTreeMap, BTreeSet};
+use indexmap::IndexMap;
 //
 // struct FirstSetBuilder<T> {
 //
@@ -13,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 // }
 
 /// FirstMap类型
-pub type FirstMap<T> = BTreeMap<RuleID, BTreeSet<EpsilonSymbol<T>>>;
+pub type FirstMap<T> = IndexMap<RuleID, BTreeSet<EpsilonSymbol<T>>>;
 
 
 pub fn get_rules<T: SymbolBound>(grammar: &Grammar<T>) -> BTreeMap<usize, &RuleVec<T>> {
@@ -34,7 +35,7 @@ pub fn get_rules<T: SymbolBound>(grammar: &Grammar<T>) -> BTreeMap<usize, &RuleV
 fn calc_first_set<T: SymbolBound>(
     alter_rule: &RuleVec<T>,
     first_map: &FirstMap<T>,
-    change_tracker: &BTreeMap<RuleID, bool>
+    change_tracker: &IndexMap<RuleID, bool>
 ) -> BTreeSet<EpsilonSymbol<T>> {
     let mut first_set = BTreeSet::new();
     let mut nullable = false; // 全局角度能否推出空
@@ -63,7 +64,7 @@ fn calc_first_set<T: SymbolBound>(
                 Symbol::NonTerminal(x) => x
             };
 
-            let next_first_set = first_map.get(&next_rule_id).unwrap();
+            let next_first_set = first_map.get(next_rule_id).unwrap();
             if change_tracker[next_rule_id] { // 有改变，则合并，否则跳过
                 first_set.extend(next_first_set.iter().cloned());
             }
@@ -93,7 +94,7 @@ pub fn build_first<T: SymbolBound>(grammar: &Grammar<T>) -> FirstMap<T> {
     let mut first_map: FirstMap<T> = rules.iter()   // 推导式到first集合的表
         .map(|(&rule_id, _)| (rule_id, BTreeSet::new()))// 初始化表
         .collect();
-    let mut change_tracker: BTreeMap<RuleID, bool> = rules.iter()// first set变化表，跳过无变化项目
+    let mut change_tracker: IndexMap<RuleID, bool> = rules.iter()// first set变化表，跳过无变化项目
         .map(|(&rule_id, _)| (rule_id, false)) // 初始值为false，因为初始first是空的，可以跳过
         .collect();
     let mut changes = true; // 增量迭代法
