@@ -1,12 +1,14 @@
-use std::fs;
-use std::num::ParseIntError;
-use tera::{Context, Tera};
+use crate::common::grammar::Rule;
+use crate::common::lr_type::LRAction;
+use crate::file_parser::table_builder::LRTableBuilder;
 use common::utils::compress::compress_matrix;
 use regex::Regex;
-use crate::common::lr_type::LRAction;
-use crate::file_parser::table_builder::{LRTableBuilder, TableType};
+use std::fs;
+use tera::{Context, Tera};
+use common::utils::str_util::option_to_code_str;
+
 const TEMPLATE: &str = include_str!("../../resources/parser.rs.tera");
-const VALUE_STACK_NAME: &str = "VALUE_STACK";
+const VALUE_STACK_NAME: &str = "value_stack";
 const VALUE_NAME: &str = "value";
 
 /// 生成处理程序
@@ -32,20 +34,13 @@ impl TableWriter {
 
     /// 转换
     fn resolve_action(&self) -> Vec<Option<String>> {
-        let mut action_map = Vec::new();
-        action_map.resize(self.lr_table_builder.rule_map.len(), None);
-
-        for (&idx, &(id, pos)) in self.lr_table_builder.rule_map.iter() {
+        self.lr_table_builder.rule_map.iter().enumerate().map(|(idx, &(id, pos))|  {
             let action = &self.lr_table_builder.grammar.get_meta(id).unwrap().action[pos];
-            let action = match action {
-                None => continue,
-                Some(x) => x
-            };
-
-            let action = self.convert_format_regex(action);
-            action_map[idx] = Some(action);
-        };
-        action_map
+            match action {
+                None => return None,
+                Some(x) => Some(self.convert_format_regex(x))
+            }
+        }).collect()
     }
 
     fn convert_format_regex(&self, input: &str) -> String {
@@ -68,26 +63,59 @@ impl TableWriter {
     pub fn write(self) {
         let (action_table, goto_table, init) = self.lr_table_builder.build_lr_table();
 
-        let action_map = self.resolve_action();
+        let rule_lens: Vec<_> = self.lr_table_builder.rule_map.iter().map(|&(id, idx)| match &self.lr_table_builder.grammar.get_rule(id).unwrap()[idx] {
+            Rule::Epsilon => 0,
+            Rule::Expression(x) => x.len()
+        }).collect();
+
+        let action_codes = self.resolve_action();
+
         // 压缩矩阵
         let (action_base, action_next, action_check) = compress_matrix(&action_table, LRAction::Error);
         let (goto_base, goto_next, goto_check) = compress_matrix(&goto_table, None);
+
+        // 提前处理成代码字符串数组
+        let action_base = option_to_code_str(action_base);
+        let action_next = action_to_code_str(action_next);
+        let action_check = option_to_code_str(action_check);
+        let goto_base = option_to_code_str(goto_base);
+        let goto_next = option_to_code_str(goto_next);
+        let goto_check = option_to_code_str(goto_check);
+
+        let user_code = self.lr_table_builder.config.user_code;
 
         let mut tera = Tera::default();
         tera.add_raw_template("parser.rs.tera", TEMPLATE).unwrap();
         let mut context = Context::new();
 
+        context.insert("action_base", &action_base);
+        context.insert("action_next", &action_next);
+        context.insert("action_check", &action_check);
+        context.insert("goto_base", &goto_base);
+        context.insert("goto_next", &goto_next);
+        context.insert("goto_check", &goto_check);
+        context.insert("rule_lens", &rule_lens);
+        context.insert("action_codes", &action_codes);
+        context.insert("vs_name", VALUE_STACK_NAME);
+        context.insert("cv_name", VALUE_NAME);
+        context.insert("user_code", &user_code);
+
         // 渲染模板
-        let rendered = tera.render("lex_yy.tera", &context).unwrap();
+        let rendered = tera.render("parser.rs.tera", &context).unwrap();
         fs::write(self.path, rendered).unwrap();
-
-
     }
 
 
 
 }
-
+fn action_to_code_str(vec: Vec<LRAction>) -> Vec<String> {
+    vec.into_iter().map(|action| match action {
+        LRAction::Reduce(x) => format!("Reduce({})", x),
+        LRAction::Shift(x) => format!("Shift({})", x),
+        LRAction::End(x) => format!("End({})", x),
+        LRAction::Error => "Error".to_string()
+    }).collect()
+}
 
 
 

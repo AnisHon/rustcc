@@ -1,4 +1,9 @@
 use std::collections::{BTreeSet, HashMap};
+use std::fmt::format;
+use std::fs::File;
+use std::io;
+use std::io::{BufRead, BufReader};
+use std::vec::IntoIter;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
@@ -12,7 +17,8 @@ struct BisonParser;
 pub struct GrammarConfig {
     pub tokens: Vec<String>,
     pub assoc: Vec<AssocType>,
-    pub productions: Vec<Production>
+    pub productions: Vec<Production>,
+    pub user_code: String,
 }
 
 /// Token类型数组
@@ -43,12 +49,13 @@ pub struct GrammarConfigParser {
     input: String,
     tokens: Vec<String>,
     assoc: Vec<AssocType>,
-    productions: Vec<Production>
+    productions: Vec<Production>,
+    user_code: String
 }
 
 impl GrammarConfigParser {
     pub fn new(input: String) -> Self {
-        Self { input, tokens: Vec::new(), assoc: Vec::new(), productions: Vec::new() }
+        Self { input, tokens: Vec::new(), assoc: Vec::new(), productions: Vec::new(), user_code: String::new() }
     }
 
     pub fn parse(mut self) -> GrammarConfig {
@@ -60,7 +67,7 @@ impl GrammarConfigParser {
         for pair in pairs {
             self.parse_file(pair);
         }
-        GrammarConfig { tokens: self.tokens, assoc: self.assoc, productions: self.productions }
+        GrammarConfig { tokens: self.tokens, assoc: self.assoc, productions: self.productions, user_code: self.user_code }
     }
 
     fn parse_file(&mut self, file: Pair<Rule>) {
@@ -134,14 +141,14 @@ impl GrammarConfigParser {
     }
 
     fn parse_user_code(&mut self, rules: Pair<Rule>) {
-
+        self.user_code = rules.as_str().to_string();
     }
 
 }
 
 
 
-pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) {
+pub fn get_grammar(config: &GrammarConfig, buffer: impl BufRead) -> (Grammar<usize>, Vec<SymbolMeta>) {
 
     let mut grammar = Grammar::new(0);
 
@@ -150,7 +157,7 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) 
         .collect();
 
     // todo 通过lexer声明，确定token ID
-    let (token_meta, token_map) = build_token_map(&config, &non_terminal);
+    let (token_meta, token_map) = build_token_map(&config, buffer);
     
     // 构建推导式
     for (rule_id, production) in config.productions.iter().enumerate() {
@@ -170,7 +177,7 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) 
                     if non_terminal.contains_key(symbol) {
                         Symbol::NonTerminal(non_terminal[symbol]) // 查Rule ID
                     } else {
-                        let tid = token_map[symbol];
+                        let tid = *token_map.get(symbol).expect(format!("No Such Token {}", symbol).as_str());
                         let meta = &token_meta[tid];
                         priority = meta.priority;   // 推导式以最后的终结符为准
                         assoc = meta.assoc;
@@ -192,15 +199,26 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) 
     (grammar, token_meta)
 }
 
-fn build_token_map(config: &GrammarConfig, non_terminal: &HashMap<String, usize>) -> (Vec<SymbolMeta>, HashMap<String, usize>) {
+/// 读取lexer文件中的token，相互对应
+fn token_from_lexer(buffer: impl BufRead) -> Vec<String> {
+    let mut lex: Vec<String> = Vec::new();
 
-    let tokens: BTreeSet<_> = config.productions.iter()
-        .map(|production| &production.rules)
-        .flatten()
-        .map(|(symbols, _)| symbols.iter().cloned())
-        .flatten()
-        .filter(|x| !non_terminal.contains_key(x))
-        .collect();
+    for line in buffer.lines() {
+        let line = line.unwrap();
+        let vec: Vec<_> = line.split_whitespace().collect();
+
+        if vec.is_empty() {
+            continue;
+        }
+        let name: String = vec[0].to_string();
+
+        lex.push(name);
+    }
+
+    lex
+}
+fn build_token_map(config: &GrammarConfig, buffer: impl BufRead) -> (Vec<SymbolMeta>, HashMap<String, usize>) {
+    let tokens = token_from_lexer(buffer);
 
     let mut token_meta: Vec<_> = tokens.into_iter().enumerate()
         .map(|(idx, token)| SymbolMeta::new(idx, token))
@@ -217,12 +235,12 @@ fn build_token_map(config: &GrammarConfig, non_terminal: &HashMap<String, usize>
             AssocType::NonAssoc(_) => Assoc::None,
         };
         assoc.unwrap().iter().for_each(|x| {
-            let meta = &mut token_meta[token_map[x]];
+            let token_id = *token_map.get(x).expect(format!("No such token: {}", x).as_str());
+            let meta = &mut token_meta[token_id];
             meta.priority = idx;
             meta.assoc = is_right;
         });
     }
-
 
     (token_meta, token_map)
 }

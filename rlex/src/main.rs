@@ -1,10 +1,11 @@
 use rlex::rlexer::lex_reader::LexReader;
+use rlex::rlexer::lex_writer::LexWriter;
 use rlex::rlexer::lexer::Lexer;
 
-fn get_path(path: &str) -> String {
+
+pub fn get_path(path: &str) -> String {
     format!("{}{}", env!("CARGO_MANIFEST_DIR"), path)
 }
-
 fn main() {
 
 
@@ -44,6 +45,6 @@ fn main() {
     }
     println!("edges: {}", sum);
 
-    // let lex_writer = LexWriter::new(&get_path("/resources/lex_yy.rs"), lex, );
-    // lex_writer.write();
+    let lex_writer = LexWriter::new(&get_path("/../src/gen/lex_yy.rs"), lex, );
+    lex_writer.write();
 }

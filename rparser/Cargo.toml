@@ -10,5 +10,5 @@ pest.workspace = true
 pest_derive.workspace = true
 indexmap.workspace = true
 tera.workspace = true
-bitvec.workspace = true
 regex.workspace = true
+serde = { version = "1.0.219", features = ["derive"] }

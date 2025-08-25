@@ -629,13 +629,13 @@ dependencies = [
 name = "rparser"
 version = "0.1.0"
 dependencies = [
- "bitvec",
  "common",
  "indexmap",
  "pest",
  "pest_derive",
  "petgraph",
  "regex",
+ "serde",
  "tera",
 ]
 

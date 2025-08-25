@@ -3,9 +3,8 @@
 
 use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, Symbol, SymbolBound};
 use std::collections::{BTreeMap, BTreeSet};
-
-pub type ItemID = usize;
-
+use std::fmt::{Debug};
+use serde::Serialize;
 
 /// 通用LR项目，引用rule，管理pos
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
@@ -68,6 +67,7 @@ pub enum LRAction {
     End(usize),    // 结束规约 推导式ID
     Error          // 出错Error
 }
+
 
 impl LRAction {
     pub fn is_shift(&self) -> bool{

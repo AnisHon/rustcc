@@ -1,3 +1,4 @@
+use std::io::BufRead;
 use indexmap::IndexMap;
 use crate::common::grammar::{Assoc, EndSymbol, Grammar, Symbol, SymbolID, SymbolMeta};
 use crate::common::lr_type::{LRAction};
@@ -13,17 +14,17 @@ pub enum TableType {
 
 pub struct LRTableBuilder {
     table_type: TableType,
-    config: GrammarConfig,
-    token_meta: Vec<SymbolMeta>,
-    pub rule_map: IndexMap<usize, (usize, usize)>,
+    pub config: GrammarConfig,
+    pub token_meta: Vec<SymbolMeta>,
+    pub rule_map: Vec<(usize, usize)>,
     rule_id_map: IndexMap<(usize, usize), usize>,
     pub grammar: Grammar<usize>,
 }
 
 impl LRTableBuilder {
-    pub fn new(table_type: TableType, input: String) -> Self {
+    pub fn new(table_type: TableType, input: String, lex_buf: impl BufRead) -> Self {
         let config = GrammarConfigParser::new(input).parse();
-        let  (grammar, token_meta) = get_grammar(&config);
+        let  (grammar, token_meta) = get_grammar(&config, lex_buf);
         // 子式->id映射表
         let rule_id_map: IndexMap<_, _> = (0..grammar.get_size())
             .map(|i| (0..grammar.get_rule(i).unwrap().len()).map(move |j| (i, j)))
@@ -32,8 +33,8 @@ impl LRTableBuilder {
             .map(|(i, j)| (j, i))
             .collect();
         // id->子式映射表
-        let rule_map: IndexMap<_, _> = rule_id_map.iter()
-            .map(|(&pos, &rule_id)| (rule_id, pos)).collect();
+        let rule_map: Vec<_> = rule_id_map.iter()
+            .map(|(&pos, _)| pos).collect();
 
         Self {
             table_type,
@@ -63,7 +64,7 @@ impl LRTableBuilder {
 
 
 
-        let token_sz = self.config.tokens.len();
+        let token_sz = self.token_meta.len();
         let state_sz = item_set_map.len();
 
         // LALR1表 [state;token] -> [state][token] ，多出一个是结束符，默认为Error
@@ -210,7 +211,7 @@ impl LRTableBuilder {
         let get_name = |action: &LRAction| {
             match action {
                 LRAction::Reduce(x) | LRAction::End(x) => {
-                    let (id, _) = self.rule_map[x];
+                    let (id, _) = self.rule_map[*x];
                     self.grammar.get_meta(id).unwrap().name.as_str()
                 }
                 LRAction::Shift(_) => {

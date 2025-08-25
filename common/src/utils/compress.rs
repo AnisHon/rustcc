@@ -11,7 +11,7 @@ pub fn compress_matrix<T: Eq + Copy>(
 
     let mut base: Vec<Option<usize>> = vec![None; rows];
     let mut next: Vec<T> = vec![zero_value; stride];
-    let mut check: Vec<Option<usize>> = vec![None; rows];
+    let mut check: Vec<Option<usize>> = vec![None; stride];
 
     let mut row_cols: Vec<(_, Vec<_>)> = (0..rows)
         .map(|row|
@@ -57,7 +57,7 @@ pub fn compress_matrix<T: Eq + Copy>(
 }
 
 // 分配一个可用的base
-fn alloc_base(bitmap: &mut BitVec, edges: &Vec<ClassID>, max_edge: usize) -> usize {
+fn alloc_base(bitmap: &mut BitVec, edges: &Vec<usize>, max_edge: usize) -> usize {
 
     let mut offset: usize = match bitmap.first_zero() { // 查询初始位置
         Some(x) => x,
@@ -67,7 +67,8 @@ fn alloc_base(bitmap: &mut BitVec, edges: &Vec<ClassID>, max_edge: usize) -> usi
         }
     };
 
-    while try_allocate(bitmap, edges, offset, max_edge) {
+    // 分配成功返回true
+    while !try_allocate(bitmap, edges, offset, max_edge) {
         offset += 1;
     }
 
@@ -81,7 +82,7 @@ fn alloc_base(bitmap: &mut BitVec, edges: &Vec<ClassID>, max_edge: usize) -> usi
 
 }
 
-fn try_allocate(bitmap: &mut BitVec, edges: &Vec<ClassID>, offset: usize, max_edge: usize) -> bool {
+fn try_allocate(bitmap: &mut BitVec, edges: &Vec<usize>, offset: usize, max_edge: usize) -> bool {
     for &edge in edges.iter() {
         let pos = edge + offset;
         // 自动增长逻辑

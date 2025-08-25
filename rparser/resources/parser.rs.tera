@@ -1,0 +1,100 @@
+{{ user_code }}
+
+#[derive(Debug, Clone)]
+pub enum LRAction {
+    Reduce(usize), // 规约 推导式ID
+    Shift(usize),  // 移入 状态ID
+    End(usize),    // 结束规约 推导式ID
+    Error          // 出错Error
+}
+
+// action matrix -> base next check
+const ACTION_BASE: [Option<usize>; {{ action_base | length }}] = [
+    {%- for item in action_base -%}{{ item }},{%- endfor -%}
+];
+
+const ACTION_NEXT: [Option<usize>; {{ action_next | length }}] = [
+    {%- for item in action_next -%}LRAction::{{ item }},{%- endfor -%}
+];
+
+const ACTION_CHECK: [Option<usize>; {{ action_check | length }}] = [
+    {%- for item in action_check -%}{{ item }},{%- endfor -%}
+];
+
+// goto matrix -> base next check
+const GOTO_BASE: [Option<usize>; {{ goto_base | length }}] = [
+    {%- for item in goto_base -%}{{ item }},{%- endfor -%}
+];
+
+const GOTO_NEXT: [Option<usize>; {{ goto_next | length }}] = [
+    {%- for item in goto_next -%}{{ item }},{%- endfor -%}
+];
+
+const GOTO_CHECK: [Option<usize>; {{ goto_check | length }}] = [
+    {%- for item in goto_check -%}{{ item }},{%- endfor -%}
+];
+
+
+// rule_id -> length for reduce
+pub const RULE_LENS: [usize; {{ rule_lens | length }}] = [
+    {%- for item in rule_lens -%}{{ item }},{%- endfor -%}
+];
+
+
+/// action_table[state][token]
+pub fn get_action(state: usize, token: usize) -> LRAction {
+    let base = ACTION_BASE[state_id];
+    if base.is_none() {
+        return LRAction::Error
+    }
+
+    let idx = base.unwrap() + class_id;
+
+    let check = ACTION_CHECK[idx];
+
+    if check.is_none() {
+        return None
+    }
+
+    if check.unwrap() == state_id {
+        ACTION_NEXT[idx]
+    } else {
+        None
+    }
+}
+
+/// action_table[state][rule]
+pub fn get_goto(state: usize, rule: usize) -> LRAction {
+    let base = GOTO_BASE[state_id];
+    if base.is_none() {
+        return LRAction::Error
+    }
+
+    let idx = base.unwrap() + class_id;
+
+    let check = GOTO_CHECK[idx];
+
+    if check.is_none() {
+        return None
+    }
+
+    if check.unwrap() == state_id {
+        GOTO_NEXT[idx]
+    } else {
+        None
+    }
+}
+
+/// action_code[state](params)
+pub fn exec_action<T>(rule: usize, mut {{ cv_name }}: T, {{ vs_name }}: Vec<T>) {
+    match rule {
+        {%- for item in action_codes -%}
+            {% if item %}
+                {{ loop.index0 }} => {{ item }},
+            {% endif %}
+        {%- endfor -%}
+        _ => unreachable!()
+    };
+    value
+}
+

@@ -7,6 +7,7 @@ use heck::ToUpperCamelCase;
 use std::fs;
 use tera::{Context, Tera};
 use common::utils::compress::compress_matrix;
+use common::utils::str_util::option_to_code_str;
 
 const TEMPLATE: &str = include_str!("../../resources/lex.rs.tera");
 pub struct LexWriter {
@@ -19,7 +20,7 @@ impl LexWriter {
         Self { path: path.to_string(), lexer }
     }
 
-    /// Tera真不好用，远不如Thymeleaf 和 JSP
+    /// Tera真不好用，远不如Thymeleaf JSP
     /// 自己转字符串
     fn optional_to_string<T>(vec: Vec<Option<T>>) -> String
     where T: Display
@@ -60,7 +61,7 @@ impl LexWriter {
             .collect();
 
         let (base, next, check) = compress_matrix(self.lexer.get_dfa().get_raw_matrix(), None);
-        
+        let next: Vec<StateID> = next.into_iter().map(|x| x.unwrap_or_else(|| 0)).collect();
         // let (base, next, check) = self.compress_dfa();
         let base = Self::optional_to_string(base);
         let check = Self::optional_to_string(check);
