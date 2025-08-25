@@ -1,4 +1,5 @@
 use rparser::file_parser::reader::{get_grammar, GrammarConfigParser};
+use rparser::file_parser::table_builder::{LRTableBuilder, TableType};
 use rparser::lr::lr0::LR0Builder;
 
 fn main() {
@@ -23,7 +24,20 @@ term:
 /* user C code */
 int main() { return yyparse(); }
 "#;
-    let grammar = GrammarConfigParser::new(input.to_owned()).parse();
+    // let grammar = GrammarConfigParser::new(input.to_owned()).parse();
+    let builder = LRTableBuilder::new(TableType::LALR1, input.to_string());
+    let (action, goto, init) = builder.build_lr_table();
+
+    for item in action {
+        for x in item {
+            print!("{:?} ", x);
+        }
+        println!();
+    }
+
+    
+    
+    
 
     // let x = LR0Builder::new(&grammar).build_table();
 

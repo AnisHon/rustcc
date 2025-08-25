@@ -1,2 +1,2 @@
 pub mod reader;
-pub mod build_lalr;
+pub mod table_builder;

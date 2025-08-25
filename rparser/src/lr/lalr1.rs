@@ -329,10 +329,10 @@ fn test() {
         grammar.add_rule(idx, alter_rules, RuleMeta::new(idx, idx.to_string()));
     }
 
-    let builder = AdvancedLALR1Builder::new(&grammar);
+    let builder = LALR1Builder::new(&grammar);
     let (id2items_table,  transition, _) = builder.build_table();
     // println!("{:#?}", );
-
+    println!("{}", id2items_table.len());
     for (from, sym, to) in transition {
         let from = id2items_table.get(&from).unwrap();
         let to  = id2items_table.get(&to).unwrap();
@@ -343,6 +343,7 @@ fn test() {
 
         println!("{:?}\n\t{:?} -> {:?}", from, sym, to);
     }
+
 
     // let first = build_first(&grammar);
     // println!("{:?}", first);

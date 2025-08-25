@@ -68,3 +68,12 @@ pub enum LRAction {
     End(usize),    // 结束规约 推导式ID
     Error          // 出错Error
 }
+
+impl LRAction {
+    pub fn is_shift(&self) -> bool{
+        match self {
+            LRAction::Reduce(_) | LRAction::End(_) | LRAction::Error => false,
+            LRAction::Shift(_) => true
+        }
+    }
+}
