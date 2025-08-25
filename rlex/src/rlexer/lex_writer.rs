@@ -6,6 +6,8 @@ use common::lex::{ClassID, StateID};
 use heck::ToUpperCamelCase;
 use std::fs;
 use tera::{Context, Tera};
+use common::utils::compress::compress_matrix;
+
 const TEMPLATE: &str = include_str!("../../resources/lex.rs.tera");
 pub struct LexWriter {
     path: String,
@@ -57,7 +59,9 @@ impl LexWriter {
             })
             .collect();
 
-        let (base, next, check) = self.compress_dfa();
+        let (base, next, check) = compress_matrix(self.lexer.get_dfa().get_raw_matrix(), None);
+        
+        // let (base, next, check) = self.compress_dfa();
         let base = Self::optional_to_string(base);
         let check = Self::optional_to_string(check);
 
@@ -90,92 +94,92 @@ impl LexWriter {
 
     }
 
-    /// 压缩DFA矩阵 134
-    fn compress_dfa(&self) -> (Vec<Option<usize>>, Vec<usize>, Vec<Option<StateID>>) {
-        let dfa = self.lexer.get_dfa();
-        let mut bitmap = bitvec![0; dfa.get_stride()];
-
-        let mut base: Vec<Option<usize>> = vec![None; dfa.size()];
-        let mut next: Vec<usize> = vec![0; dfa.get_stride()];
-        let mut check: Vec<Option<StateID>> = vec![None; dfa.get_stride()];
-
-        let mut states: Vec<_> = (0..dfa.size()).map(|state| (state, dfa.get_symbols(state))).collect();
-        states.sort_by_key(|(_, edges)| edges.len());
-        states.reverse();
-
-
-        for (state, edges) in states {
-            if edges.is_empty() {
-                continue;
-            }
-
-            // 最大转移，内存分配上界
-            let max_edge = edges.iter().max().copied().unwrap();
-
-            let offset = Self::alloc_base(&mut bitmap, &edges, max_edge);
-
-            let max_size = offset + max_edge + 1;
-
-            if max_size > next.len() {
-                next.resize(max_size, 0);
-                check.resize(max_size, None);
-            }
-
-            for edge in edges {
-                let pos = offset + edge;
-                next[pos] = dfa.find_next(state, edge).unwrap();
-                check[pos] = Some(state);
-            }
-            base[state] = Some(offset);
-        }
-
-        (base, next, check)
-    }
-
-    // 分配一个可用的base
-    fn alloc_base(bitmap: &mut BitVec, edges: &Vec<ClassID>, max_edge: usize) -> usize {
-
-        let mut offset: usize = match bitmap.first_zero() { // 查询初始位置
-            Some(x) => x,
-            None => {
-                bitmap.resize(bitmap.len() + max_edge, false);
-                bitmap.first_zero().unwrap()
-            }
-        };
-
-        while !Self::try_allocate(bitmap, edges, offset, max_edge) {
-            offset += 1;
-        }
-
-        for &edge in edges {
-            let pos = offset + edge;
-            bitmap.set(pos, true);
-        }
-
-
-        offset
-
-    }
-
-    fn try_allocate(bitmap: &mut BitVec, edges: &Vec<ClassID>, offset: usize, max_edge: usize) -> bool {
-        for &edge in edges.iter() {
-            let pos = edge + offset;
-            // 自动增长逻辑
-            if pos >= bitmap.len() {
-                bitmap.resize(pos + max_edge, false);
-            }
-
-            let occupied = bitmap[pos];
-
-            // 被占用无法分配
-            if occupied {
-                return false;
-            }
-        }
-
-        // 一切畅通可以分配
-        true
-    }
+    // 压缩DFA矩阵 134
+    // fn compress_dfa(&self) -> (Vec<Option<usize>>, Vec<usize>, Vec<Option<StateID>>) {
+    //     let dfa = self.lexer.get_dfa();
+    //     let mut bitmap = bitvec![0; dfa.get_stride()];
+    // 
+    //     let mut base: Vec<Option<usize>> = vec![None; dfa.size()];
+    //     let mut next: Vec<usize> = vec![0; dfa.get_stride()];
+    //     let mut check: Vec<Option<StateID>> = vec![None; dfa.get_stride()];
+    // 
+    //     let mut states: Vec<_> = (0..dfa.size()).map(|state| (state, dfa.get_symbols(state))).collect();
+    //     states.sort_by_key(|(_, edges)| edges.len());
+    //     states.reverse();
+    // 
+    // 
+    //     for (state, edges) in states {
+    //         if edges.is_empty() {
+    //             continue;
+    //         }
+    // 
+    //         // 最大转移，内存分配上界
+    //         let max_edge = edges.iter().max().copied().unwrap();
+    // 
+    //         let offset = Self::alloc_base(&mut bitmap, &edges, max_edge);
+    // 
+    //         let max_size = offset + max_edge + 1;
+    // 
+    //         if max_size > next.len() {
+    //             next.resize(max_size, 0);
+    //             check.resize(max_size, None);
+    //         }
+    // 
+    //         for edge in edges {
+    //             let pos = offset + edge;
+    //             next[pos] = dfa.find_next(state, edge).unwrap();
+    //             check[pos] = Some(state);
+    //         }
+    //         base[state] = Some(offset);
+    //     }
+    // 
+    //     (base, next, check)
+    // }
+    // 
+    // // 分配一个可用的base
+    // fn alloc_base(bitmap: &mut BitVec, edges: &Vec<ClassID>, max_edge: usize) -> usize {
+    // 
+    //     let mut offset: usize = match bitmap.first_zero() { // 查询初始位置
+    //         Some(x) => x,
+    //         None => {
+    //             bitmap.resize(bitmap.len() + max_edge, false);
+    //             bitmap.first_zero().unwrap()
+    //         }
+    //     };
+    // 
+    //     while !Self::try_allocate(bitmap, edges, offset, max_edge) {
+    //         offset += 1;
+    //     }
+    // 
+    //     for &edge in edges {
+    //         let pos = offset + edge;
+    //         bitmap.set(pos, true);
+    //     }
+    // 
+    // 
+    //     offset
+    // 
+    // }
+    // 
+    // fn try_allocate(bitmap: &mut BitVec, edges: &Vec<ClassID>, offset: usize, max_edge: usize) -> bool {
+    //     for &edge in edges.iter() {
+    //         let pos = edge + offset;
+    //         // 自动增长逻辑
+    //         if pos >= bitmap.len() {
+    //             bitmap.resize(pos + max_edge, false);
+    //         }
+    // 
+    //         let occupied = bitmap[pos];
+    // 
+    //         // 被占用无法分配
+    //         if occupied {
+    //             return false;
+    //         }
+    //     }
+    // 
+    //     // 一切畅通可以分配
+    //     true
+    // }
 
 }
 

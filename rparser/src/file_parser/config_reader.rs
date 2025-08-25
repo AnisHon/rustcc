@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use crate::common::grammar::{Grammar, RuleMeta, RuleVec, Symbol, SymbolMeta, SymbolVec};
+use crate::common::grammar::{Assoc, Grammar, RuleMeta, RuleVec, Symbol, SymbolMeta, SymbolVec};
 
 #[derive(Parser)]
 #[grammar = "parser_pest.pest"]
@@ -141,7 +141,6 @@ impl GrammarConfigParser {
 
 
 
-
 pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) {
 
     let mut grammar = Grammar::new(0);
@@ -150,6 +149,7 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) 
         .map(|(idx, production)| (production.name.clone(), idx))
         .collect();
 
+    // todo 通过lexer声明，确定token ID
     let (token_meta, token_map) = build_token_map(&config, &non_terminal);
     
     // 构建推导式
@@ -161,7 +161,7 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) 
         for (symbols, action) in production.rules.iter() {
             let action = action.clone();
             let mut priority = 0;
-            let mut is_right = false;
+            let mut assoc = Assoc::None;
             let rule = if symbols.is_empty() { // 空 epsilon
                 crate::common::grammar::Rule::Epsilon
             } else {
@@ -173,7 +173,7 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) 
                         let tid = token_map[symbol];
                         let meta = &token_meta[tid];
                         priority = meta.priority;   // 推导式以最后的终结符为准
-                        is_right = meta.is_right;
+                        assoc = meta.assoc;
                         Symbol::Terminal(tid)
                     }
                 }).collect();
@@ -182,7 +182,7 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>) 
 
             rule_vec.push(rule);
             meta.action.push(action);
-            meta.is_right.push(is_right);
+            meta.assoc.push(assoc);
             meta.priority.push(priority);
         }
 
@@ -212,13 +212,14 @@ fn build_token_map(config: &GrammarConfig, non_terminal: &HashMap<String, usize>
 
     for (idx, assoc) in config.assoc.iter().enumerate() {
         let is_right = match assoc {
-            AssocType::Right(_) => true,
-            _ => false
+            AssocType::Right(_) => Assoc::Right,
+            AssocType::Left(_) => Assoc::Left,
+            AssocType::NonAssoc(_) => Assoc::None,
         };
         assoc.unwrap().iter().for_each(|x| {
             let meta = &mut token_meta[token_map[x]];
             meta.priority = idx;
-            meta.is_right = is_right;
+            meta.assoc = is_right;
         });
     }
 

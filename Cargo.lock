@@ -137,6 +137,9 @@ dependencies = [
 [[package]]
 name = "common"
 version = "0.1.0"
+dependencies = [
+ "bitvec",
+]
 
 [[package]]
 name = "core-foundation-sys"
@@ -626,11 +629,14 @@ dependencies = [
 name = "rparser"
 version = "0.1.0"
 dependencies = [
+ "bitvec",
  "common",
  "indexmap",
  "pest",
  "pest_derive",
  "petgraph",
+ "regex",
+ "tera",
 ]
 
 [[package]]

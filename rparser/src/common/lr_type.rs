@@ -61,7 +61,7 @@ pub struct LookaheadItemSet<T: SymbolBound> {
 }
 
 /// LR表格的规约移入操作
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Copy, Eq)]
 pub enum LRAction {
     Reduce(usize), // 规约 推导式ID
     Shift(usize),  // 移入 状态ID

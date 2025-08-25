@@ -24,15 +24,22 @@ impl<T> SymbolBound for T where T: Clone + Debug + Ord + PartialOrd + Eq + Parti
 pub struct RuleMeta {
     pub id: RuleID,      // ID
     pub name: String,    // 推导式的名字
-    pub is_right: Vec<bool>,  // 是否右结合
+    pub assoc: Vec<Assoc>,  // 结合性
     pub priority: Vec<usize>, // 优先级
     pub action: Vec<Option<String>>, // 动作
 }
 
 impl RuleMeta {
     pub fn new(id: RuleID, name: String) -> Self {
-        Self { id, name, is_right: Vec::new(), priority: Vec::new(), action: Vec::new() }
+        Self { id, name, assoc: Vec::new(), priority: Vec::new(), action: Vec::new() }
     }
+}
+
+#[derive(Clone, Debug, Copy)]
+pub enum Assoc {
+    Left,
+    Right,
+    None // 无结合性
 }
 
 // 符号信息
@@ -40,13 +47,13 @@ impl RuleMeta {
 pub struct SymbolMeta {
     pub id: SymbolID,   // ID
     pub content: String,   // 终结符内容
-    pub is_right: bool,  // 是否右结合
+    pub assoc: Assoc,  // 是否右结合
     pub priority: usize // 优先级
 }
 
 impl SymbolMeta {
     pub fn new(id: SymbolID, content: String) -> Self {
-        Self { id, content, is_right: false, priority: 0 }
+        Self { id, content, assoc: Assoc::None, priority: 0 }
     }
 }
 

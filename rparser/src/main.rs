@@ -1,4 +1,4 @@
-use rparser::file_parser::reader::{get_grammar, GrammarConfigParser};
+use rparser::file_parser::config_reader::{get_grammar, GrammarConfigParser};
 use rparser::file_parser::table_builder::{LRTableBuilder, TableType};
 use rparser::lr::lr0::LR0Builder;
 
@@ -34,17 +34,5 @@ int main() { return yyparse(); }
         }
         println!();
     }
-
-    
-    
-    
-
-    // let x = LR0Builder::new(&grammar).build_table();
-
-    // println!("{:?}", x);
-
-
-    // println!("{:#?}", grammar);
-    // println!("{:?}", x);
 
 }

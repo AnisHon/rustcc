@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
-use crate::common::grammar::{EndSymbol, Grammar, Symbol, SymbolID, SymbolMeta};
+use crate::common::grammar::{Assoc, EndSymbol, Grammar, Symbol, SymbolID, SymbolMeta};
 use crate::common::lr_type::{LRAction};
-use crate::file_parser::reader::{get_grammar, GrammarConfig, GrammarConfigParser};
+use crate::file_parser::config_reader::{get_grammar, GrammarConfig, GrammarConfigParser};
 use crate::lr::lalr1::{AdvancedLALR1Builder, LALR1Builder};
 use crate::lr::lr1::LR1Builder;
 
@@ -15,7 +15,7 @@ pub struct LRTableBuilder {
     table_type: TableType,
     config: GrammarConfig,
     token_meta: Vec<SymbolMeta>,
-    rule_map: IndexMap<usize, (usize, usize)>,
+    pub rule_map: IndexMap<usize, (usize, usize)>,
     rule_id_map: IndexMap<(usize, usize), usize>,
     pub grammar: Grammar<usize>,
 }
@@ -45,7 +45,7 @@ impl LRTableBuilder {
         }
     }
 
-    ///
+    /// 构建LR表格
     /// ### return
     /// Vec<Vec<LRAction>>: action table
     /// Vec<Vec<Option<usize>>>: goto table
@@ -99,7 +99,7 @@ impl LRTableBuilder {
                         EndSymbol::End => LRAction::End(rule_id),
                         EndSymbol::Symbol(_) => LRAction::Reduce(rule_id)
                     };
-                    let origin: LRAction = action_table[state][symbol_id].clone(); // 拷贝代价不高
+                    let origin: LRAction = action_table[state][symbol_id]; // 拷贝代价不高
 
                     let action = self.handle_conflict(origin, new, symbol_id); // 处理冲突
 
@@ -130,8 +130,8 @@ impl LRTableBuilder {
         let new_priority = self.get_priority(&new, symbol_id);
 
         // 结合性
-        let origin_right_combination = self.get_combination(&origin, symbol_id);
-        let new_right_combination = self.get_combination(&new, symbol_id);
+        let origin_assoc = self.get_assoc(&origin, symbol_id);
+        let new_assoc = self.get_assoc(&new, symbol_id);
 
         // 使用优先级解决冲突
         if origin_priority < new_priority {
@@ -145,28 +145,32 @@ impl LRTableBuilder {
          使用结合性解决冲突
          */
         // 规约移入冲突，通过结合性判断
-        match (origin_right_combination, new_right_combination) {
-            (true, true) => {  // 都是右结合，移入优先
+        match (origin_assoc, new_assoc) {
+            (Assoc::Right, Assoc::Right) => {  // 都是右结合，移入优先
                 if origin.is_shift() { // 继续移入
                     origin
                 } else {
                     new
                 }
             }
-            (false, false) => { // 都是左结合，规约优先
+            (Assoc::Left, Assoc::Left) => { // 都是左结合，规约优先
                 if !origin.is_shift() {
                     origin
                 } else {
                     new
                 }
-            }
-            _ => { // 有左有右，右结合优先，非正常行为发出警告
+            },
+            (Assoc::Right, Assoc::Left) | (Assoc::Left, Assoc::Right) => { // 有左有右，右结合优先，非正常行为发出警告
                 self.conflict_warning(&origin, &new, symbol_id);
                 if origin.is_shift() { // 继续移入
                     origin
                 } else {
                     new
                 }
+            }
+            _ => { // 存在无结合性，报错停止
+                self.conflict_warning(&origin, &new, symbol_id);
+                panic!("failed to resolve NoAssoc Conflict");
             }
         }
     }
@@ -187,7 +191,7 @@ impl LRTableBuilder {
         }
     }
 
-    fn get_combination(&self, action: &LRAction, symbol_id: SymbolID) -> bool {
+    fn get_assoc(&self, action: &LRAction, symbol_id: SymbolID) -> Assoc {
         let x = *match action {
             LRAction::Reduce(x) => x,
             LRAction::End(x) => x,
@@ -195,10 +199,10 @@ impl LRTableBuilder {
             _ => unreachable!()
         };
         if action.is_shift() {
-            self.token_meta[symbol_id].is_right
+            self.token_meta[symbol_id].assoc
         } else {
             let (id, idx) = self.rule_map[x];
-            self.grammar.get_meta(id).unwrap().is_right[idx]
+            self.grammar.get_meta(id).unwrap().assoc[idx]
         }
     }
 
