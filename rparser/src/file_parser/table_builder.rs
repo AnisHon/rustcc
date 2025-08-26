@@ -8,14 +8,16 @@
 //! - 'LRTableBuilder' 带Lookahead文法的文法矩阵构造工具
 //!
 
-
-
+use std::fs::File;
+use std::io::BufReader;
 use crate::common::grammar::{Assoc, EndSymbol, Grammar, ProdMeta, Symbol, SymbolID, SymbolMeta};
 use crate::common::lr_type::LRAction;
-use crate::file_parser::config_reader::{get_grammar, GrammarConfig, GrammarConfigParser};
+use crate::file_parser::config_reader::{get_grammar, token_from_lexer, GrammarConfig, GrammarConfigParser};
 use crate::lr::lalr1::{AdvancedLALR1Builder, LALR1Builder};
 use crate::lr::lr1::LR1Builder;
 use indexmap::IndexMap;
+use crate::file_parser::util::item_set_to_string;
+use crate::lr::lr0::LR0Builder;
 
 pub enum TableType {
     LALR1,
@@ -28,7 +30,7 @@ pub enum TableType {
 /// - 'item_set_map': LookaheadItemSet
 /// - 'transition_table': Vec<(usize, Symbol, usize)>
 /// - 'init_state': usize
-/// 
+///
 /// # Members
 /// - 'table_type': 生成表格类型
 /// - 'config': ConfigReader读取的文法配置
@@ -36,8 +38,8 @@ pub enum TableType {
 /// - 'token_meta': 符号信息表
 /// - 'rule_id_map': rule定位id
 /// - 'grammar': 文法本身
-/// 
-/// 
+///
+///
 pub struct LRTableBuilder {
     table_type: TableType,
     pub config: GrammarConfig,
@@ -82,7 +84,7 @@ impl LRTableBuilder {
             TableType::LR1 => LR1Builder::new(&self.grammar).build_table(),
         };
 
-        let end_symbol_id = self.config.tokens.len(); // 终结符号占用最后一个ID
+        let end_symbol_id = self.token_meta.len(); // 终结符号占用最后一个ID
 
         let token_sz = self.token_meta.len();
         let state_sz = item_set_map.len();
@@ -106,7 +108,7 @@ impl LRTableBuilder {
                 if !item.is_reduced(&self.grammar) {
                     continue;
                 }
-                let rule_id = self.rule_id_map[item.pos];
+                let rule_id = self.rule_id_map[&item.rule];
 
                 // 归并项目
                 let lookahead = &item_set.lookahead_map[&item];
@@ -118,9 +120,10 @@ impl LRTableBuilder {
 
                     // 确定规约还是结束
                     let new: LRAction = match symbol {
-                        EndSymbol::End if rule_id == init_state => LRAction::Accept(rule_id), // 结束+接受项目 = Accept
+                        EndSymbol::End if item.is_start(&self.grammar) => LRAction::Accept(rule_id), // 初始 + END + 规约 = 接受项目
                         _ => LRAction::Reduce(rule_id),
                     };
+
                     let origin: LRAction = action_table[state][symbol_id]; // 拷贝代价不高
 
                     let action = self.handle_conflict(origin, new, symbol_id); // 处理冲突
@@ -135,7 +138,7 @@ impl LRTableBuilder {
 
     ///
     /// 处理冲突，通过优先级和结核性能解决shift reduce冲突，无法解决reduce reduce冲突
-    /// 
+    ///
     fn handle_conflict(&self, origin: LRAction, new: LRAction, symbol_id: SymbolID) -> LRAction {
         if matches!(origin, LRAction::Error) || origin == new { // 没有冲突
             return new;
@@ -264,4 +267,52 @@ impl LRTableBuilder {
 
 
 
+#[test]
+fn test() {
+    let buffer = BufReader::new(File::open(r"E:\Project02\rust\rustcc\src\clex.l").unwrap());
+    let vec = token_from_lexer(buffer);
 
+    let input = include_str!("../../../src/parser.y");
+
+
+    let builder = LRTableBuilder::new(TableType::LALR1, input.to_string(), vec);
+
+    let (action, goto, init) = builder.build_lr_table();
+    let mut state_stack = vec![init];
+    //
+    let tokens = [16, 78, 67, 68, 73, builder.token_meta.len() - 1];
+
+
+    let lalr_builder = LR0Builder::new(&builder.grammar);
+    let (states_map, transition, init) = lalr_builder.build_table();
+    let transition: IndexMap<_, _> = transition.into_iter().map(|(from, symbol, to)| ((from, symbol), to)).collect();
+
+    print!("{:?}", action[23].iter().enumerate().collect::<Vec<_>>());
+
+    let mut i = 0;
+    while i < tokens.len() {
+        let token = tokens[i];
+        let state = *state_stack.last().unwrap();
+        let action = action[state][token];
+
+        match action {
+            LRAction::Reduce(x) |  LRAction::Accept(x) => {
+
+                state_stack.drain((state_stack.len() - builder.prod_map[x].len)..);
+                println!("{:?}", builder.prod_map[x]);
+                let state = *state_stack.last().unwrap();
+                state_stack.push(goto[state][builder.prod_map[x].id].unwrap());
+
+            }
+            LRAction::Shift(x) => {
+                state_stack.push(x);
+                i += 1;
+            }
+            LRAction::Error => {
+                println!("ERROR");
+                break
+            }
+        }
+
+    }
+}

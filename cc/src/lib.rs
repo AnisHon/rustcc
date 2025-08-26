@@ -1,3 +1,4 @@
 pub(crate) mod lex;
-mod err;
-mod util;
+pub mod err;
+pub mod util;
+pub mod parser;

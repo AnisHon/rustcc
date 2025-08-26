@@ -10,7 +10,7 @@
 //!
 //!
 
-use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, Symbol, SymbolBound};
+use crate::common::grammar::{EndSymbol, Grammar, ProdMeta, Rule, RuleID, Symbol, SymbolBound, SymbolMeta};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 
@@ -20,6 +20,7 @@ pub struct LRItem {
     pub rule: (RuleID, usize), //通过rule_id和alter索引引用rule
     pub pos: usize,
 }
+
 impl LRItem {
 
     /// 创建一个LR项目，Lookahead为空
@@ -52,12 +53,18 @@ impl LRItem {
         }
     }
 
+    /// 是否是初始项目
+    pub fn is_start<T: SymbolBound>(&self, grammar: &Grammar<T>) -> bool {
+        grammar.get_start_rule() == self.rule.0
+    }
+
     /// 向后移动
     pub fn move_next<T: SymbolBound>(mut self, grammar: &Grammar<T>) -> Self {
         assert!(!self.is_reduced(grammar)); // 规约项目不能在移动
         self.pos += 1;
         self
     }
+
 }
 
 /// lookahead集合，适用于LR1 LALR1 SLR1

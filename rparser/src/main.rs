@@ -20,6 +20,6 @@ fn main() {
     writer.write();
 
 
-    println!("{}", get_path("/../src/gen/parser.rs"))
+    // println!("{}", get_path("/../src/gen/parser.rs"))
 
 }

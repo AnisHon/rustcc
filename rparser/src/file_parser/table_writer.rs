@@ -20,7 +20,7 @@ const VALUE_NAME: &str = "value";
 /// 生成处理程序
 pub struct TableWriter {
     path: String, // 输出路径
-    lr_table_builder: LRTableBuilder,
+    builder: LRTableBuilder,
     re_dollar_dollar: Regex,
     re_dollar_num: Regex,
 }
@@ -31,7 +31,7 @@ impl TableWriter {
         let re_dollar_num = Regex::new(r"\$(\d+)").unwrap();
         Self {
             path: output.to_string(),
-            lr_table_builder,
+            builder: lr_table_builder,
             re_dollar_num,
             re_dollar_dollar
         }
@@ -40,7 +40,7 @@ impl TableWriter {
 
     /// 转换
     fn resolve_action(&self) -> Vec<Option<String>> {
-        self.lr_table_builder.prod_map.iter().map(|prod_meta|  {
+        self.builder.prod_map.iter().map(|prod_meta|  {
             let action = prod_meta.action.as_ref();
             match action {
                 None => return None,
@@ -66,18 +66,23 @@ impl TableWriter {
 
         result.to_string()
     }
-    
+
     /// 写入文件
     pub fn write(self) {
-        let (action_table, goto_table, init_state) = self.lr_table_builder.build_lr_table();
-        
+        let (action_table, goto_table, init_state) = self.builder.build_lr_table();
+
+        // 结束符号在所有token之后
+        let end_symbol = self.builder.token_meta.len();
         // 表达式长度
-        let expr_lens: Vec<_> = self.lr_table_builder.prod_map.iter().map(|meta| meta.len).collect();
+        let expr_lens: Vec<_> = self.builder.prod_map.iter().map(|meta| meta.len).collect();
         // 表达式名字
-        let expr_names: Vec<String> = self.lr_table_builder.prod_map.iter().map(|x| x.name.clone()).collect();
-        // 符号内容（符号名字）   
-        let token_contents: Vec<String> = self.lr_table_builder.token_meta.iter().map(|x| x.content.clone()).collect();
-        
+        let expr_names: Vec<String> = self.builder.prod_map.iter().map(|x| x.name.clone()).collect();
+        // 每个推导式对应的规则ID
+        let expr_ids: Vec<_> = self.builder.prod_map.iter().map(|x| x.id).collect();
+
+        // 符号内容（符号名字）
+        let token_contents: Vec<String> = self.builder.token_meta.iter().map(|x| x.content.clone()).collect();
+
         // 属性文法代码（解析后）
         let action_codes = self.resolve_action();
 
@@ -94,7 +99,7 @@ impl TableWriter {
         let goto_check = option_to_code_str(goto_check);
 
         // 用户代码
-        let user_code = self.lr_table_builder.config.user_code;
+        let user_code = self.builder.config.user_code;
 
         let mut tera = Tera::default();
         tera.add_raw_template("parser.rs.tera", TEMPLATE).unwrap();
@@ -108,13 +113,15 @@ impl TableWriter {
         context.insert("goto_check", &goto_check);
         context.insert("expr_lens", &expr_lens);
         context.insert("expr_names", &expr_names);
+        context.insert("expr_ids", &expr_ids);
         context.insert("token_contents", &token_contents);
         context.insert("action_codes", &action_codes);
         context.insert("vs_name", VALUE_STACK_NAME);
         context.insert("cv_name", VALUE_NAME);
         context.insert("user_code", &user_code);
         context.insert("init_state", &init_state);
-        
+        context.insert("end_symbol", &end_symbol);
+
         
         
 

@@ -6,7 +6,7 @@
 //!
 
 use crate::common::grammar::{EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use indexmap::IndexMap;
 
 /// FirstMap类型
@@ -31,7 +31,7 @@ pub fn get_rules<T: SymbolBound>(grammar: &Grammar<T>) -> BTreeMap<usize, &RuleV
 fn calc_first_set<T: SymbolBound>(
     alter_rule: &RuleVec<T>,
     first_map: &FirstMap<T>,
-    change_tracker: &IndexMap<RuleID, bool>
+    change_tracker: &HashMap<RuleID, bool>
 ) -> BTreeSet<EpsilonSymbol<T>> {
     let mut first_set = BTreeSet::new();
     let mut nullable = false; // 全局角度能否推出空
@@ -90,7 +90,7 @@ pub fn build_first<T: SymbolBound>(grammar: &Grammar<T>) -> FirstMap<T> {
     let mut first_map: FirstMap<T> = rules.iter()   // 推导式到first集合的表
         .map(|(&rule_id, _)| (rule_id, BTreeSet::new()))// 初始化表
         .collect();
-    let mut change_tracker: IndexMap<RuleID, bool> = rules.iter()// first set变化表，跳过无变化项目
+    let mut change_tracker: HashMap<RuleID, bool> = rules.iter()// first set变化表，跳过无变化项目
         .map(|(&rule_id, _)| (rule_id, false)) // 初始值为false，因为初始first是空的，可以跳过
         .collect();
     let mut changes = true; // 增量迭代法

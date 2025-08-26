@@ -134,24 +134,24 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
                 .or_insert_with(|| self.id_factory.next_id());
         
             let symbol_table = self.item_symbols(&item_set);
-        
+
             // 转移边symbol，对应的转移集合items
             for (symbol, items) in symbol_table {
                 let goto_set = self.item_goto(items, symbol.clone());
-        
                 let goto_set_id = *items2id_table.entry(goto_set.clone()).or_insert_with(|| {
                     queue.push_back(goto_set.clone());
                    self.id_factory.next_id()
                 });
+
                 lr0_table.push((items_id, symbol, goto_set_id));
             }
         }
 
         let init_state = items2id_table[&init_set];
-        let id2items_table = items2id_table.into_iter()
+        let id2items_table: IndexMap<_, _> = items2id_table.into_iter()
             .map(|(k, v)| (v, k))
             .collect();
-        
+
         (id2items_table, lr0_table, init_state)
     }
 }
