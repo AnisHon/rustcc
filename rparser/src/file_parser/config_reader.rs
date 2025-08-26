@@ -1,13 +1,9 @@
-use std::collections::{BTreeSet, HashMap};
-use std::fmt::format;
-use std::fs::File;
-use std::io;
-use std::io::{BufRead, BufReader};
-use std::vec::IntoIter;
+use crate::common::grammar::{Assoc, Grammar, ProdMeta, RuleVec, Symbol, SymbolMeta, SymbolVec};
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use crate::common::grammar::{Assoc, Grammar, RuleMeta, RuleVec, Symbol, SymbolMeta, SymbolVec};
+use std::collections::HashMap;
+use std::io::BufRead;
 
 #[derive(Parser)]
 #[grammar = "parser_pest.pest"]
@@ -42,7 +38,7 @@ impl AssocType {
 #[derive(Debug)]
 pub struct Production {
     pub name: String,
-    pub rules: Vec<(Vec<String>, Option<String>)>,
+    pub rules: Vec<(Vec<String>, Option<String>, Option<Assoc>)>, // 推导式 action代码 结核性
 }
 
 pub struct GrammarConfigParser {
@@ -76,6 +72,7 @@ impl GrammarConfigParser {
                 Rule::decls => self.parse_decls(rule),
                 Rule::rules => self.parse_rules(rule),
                 Rule::user_code => self.parse_user_code(rule),
+                Rule::EOI => (),
                 _ => unreachable!()
             }
         }
@@ -124,18 +121,38 @@ impl GrammarConfigParser {
             rules: Vec::new(),
         };
 
+
         for pair in pairs.into_iter() {
             let mut symbols = Vec::new();
             let mut action = None;
-            for item in pair.into_inner() {
-                match item.as_rule() {
-                    Rule::symbol => symbols.push(item.as_str().to_string()),
-                    Rule::action => action = Some(item.as_str().to_string()),
-                    _ => unreachable!()
+            let mut prec_directive = None;
+
+            for prec_prod in pair.into_inner() {
+
+                if matches!(prec_prod.as_rule(), Rule::prec_directive) { // 处理优先级
+                    let mut prec_pairs = prec_prod.into_inner();
+                    let prec_type = prec_pairs.next().unwrap().as_str();
+                    prec_directive = match prec_type {
+                        "left" => Some(Assoc::Left),
+                        "right" => Some(Assoc::Right),
+                        "nonassoc" => Some(Assoc::NonAssoc),
+                        _ => unreachable!()
+                    };
+                    continue
+                }
+                for item in prec_prod.into_inner() {
+                    match item.as_rule() {
+                        Rule::symbol => symbols.push(item.as_str().to_string()),
+                        Rule::action => action = Some(item.as_str().to_string()),
+                        _ => unreachable!()
+                    }
                 }
             }
-            production.rules.push((symbols, action));
+
+
+            production.rules.push((symbols, action, prec_directive));
         }
+
 
         production
     }
@@ -147,8 +164,19 @@ impl GrammarConfigParser {
 }
 
 
-
-pub fn get_grammar(config: &GrammarConfig, buffer: impl BufRead) -> (Grammar<usize>, Vec<SymbolMeta>) {
+///
+/// 将GrammarConfig转换成 Grammar SymbolMeta表 和 ProdMeta表
+///
+/// ### param
+/// config: GrammarConfig
+/// lex_tokens: lex的Token，用于对齐lex生成的ID
+///
+/// ### return
+/// Grammar<usize>: grammar对象
+/// Vec<SymbolMeta>: symbol_id -> Symbol Meta
+/// Vec<ProdMeta>: production_id -> Production Meta
+///
+pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<usize>, Vec<SymbolMeta>, Vec<ProdMeta>) {
 
     let mut grammar = Grammar::new(0);
 
@@ -156,51 +184,84 @@ pub fn get_grammar(config: &GrammarConfig, buffer: impl BufRead) -> (Grammar<usi
         .map(|(idx, production)| (production.name.clone(), idx))
         .collect();
 
-    // todo 通过lexer声明，确定token ID
-    let (token_meta, token_map) = build_token_map(&config, buffer);
-    
+    let (token_meta, token_map) = build_token_map(&config, lex_tokens);
+
+    // production的meta信息
+    let mut prod_map = Vec::new();
+
     // 构建推导式
     for (rule_id, production) in config.productions.iter().enumerate() {
-        let mut meta = RuleMeta::new(rule_id, production.name.clone()); // 构建Meta
         let mut rule_vec = RuleVec::new();
 
         // 遍历所有alter
-        for (symbols, action) in production.rules.iter() {
-            let action = action.clone();
-            let mut priority = 0;
-            let mut assoc = Assoc::None;
+        for (alter, (symbols, action, assoc)) in production.rules.iter().enumerate() {
+            let mut prod_meta = ProdMeta::new(rule_id, alter, symbols.len(), production.name.clone()); // 构建Meta
+
+            prod_meta.action = action.clone();
+
             let rule = if symbols.is_empty() { // 空 epsilon
                 crate::common::grammar::Rule::Epsilon
             } else {
                 // 非空，遍历所有symbol
                 let symbol_vec: SymbolVec<_> = symbols.into_iter().map(|symbol|{
-                    if non_terminal.contains_key(symbol) {
+                    if non_terminal.contains_key(symbol) { // 非终结符
                         Symbol::NonTerminal(non_terminal[symbol]) // 查Rule ID
-                    } else {
+                    } else { // 终结符
                         let tid = *token_map.get(symbol).expect(format!("No Such Token {}", symbol).as_str());
                         let meta = &token_meta[tid];
-                        priority = meta.priority;   // 推导式以最后的终结符为准
-                        assoc = meta.assoc;
+                        prod_meta.priority = meta.priority;   // 推导式以最后的终结符为准
+                        prod_meta.assoc = meta.assoc; // 最后终结符的assoc
                         Symbol::Terminal(tid)
                     }
                 }).collect();
                 crate::common::grammar::Rule::Expression(symbol_vec)
             };
 
+            // 选择覆盖还是使用终结符assoc
+            prod_meta.assoc = match assoc {
+                None => prod_meta.assoc,
+                Some(x) => x.clone()
+            };
+
+            prod_map.push(prod_meta);
             rule_vec.push(rule);
-            meta.action.push(action);
-            meta.assoc.push(assoc);
-            meta.priority.push(priority);
         }
 
-        grammar.add_rule(rule_id, rule_vec, meta.clone());
+        grammar.add_rule(rule_id, rule_vec);
     }
 
-    (grammar, token_meta)
+    (grammar, token_meta, prod_map)
+}
+
+fn build_token_map(config: &GrammarConfig, tokens: Vec<String>) -> (Vec<SymbolMeta>, HashMap<String, usize>) {
+
+    let mut token_meta: Vec<_> = tokens.into_iter().enumerate()
+        .map(|(idx, token)| SymbolMeta::new(idx, token))
+        .collect();
+
+    let token_map: HashMap<_, _> = token_meta.iter()
+        .map(|x| (x.content.clone(), x.id))
+        .collect();
+
+    for (idx, assoc) in config.assoc.iter().enumerate() {
+        let is_right = match assoc {
+            AssocType::Right(_) => Assoc::Right,
+            AssocType::Left(_) => Assoc::Left,
+            AssocType::NonAssoc(_) => Assoc::NonAssoc,
+        };
+        assoc.unwrap().iter().for_each(|x| {
+            let token_id = *token_map.get(x).expect(format!("No such token: {}", x).as_str());
+            let meta = &mut token_meta[token_id];
+            meta.priority = idx;
+            meta.assoc = is_right;
+        });
+    }
+
+    (token_meta, token_map)
 }
 
 /// 读取lexer文件中的token，相互对应
-fn token_from_lexer(buffer: impl BufRead) -> Vec<String> {
+pub fn token_from_lexer(buffer: impl BufRead) -> Vec<String> {
     let mut lex: Vec<String> = Vec::new();
 
     for line in buffer.lines() {
@@ -217,32 +278,3 @@ fn token_from_lexer(buffer: impl BufRead) -> Vec<String> {
 
     lex
 }
-fn build_token_map(config: &GrammarConfig, buffer: impl BufRead) -> (Vec<SymbolMeta>, HashMap<String, usize>) {
-    let tokens = token_from_lexer(buffer);
-
-    let mut token_meta: Vec<_> = tokens.into_iter().enumerate()
-        .map(|(idx, token)| SymbolMeta::new(idx, token))
-        .collect();
-
-    let token_map: HashMap<_, _> = token_meta.iter()
-        .map(|x| (x.content.clone(), x.id))
-        .collect();
-
-    for (idx, assoc) in config.assoc.iter().enumerate() {
-        let is_right = match assoc {
-            AssocType::Right(_) => Assoc::Right,
-            AssocType::Left(_) => Assoc::Left,
-            AssocType::NonAssoc(_) => Assoc::None,
-        };
-        assoc.unwrap().iter().for_each(|x| {
-            let token_id = *token_map.get(x).expect(format!("No such token: {}", x).as_str());
-            let meta = &mut token_meta[token_id];
-            meta.priority = idx;
-            meta.assoc = is_right;
-        });
-    }
-
-    (token_meta, token_map)
-}
-
-

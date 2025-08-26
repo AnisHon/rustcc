@@ -1,6 +1,6 @@
 use std::io::BufRead;
 use indexmap::IndexMap;
-use crate::common::grammar::{Assoc, EndSymbol, Grammar, Symbol, SymbolID, SymbolMeta};
+use crate::common::grammar::{Assoc, EndSymbol, Grammar, ProdMeta, Symbol, SymbolID, SymbolMeta};
 use crate::common::lr_type::{LRAction};
 use crate::file_parser::config_reader::{get_grammar, GrammarConfig, GrammarConfigParser};
 use crate::lr::lalr1::{AdvancedLALR1Builder, LALR1Builder};
@@ -15,16 +15,16 @@ pub enum TableType {
 pub struct LRTableBuilder {
     table_type: TableType,
     pub config: GrammarConfig,
+    pub prod_map: Vec<ProdMeta>,
     pub token_meta: Vec<SymbolMeta>,
-    pub rule_map: Vec<(usize, usize)>,
     rule_id_map: IndexMap<(usize, usize), usize>,
     pub grammar: Grammar<usize>,
 }
 
 impl LRTableBuilder {
-    pub fn new(table_type: TableType, input: String, lex_buf: impl BufRead) -> Self {
+    pub fn new(table_type: TableType, input: String, lex_tokens: Vec<String>) -> Self {
         let config = GrammarConfigParser::new(input).parse();
-        let  (grammar, token_meta) = get_grammar(&config, lex_buf);
+        let  (grammar, token_meta, prod_map) = get_grammar(&config, lex_tokens);
         // 子式->id映射表
         let rule_id_map: IndexMap<_, _> = (0..grammar.get_size())
             .map(|i| (0..grammar.get_rule(i).unwrap().len()).map(move |j| (i, j)))
@@ -32,15 +32,12 @@ impl LRTableBuilder {
             .enumerate()
             .map(|(i, j)| (j, i))
             .collect();
-        // id->子式映射表
-        let rule_map: Vec<_> = rule_id_map.iter()
-            .map(|(&pos, _)| pos).collect();
 
         Self {
             table_type,
             config,
-            rule_map,
             rule_id_map,
+            prod_map,
             token_meta,
             grammar
         }
@@ -96,9 +93,10 @@ impl LRTableBuilder {
                         EndSymbol::Symbol(x) => *x
                     };
 
+                    // 确定规约还是结束
                     let new: LRAction = match symbol {
-                        EndSymbol::End => LRAction::End(rule_id),
-                        EndSymbol::Symbol(_) => LRAction::Reduce(rule_id)
+                        EndSymbol::End if rule_id == init_state => LRAction::Accept(rule_id), // 结束+接受项目 = Accept
+                        _ => LRAction::Reduce(rule_id),
                     };
                     let origin: LRAction = action_table[state][symbol_id]; // 拷贝代价不高
 
@@ -112,14 +110,16 @@ impl LRTableBuilder {
         (action_table, goto_table, init_state)
     }
 
-    /// 处理冲突
+    ///
+    /// 处理冲突，通过优先级和结核性能解决shift reduce冲突，无法解决reduce reduce冲突
+    ///
     fn handle_conflict(&self, origin: LRAction, new: LRAction, symbol_id: SymbolID) -> LRAction {
-        if matches!(origin, LRAction::Error) { // 没有冲突
+        if matches!(origin, LRAction::Error) || origin == new { // 没有冲突
             return new;
         }
 
         // reduce-reduce冲突，无法解决，默认返回第一个
-        if !new.is_shift() && !origin.is_shift() {
+        if !new.is_shift() && !origin.is_shift() && new != origin {
             self.conflict_warning(&origin, &new, symbol_id);
             return origin
         }
@@ -169,53 +169,52 @@ impl LRTableBuilder {
                     new
                 }
             }
-            _ => { // 存在无结合性，报错停止
+            (Assoc::NonAssoc, Assoc::NonAssoc) => { // 存在无结合性，报错停止
                 self.conflict_warning(&origin, &new, symbol_id);
-                panic!("failed to resolve NoAssoc Conflict");
+                panic!("failed to resolve NonAssoc Conflict");
+            }
+            _ => { // 其他情况规约优先，发出警告
+                self.conflict_warning(&origin, &new, symbol_id);
+                if origin.is_shift() { // 继续移入
+                    new
+                } else {
+                    origin
+                }
             }
         }
     }
 
+    /// Reduce Action或者Shift Symbol的优先级
     fn get_priority(&self, action: &LRAction, symbol_id: SymbolID) -> usize {
-        let x = *match action {
-            LRAction::Reduce(x) => x,
-            LRAction::End(x) => x,
-            LRAction::Shift(x) => x,
-            _ => unreachable!()
-        };
-
         if action.is_shift() {
             self.token_meta[symbol_id].priority
         } else {
-            let (id, idx) = self.rule_map[x];
-            self.grammar.get_meta(id).unwrap().priority[idx]
+            let rule_id = action.unwrap();
+            self.prod_map[rule_id].priority
         }
     }
 
+    /// Reduce Action或者Shift Symbol的优先级
     fn get_assoc(&self, action: &LRAction, symbol_id: SymbolID) -> Assoc {
-        let x = *match action {
-            LRAction::Reduce(x) => x,
-            LRAction::End(x) => x,
-            LRAction::Shift(x) => x,
-            _ => unreachable!()
-        };
         if action.is_shift() {
             self.token_meta[symbol_id].assoc
         } else {
-            let (id, idx) = self.rule_map[x];
-            self.grammar.get_meta(id).unwrap().assoc[idx]
+            let rule_id = action.unwrap();
+            self.prod_map[rule_id].assoc
         }
     }
 
+    /// 输出冲突警告信息
     fn conflict_warning(&self, origin: &LRAction, new: &LRAction, symbol_id: SymbolID) {
         let get_name = |action: &LRAction| {
             match action {
-                LRAction::Reduce(x) | LRAction::End(x) => {
-                    let (id, _) = self.rule_map[*x];
-                    self.grammar.get_meta(id).unwrap().name.as_str()
+                LRAction::Reduce(x) | LRAction::Accept(x) => {
+                    let rule_id = action.unwrap();
+                    let meta = &self.prod_map[rule_id];
+                    format!("{}({})", meta.name, meta.alter)
                 }
                 LRAction::Shift(_) => {
-                    self.token_meta[symbol_id].content.as_str()
+                    self.token_meta[symbol_id].content.clone()
                 }
                 LRAction::Error => unreachable!()
             }
@@ -223,13 +222,20 @@ impl LRTableBuilder {
         let origin_name = get_name(origin);
         let new_name = get_name(new);
 
-        let error_type = match (origin.is_shift(), new.is_shift()) {
-            (false, false) => "REDUCE-REDUCE",
-            (false, true) | (true, false) => "SHIFT-REDUCE",
+        let error_msg = match (origin.is_shift(), new.is_shift()) {
+            (false, false) => format!(
+                "REDUCE-REDUCE symbol:{} -> {} {} ",
+                self.token_meta[symbol_id].content,
+                origin_name, new_name,
+            ),
+            (false, true) | (true, false) => format!(
+                "SHIFT-REDUCE {} {}",
+                origin_name, new_name,
+            ),
             _ => unreachable!()
         };
 
-        println!("Warning: {} Conflict: {} {}", error_type, origin_name, new_name);
+        println!("Warning: Conflict: {}", error_msg);
     }
 }
 

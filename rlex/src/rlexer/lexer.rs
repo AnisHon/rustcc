@@ -30,6 +30,7 @@ impl Lexer {
     }
 
     fn init(lex: &Vec<LexStruct>) -> ReResult<(DFA, CharClassSet)> {
+
         if lex.is_empty() {
             panic!("No regex specified");
         }
@@ -37,6 +38,9 @@ impl Lexer {
         let mut parsers = Vec::new();
 
         for lex_struct in lex.iter() {
+            if lex_struct.skip { // 跳过占位项目
+                continue;
+            }
             let tokens = re2tokens(&lex_struct.regex)?;
             let parser = ReParser::new(tokens).map_err(|e| e.with_re(&lex_struct.regex))?;
             parsers.push(parser);

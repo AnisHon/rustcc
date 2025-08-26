@@ -2,6 +2,10 @@
   <dictionary name="project">
     <words>
       <w>anishan</w>
+      <w>endfor</w>
+      <w>noassoc</w>
+      <w>nonassoc</w>
+      <w>prec</w>
       <w>rlexer</w>
     </words>
   </dictionary>

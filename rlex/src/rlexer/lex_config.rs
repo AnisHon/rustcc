@@ -3,4 +3,5 @@
 pub struct LexStruct {
     pub name: String,
     pub regex: String,
+    pub skip: bool,
 }

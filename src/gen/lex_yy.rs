@@ -87,6 +87,7 @@ pub enum TokenType {KeywordAuto,
     LineComment,
     BlockComment,
     Whitespace,
+    TypeName,
     
 }
 

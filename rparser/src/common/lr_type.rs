@@ -64,7 +64,7 @@ pub struct LookaheadItemSet<T: SymbolBound> {
 pub enum LRAction {
     Reduce(usize), // 规约 推导式ID
     Shift(usize),  // 移入 状态ID
-    End(usize),    // 结束规约 推导式ID
+    Accept(usize),    // 结束规约 推导式ID
     Error          // 出错Error
 }
 
@@ -72,8 +72,17 @@ pub enum LRAction {
 impl LRAction {
     pub fn is_shift(&self) -> bool{
         match self {
-            LRAction::Reduce(_) | LRAction::End(_) | LRAction::Error => false,
+            LRAction::Reduce(_) | LRAction::Accept(_) | LRAction::Error => false,
             LRAction::Shift(_) => true
+        }
+    }
+    
+    pub fn unwrap(&self) -> usize {
+        *match self {
+            LRAction::Reduce(x) => x,
+            LRAction::Shift(x) => x,
+            LRAction::Accept(x) => x,
+            LRAction::Error => panic!("Action is Error")
         }
     }
 }

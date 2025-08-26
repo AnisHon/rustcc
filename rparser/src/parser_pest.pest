@@ -1,7 +1,13 @@
-WHITESPACE = _{ " " | "\t" | "\n" }
-COMMENT    = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" | "//" ~ (!"\n" ~ ANY)* }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" | COMMENT }
 
-file       = { decls ~ "%%" ~ rules ~ "%%" ~ user_code? }
+COMMENT = _{
+    "/*" ~ (!"*/" ~ ANY)* ~ "*/"
+  | "//" ~ (!("\n" | "\r") ~ ANY)*
+}
+
+file = { SOI ~ decls ~ "%%" ~ rules ~ "%%" ~ user_code? ~ EOI }
+
+// file       = { decls ~ "%%" ~ rules ~ "%%" ~ user_code? }
 
 decls      = { (decl)* }
 decl       = { token_decl | assoc_decl }
@@ -9,7 +15,11 @@ token_decl = { "%token" ~ ident+ }
 assoc_decl = { ("%left" | "%right" | "%nonassoc") ~ ident+ }
 
 rules      = { (rule_decl)+ }
-rule_decl  = { ident ~ ":" ~ production ~ ("|" ~ production)* ~ ";" }
+rule_decl  = { ident ~ ":" ~ production_with_prec ~ ("|" ~ production_with_prec)* ~ ";" }
+
+production_with_prec = { production ~ prec_directive? }
+prec_directive = { "%prec" ~ prec_type }
+prec_type = { "left" | "right" | "nonassoc" }
 
 production = { (symbol | action)* }
 symbol     = { ident | STRING }

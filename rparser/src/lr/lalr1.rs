@@ -1,4 +1,4 @@
-use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, RuleMeta, RuleVec, Symbol, SymbolBound};
+use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, ProdMeta, RuleVec, Symbol, SymbolBound};
 use crate::common::lr_type::{LRItem, LookaheadItemSet};
 use crate::lr::lr0::{LR0Builder, LR0ItemSet};
 use crate::lr::lr1::LR1Builder;
@@ -41,8 +41,6 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
         let mut work_list = VecDeque::from_iter(0..id_state_item_map.len()); // 所有item都进入队列开始传播
         let mut visited: HashSet<usize> = work_list.iter().copied().collect();
-
-        println!("{:?}", graph.iter().enumerate().collect::<Vec<_>>());
 
         while !work_list.is_empty() {
             let id = work_list.pop_front().unwrap();
@@ -301,56 +299,3 @@ impl<T: SymbolBound> AdvancedLALR1Builder<T> {
 
 }
 
-
-#[test]
-fn test() {
-    let rules: Vec<RuleVec<char>> = vec![
-        vec![
-            Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::NonTerminal(0), Symbol::Terminal('a')]),
-            Rule::Expression(vec![Symbol::NonTerminal(1), Symbol::Terminal('b')]),
-            Rule::Expression(vec![Symbol::Terminal('c'), Symbol::NonTerminal(2)]),
-            Rule::Epsilon
-        ],
-        vec![
-            Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::Terminal('d')]),
-            Rule::Expression(vec![Symbol::NonTerminal(3), Symbol::Terminal('e')]),
-            Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::NonTerminal(0)])
-        ],
-        vec![
-            Rule::Expression(vec![Symbol::NonTerminal(3), Symbol::Terminal('f')]),
-        ],
-        vec![
-            Rule::Expression(vec![Symbol::Terminal('e'), Symbol::NonTerminal(3)]),
-        ]
-    ];
-
-    let mut grammar = Grammar::new(0);
-    for (idx, alter_rules) in rules.into_iter().enumerate() {
-        grammar.add_rule(idx, alter_rules, RuleMeta::new(idx, idx.to_string()));
-    }
-
-    let builder = LALR1Builder::new(&grammar);
-    let (id2items_table,  transition, _) = builder.build_table();
-    // println!("{:#?}", );
-    println!("{}", id2items_table.len());
-    for (from, sym, to) in transition {
-        let from = id2items_table.get(&from).unwrap();
-        let to  = id2items_table.get(&to).unwrap();
-        let sym: &str = match sym {
-            Symbol::Terminal(x) => &x.to_string(),
-            Symbol::NonTerminal(x) => &grammar.get_meta(x).unwrap().name,
-        };
-
-        println!("{:?}\n\t{:?} -> {:?}", from, sym, to);
-    }
-
-
-    // let first = build_first(&grammar);
-    // println!("{:?}", first);
-
-    // println!("{:#?}", grammar);
-    // println!("{:#?}", grammar.get_size());
-
-    // println!("{:?}", LR0Builder::new(grammar).item_closure());
-
-}

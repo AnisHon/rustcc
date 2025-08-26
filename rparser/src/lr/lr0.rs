@@ -1,7 +1,7 @@
 //! 
 //! LR0分析器转移构建，不负责生成最终转移表
 //!
-use crate::common::grammar::{Grammar, Rule, RuleID, RuleMeta, RuleVec, Symbol, SymbolBound};
+use crate::common::grammar::{Grammar, Rule, RuleID, ProdMeta, RuleVec, Symbol, SymbolBound};
 use crate::common::lr_type::LRItem;
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
@@ -150,58 +150,4 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     }
 }
 
-
-
-
-#[test]
-fn test() {
-    let rules: Vec<RuleVec<char>> = vec![
-        vec![
-            Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::NonTerminal(0), Symbol::Terminal('a')]),
-            Rule::Expression(vec![Symbol::NonTerminal(1), Symbol::Terminal('b')]),
-            Rule::Expression(vec![Symbol::Terminal('c'), Symbol::NonTerminal(2)]),
-            Rule::Epsilon
-        ],
-        vec![
-            Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::Terminal('d')]),
-            Rule::Expression(vec![Symbol::NonTerminal(3), Symbol::Terminal('e')]),
-            Rule::Expression(vec![Symbol::NonTerminal(0), Symbol::NonTerminal(0)])
-        ],
-        vec![
-            Rule::Expression(vec![Symbol::NonTerminal(3), Symbol::Terminal('f')]),
-        ],
-        vec![
-            Rule::Expression(vec![Symbol::Terminal('e'), Symbol::NonTerminal(3)]),
-        ]
-    ];
-
-    let mut grammar = Grammar::new(0);
-    for (idx, alter_rules) in rules.into_iter().enumerate() {
-        grammar.add_rule(idx, alter_rules, RuleMeta::new(idx, idx.to_string()));
-    }
-
-    let builder = LR0Builder::new(&grammar);
-    let (id2items_table,  transition, _) = builder.build_table();
-    // println!("{:#?}", );
-
-    for (from, sym, to) in transition {
-        let from = id2items_table.get(&from).unwrap();
-        let to  = id2items_table.get(&to).unwrap();
-        let sym: &str = match sym {
-            Symbol::Terminal(x) => &x.to_string(),
-            Symbol::NonTerminal(x) => &grammar.get_meta(x).unwrap().name,
-        };
-
-        println!("{:?}\n\t{:?} -> {:?}", from, sym, to);
-    }
-
-    // let first = build_first(&grammar);
-    // println!("{:?}", first);
-
-    // println!("{:#?}", grammar);
-    // println!("{:#?}", grammar.get_size());
-
-    // println!("{:?}", LR0Builder::new(grammar).item_closure());
-
-}
 

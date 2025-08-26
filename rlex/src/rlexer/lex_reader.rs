@@ -25,18 +25,27 @@ impl LexReader {
         for line in self.buff.lines() {
             let line = line?;
             let vec: Vec<_> = line.split_whitespace().collect();
-
             if vec.is_empty() {
                 continue;
             }
+
+            let mut skip = false;
             let name: String = vec[0].to_string();
-            let mut regex: String = vec[1].to_string();
+            let mut regex: String = if vec.len() == 1 { // 只有名字，等于占位符 
+                skip = true;
+                String::new()
+            } else { // 正常项目
+                vec[1].to_string()
+            };
+            
+            
+            
 
             if regex.starts_with('"') && regex.ends_with('"') {
                 regex = escape_regex_meta(&regex[1..regex.len() - 1]);
             }
 
-            lex.push(LexStruct { name, regex });
+            lex.push(LexStruct { name, regex, skip });
         }
 
         Ok(lex)

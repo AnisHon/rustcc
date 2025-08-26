@@ -34,8 +34,8 @@ impl TableWriter {
 
     /// 转换
     fn resolve_action(&self) -> Vec<Option<String>> {
-        self.lr_table_builder.rule_map.iter().enumerate().map(|(idx, &(id, pos))|  {
-            let action = &self.lr_table_builder.grammar.get_meta(id).unwrap().action[pos];
+        self.lr_table_builder.prod_map.iter().map(|prod_meta|  {
+            let action = prod_meta.action.as_ref();
             match action {
                 None => return None,
                 Some(x) => Some(self.convert_format_regex(x))
@@ -61,12 +61,14 @@ impl TableWriter {
     }
 
     pub fn write(self) {
-        let (action_table, goto_table, init) = self.lr_table_builder.build_lr_table();
-
-        let rule_lens: Vec<_> = self.lr_table_builder.rule_map.iter().map(|&(id, idx)| match &self.lr_table_builder.grammar.get_rule(id).unwrap()[idx] {
-            Rule::Epsilon => 0,
-            Rule::Expression(x) => x.len()
-        }).collect();
+        let (action_table, goto_table, init_state) = self.lr_table_builder.build_lr_table();
+        
+        let expr_lens: Vec<_> = self.lr_table_builder.prod_map.iter().map(|meta| meta.len).collect();
+        
+        let expr_names: Vec<String> = self.lr_table_builder.prod_map.iter().map(|x| x.name.clone()).collect();
+        
+        let token_contents: Vec<String> = self.lr_table_builder.token_meta.iter().map(|x| x.content.clone()).collect();
+        
 
         let action_codes = self.resolve_action();
 
@@ -94,11 +96,17 @@ impl TableWriter {
         context.insert("goto_base", &goto_base);
         context.insert("goto_next", &goto_next);
         context.insert("goto_check", &goto_check);
-        context.insert("rule_lens", &rule_lens);
+        context.insert("expr_lens", &expr_lens);
+        context.insert("expr_names", &expr_names);
+        context.insert("token_contents", &token_contents);
         context.insert("action_codes", &action_codes);
         context.insert("vs_name", VALUE_STACK_NAME);
         context.insert("cv_name", VALUE_NAME);
         context.insert("user_code", &user_code);
+        context.insert("init_state", &init_state);
+        
+        
+        
 
         // 渲染模板
         let rendered = tera.render("parser.rs.tera", &context).unwrap();
@@ -112,7 +120,7 @@ fn action_to_code_str(vec: Vec<LRAction>) -> Vec<String> {
     vec.into_iter().map(|action| match action {
         LRAction::Reduce(x) => format!("Reduce({})", x),
         LRAction::Shift(x) => format!("Shift({})", x),
-        LRAction::End(x) => format!("End({})", x),
+        LRAction::Accept(x) => format!("Accept({})", x),
         LRAction::Error => "Error".to_string()
     }).collect()
 }

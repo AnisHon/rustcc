@@ -21,17 +21,19 @@ impl<T> SymbolBound for T where T: Clone + Debug + Ord + PartialOrd + Eq + Parti
 
 // 推导式信息
 #[derive(Clone, Debug)]
-pub struct RuleMeta {
+pub struct ProdMeta {
     pub id: RuleID,      // ID
+    pub alter: usize,    // 在grammar alter的索引
     pub name: String,    // 推导式的名字
-    pub assoc: Vec<Assoc>,  // 结合性
-    pub priority: Vec<usize>, // 优先级
-    pub action: Vec<Option<String>>, // 动作
+    pub assoc: Assoc,  // 结合性
+    pub priority: usize, // 优先级
+    pub action: Option<String>, // 动作
+    pub len: usize
 }
 
-impl RuleMeta {
-    pub fn new(id: RuleID, name: String) -> Self {
-        Self { id, name, assoc: Vec::new(), priority: Vec::new(), action: Vec::new() }
+impl ProdMeta {
+    pub fn new(id: RuleID, alter: usize, len: usize, name: String) -> Self {
+        Self { id, name, alter, assoc: Assoc::None, priority: 0, action: None, len }
     }
 }
 
@@ -39,7 +41,8 @@ impl RuleMeta {
 pub enum Assoc {
     Left,
     Right,
-    None // 无结合性
+    NonAssoc, // 无结合性
+    None // 无任何特性
 }
 
 // 符号信息
@@ -53,7 +56,7 @@ pub struct SymbolMeta {
 
 impl SymbolMeta {
     pub fn new(id: SymbolID, content: String) -> Self {
-        Self { id, content, assoc: Assoc::None, priority: 0 }
+        Self { id, content, assoc: Assoc::NonAssoc, priority: 0 }
     }
 }
 
@@ -125,7 +128,6 @@ impl<T: SymbolBound> Rule<T> {
 #[derive(Debug)]
 pub struct Grammar<T: SymbolBound> {
     rules: Vec<Option<RuleVec<T>>>,
-    rule_meta: Vec<Option<RuleMeta>>,
     start_rule: RuleID,
 }
 
@@ -133,14 +135,10 @@ impl<T: SymbolBound> Grammar<T> {
     pub fn new(start_rule: RuleID) -> Self {
         Self {
             rules: Vec::new(),
-            rule_meta: Vec::new(),
             start_rule,
         }
     }
-
-    pub fn get_meta(&self, rule_id: RuleID) -> Option<&RuleMeta> {
-        self.rule_meta[rule_id].as_ref()
-    }
+    
     pub fn get_rule(&self, rule_id: RuleID) -> Option<&RuleVec<T>> {
         assert!(rule_id < self.rules.len());
         self.rules[rule_id].as_ref()
@@ -155,20 +153,14 @@ impl<T: SymbolBound> Grammar<T> {
         self.rules.len()
     }
     
-    pub fn add_rule(&mut self, rule_id: RuleID, rule: RuleVec<T>, meta: RuleMeta) {
+    pub fn add_rule(&mut self, rule_id: RuleID, rule: RuleVec<T>) {
         if rule_id >= self.rules.len() {
             self.rules.resize(rule_id + 1, None);
         }
-        if rule_id >= self.rule_meta.len() {
-            self.rule_meta.resize(rule_id + 1, None);
-        }
-
+        
         assert!(self.rules[rule_id].is_none());     // 不允许覆盖
-        assert!(self.rule_meta[rule_id].is_none());
         
         self.rules[rule_id] = Some(rule);
-        self.rule_meta[rule_id] = Some(meta);
-        
     }
 }
 
