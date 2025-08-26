@@ -1,17 +1,13 @@
+//! 
+//! date: 2025/8/26
+//! author: anishan
+//!
+//! 计算first set
+//!
+
 use crate::common::grammar::{EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
 use std::collections::{BTreeMap, BTreeSet};
 use indexmap::IndexMap;
-//
-// struct FirstSetBuilder<T> {
-//
-// }
-//
-// impl<T> FirstSetBuilder<T> {
-//
-//
-//     fn build(grammar: Grammar<T>)
-//
-// }
 
 /// FirstMap类型
 pub type FirstMap<T> = IndexMap<RuleID, BTreeSet<EpsilonSymbol<T>>>;

@@ -1,10 +1,21 @@
-use std::io::BufRead;
-use indexmap::IndexMap;
+//! date: 2025/8/26
+//! author: anishan
+//!
+//! 表格构建
+//!
+//! # Contents
+//! - 'TableType' 构造表格类型
+//! - 'LRTableBuilder' 带Lookahead文法的文法矩阵构造工具
+//!
+
+
+
 use crate::common::grammar::{Assoc, EndSymbol, Grammar, ProdMeta, Symbol, SymbolID, SymbolMeta};
-use crate::common::lr_type::{LRAction};
+use crate::common::lr_type::LRAction;
 use crate::file_parser::config_reader::{get_grammar, GrammarConfig, GrammarConfigParser};
 use crate::lr::lalr1::{AdvancedLALR1Builder, LALR1Builder};
 use crate::lr::lr1::LR1Builder;
+use indexmap::IndexMap;
 
 pub enum TableType {
     LALR1,
@@ -12,6 +23,21 @@ pub enum TableType {
     LR1,
 }
 
+/// 文法表格构造器
+/// 文法构造器需要返回三个参数，
+/// - 'item_set_map': LookaheadItemSet
+/// - 'transition_table': Vec<(usize, Symbol, usize)>
+/// - 'init_state': usize
+/// 
+/// # Members
+/// - 'table_type': 生成表格类型
+/// - 'config': ConfigReader读取的文法配置
+/// - 'prod_map': 推导式信息表
+/// - 'token_meta': 符号信息表
+/// - 'rule_id_map': rule定位id
+/// - 'grammar': 文法本身
+/// 
+/// 
 pub struct LRTableBuilder {
     table_type: TableType,
     pub config: GrammarConfig,
@@ -44,10 +70,10 @@ impl LRTableBuilder {
     }
 
     /// 构建LR表格
-    /// ### return
-    /// Vec<Vec<LRAction>>: action table
-    /// Vec<Vec<Option<usize>>>: goto table
-    /// usize: init state
+    /// # Returns
+    /// 'Vec<Vec<LRAction>>': action table
+    /// 'Vec<Vec<Option<usize>>>': goto table
+    /// 'usize': init state
     ///
     pub fn build_lr_table(&self) -> (Vec<Vec<LRAction>>, Vec<Vec<Option<usize>>>, usize) {
         let (item_set_map, transition_table, init_state) = match self.table_type {
@@ -56,10 +82,7 @@ impl LRTableBuilder {
             TableType::LR1 => LR1Builder::new(&self.grammar).build_table(),
         };
 
-        let end_symbol_id = self.config.tokens.len(); // 始终占用最后一个ID
-
-
-
+        let end_symbol_id = self.config.tokens.len(); // 终结符号占用最后一个ID
 
         let token_sz = self.token_meta.len();
         let state_sz = item_set_map.len();
@@ -112,7 +135,7 @@ impl LRTableBuilder {
 
     ///
     /// 处理冲突，通过优先级和结核性能解决shift reduce冲突，无法解决reduce reduce冲突
-    ///
+    /// 
     fn handle_conflict(&self, origin: LRAction, new: LRAction, symbol_id: SymbolID) -> LRAction {
         if matches!(origin, LRAction::Error) || origin == new { // 没有冲突
             return new;

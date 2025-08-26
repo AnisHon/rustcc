@@ -1,7 +1,11 @@
-//! 
-//! LR0分析器转移构建，不负责生成最终转移表
 //!
-use crate::common::grammar::{Grammar, Rule, RuleID, ProdMeta, RuleVec, Symbol, SymbolBound};
+//! date: 2025/8/26
+//! author: anishan
+//!
+//! LR0构造器
+//!
+
+use crate::common::grammar::{Grammar, RuleID, RuleVec, Symbol, SymbolBound};
 use crate::common::lr_type::LRItem;
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
@@ -69,9 +73,10 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     }
 
     /// 项目集go操作
-    /// ### parameters
-    /// items: 内部的LR0Item项目集，必须全是经过symbol转移的，该函数不负责过滤
-    /// symbol: 下一次转移符号
+    /// 
+    /// # Arguments 
+    /// - 'items': 内部的LR0Item项目集，必须全是经过symbol转移的，该函数不负责过滤
+    /// - 'symbol': 下一次转移符号
     fn item_goto(&mut self, items: BTreeSet<LRItem>, symbol: Symbol<T>) -> LR0ItemSet {
         let items: BTreeSet<_> = items.into_iter()// 移动GO操作
             .map(|item| {
@@ -112,9 +117,10 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     }
 
     /// 构建表
-    /// ### return
-    /// id2items_table: id映射表items_id -> item_set
-    /// lr0_table: LR0表，使用三元组表示(items_id, symbol, items_id)
+    /// 
+    /// # Returns
+    /// - 'id2items_table': id映射表items_id -> item_set
+    /// - 'lr0_table': LR0表，使用三元组表示(items_id, symbol, items_id)
     pub fn build_table(mut self) -> (IndexMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set.clone()]);

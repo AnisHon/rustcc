@@ -1,7 +1,16 @@
+//!
+//! date: 2025/8/26
+//! author: anishan
+//!
 //! 文法相关的类型
-//! 大致结构是 Symbol(T|NT) -> Rule(vec<SymbolVec>|Epsilon) -> Grammar(Vec<RuleVec>)
-//! EndSymbol EpsilonSymbol 适用于特殊情况，只需要终结符、结束符 和 只需要终结符 空字符的情况
-//! 比如first set 与 follow set lookahead
+//! 文法结构 Symbol(T|NT) -> Rule(vec<SymbolVec>|Epsilon) -> Grammar(Vec<RuleVec>)
+//! 文法的额外信息由外部维护
+//!
+//! # Contents
+//! - 文法基础类型 RuleID SymbolID SymbolVec RuleVec
+//! - 文法组合类型 ProdMeta Grammar Symbol...
+//!
+
 use std::fmt::Debug;
 use std::hash::Hash;
 use crate::common::grammar::Symbol::{NonTerminal, Terminal};
@@ -19,7 +28,7 @@ pub trait SymbolBound: Clone + Debug + Ord + PartialOrd + Eq + PartialEq + Hash 
 impl<T> SymbolBound for T where T: Clone + Debug + Ord + PartialOrd + Eq + PartialEq + Hash {}
 
 
-// 推导式信息
+/// 推导式额外信息
 #[derive(Clone, Debug)]
 pub struct ProdMeta {
     pub id: RuleID,      // ID
@@ -37,6 +46,11 @@ impl ProdMeta {
     }
 }
 
+/// 文法结合性
+/// Left 左结合，同优先级优先规约reduce
+/// Right 右结合，同优级优先移入shift
+/// NonAssoc 无结合 同优先级下不允许结合
+/// None 未指定结合性质
 #[derive(Clone, Debug, Copy)]
 pub enum Assoc {
     Left,
@@ -45,7 +59,7 @@ pub enum Assoc {
     None // 无任何特性
 }
 
-// 符号信息
+/// 推导式符号额外信息，
 #[derive(Clone, Debug)]
 pub struct SymbolMeta {
     pub id: SymbolID,   // ID
@@ -69,15 +83,14 @@ pub enum Symbol<T: SymbolBound> {
     NonTerminal(RuleID),
 }
 
-/// 用于lookahead follow的Symbol类型，结束符号和终结符号
-#[derive(PartialOrd, PartialEq, Eq, Ord, Clone)]
-#[derive(Hash)]
-#[derive(Debug)]
+/// 用于lookahead或者follow的Symbol类型，包含结束符和终结符
+#[derive(PartialOrd, PartialEq, Eq, Ord, Clone, Hash, Debug)]
 pub enum EndSymbol<T: SymbolBound> {
     End,
     Symbol(T),
 }
-/// 用于first set等需要空符号的场景，只包含空和终结符
+
+/// 用于first set等需要空符号的场景，包含空和终结符
 #[derive(PartialOrd, PartialEq, Eq, Ord, Clone, Debug)]
 pub enum EpsilonSymbol<T: SymbolBound> {
     Epsilon,
@@ -85,7 +98,11 @@ pub enum EpsilonSymbol<T: SymbolBound> {
 }
 
 impl<T: SymbolBound> EpsilonSymbol<T> {
-    pub fn unwrap_symbol(&self) -> T {
+
+    /// 解包会抛出异常
+    /// # Panics
+    /// 对Epsilon解包会导致panic
+    pub fn unwrap(&self) -> T {
         match self {
             EpsilonSymbol::Epsilon => panic!("Unwarp Epsilon"),
             EpsilonSymbol::Symbol(x) => x.clone()
@@ -121,10 +138,10 @@ impl<T: SymbolBound> Rule<T> {
 }
 
 /// 文法规则
-/// ### 成员
+/// # Members
 /// - rules: 推导式表，rule_id -> RuleVec -> Rule | Rule -> Symbols
-/// - rule_meta: 推导式信息表
 /// - start_rule: 入口推导式
+///
 #[derive(Debug)]
 pub struct Grammar<T: SymbolBound> {
     rules: Vec<Option<RuleVec<T>>>,
@@ -138,7 +155,8 @@ impl<T: SymbolBound> Grammar<T> {
             start_rule,
         }
     }
-    
+
+    /// 获取rule
     pub fn get_rule(&self, rule_id: RuleID) -> Option<&RuleVec<T>> {
         assert!(rule_id < self.rules.len());
         self.rules[rule_id].as_ref()

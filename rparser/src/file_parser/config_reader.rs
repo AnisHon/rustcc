@@ -1,3 +1,15 @@
+//! date: 2025/8/26
+//! author: anishan
+//!
+//! 文法文件读解析
+//!
+//! # Contents
+//! GrammarConfig 解析后的文法字符串结构体
+//! AssocType 解析后的符号结合表
+//!
+//!
+//!
+
 use crate::common::grammar::{Assoc, Grammar, ProdMeta, RuleVec, Symbol, SymbolMeta, SymbolVec};
 use pest::iterators::Pair;
 use pest::Parser;
@@ -9,6 +21,14 @@ use std::io::BufRead;
 #[grammar = "parser_pest.pest"]
 struct BisonParser;
 
+/// 文法结构，相当于文法配置的AST
+///
+/// # Members
+/// - 'tokens': token声明
+/// - 'assoc': 结核性声明
+/// - 'productions': 文法推导式
+/// - 'user_code': 用户代码区域
+///
 #[derive(Debug)]
 pub struct GrammarConfig {
     pub tokens: Vec<String>,
@@ -17,7 +37,7 @@ pub struct GrammarConfig {
     pub user_code: String,
 }
 
-/// Token类型数组
+/// Token结核性表类型
 #[derive(Debug)]
 pub enum AssocType {
     Left(Vec<String>),
@@ -35,12 +55,31 @@ impl AssocType {
     }
 }
 
+
+/// 文法推导式结构
+///
+/// # Members
+/// - 'name': 文法名
+/// - 'rules': 文法相关表格
+///     - 'Vec<String>': 文法符号数组
+///     - 'Option<String>': 属性文法代码
+///     - 'Assoc': 文法结合性，默认为None
 #[derive(Debug)]
 pub struct Production {
     pub name: String,
-    pub rules: Vec<(Vec<String>, Option<String>, Option<Assoc>)>, // 推导式 action代码 结核性
+    pub rules: Vec<(Vec<String>, Option<String>, Assoc)>, // 推导式 action代码 结核性
 }
 
+
+/// 文法配置构造器
+/// 
+/// # Members
+/// - 'input': 输入文法
+/// - 'tokens': token声明
+/// - 'assoc': 结合性声明
+/// - 'productions': 文法推导式声明
+/// - 'user_code': 用户代码
+/// 
 pub struct GrammarConfigParser {
     input: String,
     tokens: Vec<String>,
@@ -54,6 +93,7 @@ impl GrammarConfigParser {
         Self { input, tokens: Vec::new(), assoc: Vec::new(), productions: Vec::new(), user_code: String::new() }
     }
 
+    /// 解析文法
     pub fn parse(mut self) -> GrammarConfig {
         let input = self.input.clone();
         let pairs = BisonParser::parse(Rule::file, input.as_str()).unwrap();
@@ -91,9 +131,12 @@ impl GrammarConfigParser {
 
     }
 
+    /// token声明
     fn parse_token_decl(&mut self, decl: Pair<Rule>) {
         self.tokens.extend(decl.into_inner().into_iter().map(|x| x.as_str().to_string()));
     }
+    
+    /// 结合性声明
     fn parse_assoc_decl(&mut self, decl: Pair<Rule>) {
         let assoc_type = &decl.as_span().as_str().split_whitespace().next().unwrap()[1..];
         let assoc_values: Vec<String> = decl.into_inner().map(|x| x.as_span().as_str().to_string()).collect();
@@ -106,6 +149,7 @@ impl GrammarConfigParser {
         self.assoc.push(assoc);
     }
 
+    /// 解析文法相关
     fn parse_rules(&mut self, rules: Pair<Rule>) {
         for rule_decl in rules.into_inner() {
             let production = Self::parse_rule_decl(rule_decl);
@@ -113,6 +157,7 @@ impl GrammarConfigParser {
         }
     }
 
+    /// 单个推导式声明
     fn parse_rule_decl(rule_decl: Pair<Rule>) -> Production {
         let mut pairs = rule_decl.into_inner();
         // pairs.for_each(|pair| println!("{:?}", pair));
@@ -120,26 +165,30 @@ impl GrammarConfigParser {
             name: pairs.next().unwrap().as_str().to_string(),
             rules: Vec::new(),
         };
-
-
+    
+        // pairs 内层是 prec_production
         for pair in pairs.into_iter() {
             let mut symbols = Vec::new();
             let mut action = None;
-            let mut prec_directive = None;
+            let mut prec_directive = Assoc::None;
 
+            // prec_production 内层是 production和prec_type(%prec)
             for prec_prod in pair.into_inner() {
 
+                // 解析prec_type
                 if matches!(prec_prod.as_rule(), Rule::prec_directive) { // 处理优先级
                     let mut prec_pairs = prec_prod.into_inner();
                     let prec_type = prec_pairs.next().unwrap().as_str();
                     prec_directive = match prec_type {
-                        "left" => Some(Assoc::Left),
-                        "right" => Some(Assoc::Right),
-                        "nonassoc" => Some(Assoc::NonAssoc),
+                        "left" => Assoc::Left,
+                        "right" => Assoc::Right,
+                        "nonassoc" => Assoc::NonAssoc,
                         _ => unreachable!()
                     };
                     continue
                 }
+
+                //  production 内层是 symbol和action
                 for item in prec_prod.into_inner() {
                     match item.as_rule() {
                         Rule::symbol => symbols.push(item.as_str().to_string()),
@@ -156,7 +205,7 @@ impl GrammarConfigParser {
 
         production
     }
-
+    
     fn parse_user_code(&mut self, rules: Pair<Rule>) {
         self.user_code = rules.as_str().to_string();
     }
@@ -167,14 +216,14 @@ impl GrammarConfigParser {
 ///
 /// 将GrammarConfig转换成 Grammar SymbolMeta表 和 ProdMeta表
 ///
-/// ### param
-/// config: GrammarConfig
-/// lex_tokens: lex的Token，用于对齐lex生成的ID
+/// # Arguments
+/// - 'config': GrammarConfig
+/// - 'lex_tokens': lex的Token，用于对齐lex生成的ID
 ///
-/// ### return
-/// Grammar<usize>: grammar对象
-/// Vec<SymbolMeta>: symbol_id -> Symbol Meta
-/// Vec<ProdMeta>: production_id -> Production Meta
+/// # Returns
+/// - 'Grammar<usize>': grammar对象
+/// - 'Vec<SymbolMeta>': symbol_id -> Symbol Meta
+/// - 'Vec<ProdMeta>': production_id -> Production Meta
 ///
 pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<usize>, Vec<SymbolMeta>, Vec<ProdMeta>) {
 
@@ -219,8 +268,8 @@ pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<
 
             // 选择覆盖还是使用终结符assoc
             prod_meta.assoc = match assoc {
-                None => prod_meta.assoc,
-                Some(x) => x.clone()
+                Assoc::None => prod_meta.assoc, // 未确定
+                _ => assoc.clone()  // 已确定覆盖
             };
 
             prod_map.push(prod_meta);

@@ -1,11 +1,17 @@
-use crate::common::grammar::Rule;
+//! date: 2025/8/26
+//! author: anishan
+//!
+//! 将表格输出到rust源文件
+//!
+//!
+
 use crate::common::lr_type::LRAction;
 use crate::file_parser::table_builder::LRTableBuilder;
 use common::utils::compress::compress_matrix;
+use common::utils::str_util::option_to_code_str;
 use regex::Regex;
 use std::fs;
 use tera::{Context, Tera};
-use common::utils::str_util::option_to_code_str;
 
 const TEMPLATE: &str = include_str!("../../resources/parser.rs.tera");
 const VALUE_STACK_NAME: &str = "value_stack";
@@ -43,6 +49,7 @@ impl TableWriter {
         }).collect()
     }
 
+    /// 解析属性文法，替换 $$
     fn convert_format_regex(&self, input: &str) -> String {
         // 先替换 $$
         let step1 = self.re_dollar_dollar.replace_all(input, VALUE_NAME);
@@ -59,24 +66,26 @@ impl TableWriter {
 
         result.to_string()
     }
-
+    
+    /// 写入文件
     pub fn write(self) {
         let (action_table, goto_table, init_state) = self.lr_table_builder.build_lr_table();
         
+        // 表达式长度
         let expr_lens: Vec<_> = self.lr_table_builder.prod_map.iter().map(|meta| meta.len).collect();
-        
+        // 表达式名字
         let expr_names: Vec<String> = self.lr_table_builder.prod_map.iter().map(|x| x.name.clone()).collect();
-        
+        // 符号内容（符号名字）   
         let token_contents: Vec<String> = self.lr_table_builder.token_meta.iter().map(|x| x.content.clone()).collect();
         
-
+        // 属性文法代码（解析后）
         let action_codes = self.resolve_action();
 
         // 压缩矩阵
         let (action_base, action_next, action_check) = compress_matrix(&action_table, LRAction::Error);
         let (goto_base, goto_next, goto_check) = compress_matrix(&goto_table, None);
 
-        // 提前处理成代码字符串数组
+        // 处理成代码字符串数组
         let action_base = option_to_code_str(action_base);
         let action_next = action_to_code_str(action_next);
         let action_check = option_to_code_str(action_check);
@@ -84,6 +93,7 @@ impl TableWriter {
         let goto_next = option_to_code_str(goto_next);
         let goto_check = option_to_code_str(goto_check);
 
+        // 用户代码
         let user_code = self.lr_table_builder.config.user_code;
 
         let mut tera = Tera::default();

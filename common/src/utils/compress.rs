@@ -1,6 +1,5 @@
 use bitvec::bitvec;
 use bitvec::vec::BitVec;
-use crate::lex::ClassID;
 
 pub fn compress_matrix<T: Eq + Copy>(
     matrix: &Vec<Vec<T>>, zero_value: T

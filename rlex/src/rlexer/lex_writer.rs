@@ -1,13 +1,10 @@
-use std::fmt::Display;
 use crate::rlexer::lexer::Lexer;
-use bitvec::bitvec;
-use bitvec::prelude::BitVec;
-use common::lex::{ClassID, StateID};
+use common::lex::StateID;
+use common::utils::compress::compress_matrix;
 use heck::ToUpperCamelCase;
+use std::fmt::Display;
 use std::fs;
 use tera::{Context, Tera};
-use common::utils::compress::compress_matrix;
-use common::utils::str_util::option_to_code_str;
 
 const TEMPLATE: &str = include_str!("../../resources/lex.rs.tera");
 pub struct LexWriter {

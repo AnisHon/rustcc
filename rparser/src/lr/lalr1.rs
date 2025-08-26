@@ -1,4 +1,14 @@
-use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, ProdMeta, RuleVec, Symbol, SymbolBound};
+//! date: 2025/8/26
+//! author: anishan
+//!
+//! LALR1构造器，依赖LR1和lR0构造器
+//!
+//! # Members
+//! - 'LALR1Builder': 传播算法LALR1构建器
+//! - 'AdvancedLALR1Builder': 合并算法LALR1构建器
+//!
+
+use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
 use crate::common::lr_type::{LRItem, LookaheadItemSet};
 use crate::lr::lr0::{LR0Builder, LR0ItemSet};
 use crate::lr::lr1::LR1Builder;
@@ -9,8 +19,16 @@ use common::utils::unique_id_factory::UniqueIDFactory;
 use indexmap::IndexMap;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
+/// 使用LR0传播算法构建LALR(更快)
+///
+/// # Members
+/// - 'grammar': 文法
+/// - 'first_map': first集合
+/// - 'id2item_map': item set表
+/// - 'transition_table': 状态转移表
+/// - 'init_state': 初始状态
+///
 pub struct LALR1Builder<'a, T: SymbolBound> {
-
     grammar: &'a Grammar<T>,
     first_map: FirstMap<T>,
     id2item_map: IndexMap<usize, LR0ItemSet>,
@@ -18,7 +36,6 @@ pub struct LALR1Builder<'a, T: SymbolBound> {
     init_state: usize,
 }
 
-/// 使用LR0传播算法构建LALR
 impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
     pub fn new(grammar: &'a Grammar<T>) -> Self {
@@ -90,7 +107,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     }
 
     /// 初始化自发lookahead 和 传播边
-    /// ### return
+    /// # Returns
     /// Vec<BTreeSet<usize>>，依赖图（邻接表）
     /// Vec<LookaheadItemSet<T>> LALR item set表
     fn init_propagation(&self, state_item_id_map: &IndexMap<(usize, LRItem), usize>) -> (Vec<BTreeSet<usize>>, IndexMap<usize, LookaheadItemSet<T>>) {
@@ -179,7 +196,8 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
 
     /// 跳过next_symbol，计算 first_set \[A ->x·BCx\] FIRST(Cx) 跳过了B计算Cx而是BCx
-    /// ### return
+    ///
+    /// # Returns
     /// BTreeSet<EndSymbol<T>>: 自发lookahead
     /// bool: nullable
     fn calc_lookahead(&self, item: &LRItem) -> (BTreeSet<EndSymbol<T>>, bool) {
@@ -203,7 +221,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
             spontaneous_lookahead.extend(
                 first_set.iter()
                     .filter(|&x| x.ne(&EpsilonSymbol::Epsilon))
-                    .map(|x| EndSymbol::Symbol(x.unwrap_symbol()))
+                    .map(|x| EndSymbol::Symbol(x.unwrap()))
             );
 
             if !first_set.contains(&EpsilonSymbol::Epsilon) { // 不能推出空退出
@@ -234,7 +252,14 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
 }
 
-/// 使用LR1合并算法构建LALR
+/// 使用LR1合并算法构建LALR1(更慢)
+///
+/// # Returns
+/// - 'id2item_map': 项目集表
+/// - 'transition_table': 转移表
+/// - 'init_state': 初始状态
+/// - 'id_factory': id工厂
+///
 pub struct AdvancedLALR1Builder<T: SymbolBound> {
     id2item_map: IndexMap<usize, LookaheadItemSet<T>>,
     transition_table: Vec<(usize, Symbol<T>, usize)>,
@@ -253,7 +278,7 @@ impl<T: SymbolBound> AdvancedLALR1Builder<T> {
         }
     }
 
-    /// 合并LR1
+    /// 开始合并LR1
     pub fn build_table(mut self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let mut id_map = HashMap::new();
         let mut core_id_map = HashMap::new();

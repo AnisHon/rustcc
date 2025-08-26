@@ -1,10 +1,18 @@
+//! date: 2025/5/26
+//! author: anishan
+//!
 //! 声明LR相关的类型
+//!
+//! # Contents
+//! - LRItem LR项目
+//! - LookaheadItemSet LRItem的集合，附带Lookahead
+//!
+//!
 //!
 
 use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, Symbol, SymbolBound};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::{Debug};
-use serde::Serialize;
+use std::fmt::Debug;
 
 /// 通用LR项目，引用rule，管理pos
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
@@ -52,6 +60,11 @@ impl LRItem {
     }
 }
 
+/// lookahead集合，适用于LR1 LALR1 SLR1
+/// # members
+/// - 'core_set': LRItem核心集
+/// - 'lookahead_map': 展望串映射表
+///
 #[derive(Debug, Clone)]
 #[derive(Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct LookaheadItemSet<T: SymbolBound> {
@@ -67,7 +80,6 @@ pub enum LRAction {
     Accept(usize),    // 结束规约 推导式ID
     Error          // 出错Error
 }
-
 
 impl LRAction {
     pub fn is_shift(&self) -> bool{

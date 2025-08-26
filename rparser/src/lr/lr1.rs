@@ -1,16 +1,18 @@
-use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, ProdMeta, RuleVec, Symbol, SymbolBound};
+//!
+//! date: 2025/8/26
+//! author: anishan
+//!
+//! LR1构造器
+//!
+
+use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
 use crate::common::lr_type::{LRItem, LookaheadItemSet};
 use crate::util::first_set::build_first;
+use crate::util::set_utils;
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
-use petgraph::data::Build;
-use petgraph::dot::Dot;
-use petgraph::visit::NodeRef;
-use petgraph::Graph;
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use indexmap::IndexMap;
-use crate::util::set_utils;
-
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 
 /// 只构建DFA状态机不检查冲突
@@ -62,7 +64,7 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
             lookahead_first_set.extend(
                 first_set.iter() 
                     .filter(|&x| x.ne(&EpsilonSymbol::Epsilon))
-                    .map(|x| EndSymbol::Symbol(x.unwrap_symbol()))
+                    .map(|x| EndSymbol::Symbol(x.unwrap()))
             );
             
             if !first_set.contains(&EpsilonSymbol::Epsilon) { // 不能推出空退出
