@@ -104,3 +104,5 @@ LINE_COMMENT        //.*
 BLOCK_COMMENT       /\*
 
 WHITESPACE          \s+
+
+TYPE_NAME

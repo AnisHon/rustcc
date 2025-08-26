@@ -10,7 +10,7 @@ fn main() {
 
 
 
-    let lex = LexReader::new(&get_path("/resources/clex.l"))
+    let lex = LexReader::new(&get_path("/../src/clex.l"))
         .read_from_file()
         .unwrap();
     // lex.iter().for_each(|x| println!("{:?}", x));

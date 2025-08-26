@@ -4,7 +4,7 @@
 pub enum LRAction {
     Reduce(usize), // 规约 推导式ID
     Shift(usize),  // 移入 状态ID
-    End(usize),    // 结束规约 推导式ID
+    Accept(usize),    // 结束规约 推导式ID
     Error          // 出错Error
 }
 
@@ -36,9 +36,21 @@ const GOTO_CHECK: [Option<usize>; {{ goto_check | length }}] = [
 
 
 // rule_id -> length for reduce
-pub const RULE_LENS: [usize; {{ rule_lens | length }}] = [
-    {%- for item in rule_lens -%}{{ item }},{%- endfor -%}
+pub const EXPR_LENS: [usize; {{ expr_lens | length }}] = [
+    {%- for item in expr_lens -%}{{ item }},{%- endfor -%}
 ];
+
+// rule_id -> expr name(non-terminal name)
+pub const EXPR_NAMES: [String; {{ expr_names | length }}] = [
+    {%- for item in expr_names -%}"{{ item }}",{%- endfor -%}
+];
+
+// token_id -> token content (terminal name)
+pub const TOKEN_CONTENTS: [String; {{ token_contents | length }}] = [
+    {%- for item in token_contents -%}"{{ item }}",{%- endfor -%}
+];
+
+pub const INIT_STATE: usize = {{ init_state }};
 
 
 /// action_table[state][token]
