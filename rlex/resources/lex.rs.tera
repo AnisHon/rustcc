@@ -1,4 +1,6 @@
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+use num_derive::FromPrimitive;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive)]
 pub enum TokenType {
     {%- for item in enums -%}
         {{ item }},
@@ -31,6 +33,10 @@ const NEXT: [usize; {{ next_size }}] = [
 
 const CHECK: [Option<usize>; {{ next_size }}] = {{ check }};
 
+const ROW_ID: [usize; {{ row_id | length }}] = [
+    {%- for item in row_id -%}{{ item }},{%- endfor -%}
+];
+
 pub const INIT_STATE: usize = {{ init_state }};
 
 pub fn find_token(state_id: usize) -> Option<TokenType> {
@@ -38,9 +44,9 @@ pub fn find_token(state_id: usize) -> Option<TokenType> {
 }
 
 pub fn find_next(state_id: usize, chr: char) -> Option<usize> {
-
+    let row_id = ROW_ID[state_id];
     let class_id = find_char(chr);
-    let base = BASE[state_id];
+    let base = BASE[row_id];
     if base.is_none() {
         return None
     }
@@ -52,7 +58,7 @@ pub fn find_next(state_id: usize, chr: char) -> Option<usize> {
     }
 
 
-    if check.unwrap() == state_id {
+    if check.unwrap() == row_id {
         Some(NEXT[idx])
     } else {
         None

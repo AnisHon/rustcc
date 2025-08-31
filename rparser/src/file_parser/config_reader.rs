@@ -35,6 +35,7 @@ pub struct GrammarConfig {
     pub assoc: Vec<AssocType>,
     pub productions: Vec<Production>,
     pub user_code: String,
+    pub typename: String,
 }
 
 /// Token结核性表类型
@@ -85,12 +86,13 @@ pub struct GrammarConfigParser {
     tokens: Vec<String>,
     assoc: Vec<AssocType>,
     productions: Vec<Production>,
-    user_code: String
+    user_code: String,
+    typename: String
 }
 
 impl GrammarConfigParser {
     pub fn new(input: String) -> Self {
-        Self { input, tokens: Vec::new(), assoc: Vec::new(), productions: Vec::new(), user_code: String::new() }
+        Self { input, tokens: Vec::new(), assoc: Vec::new(), productions: Vec::new(), user_code: String::new(), typename: String::new() }
     }
 
     /// 解析文法
@@ -103,7 +105,7 @@ impl GrammarConfigParser {
         for pair in pairs {
             self.parse_file(pair);
         }
-        GrammarConfig { tokens: self.tokens, assoc: self.assoc, productions: self.productions, user_code: self.user_code }
+        GrammarConfig { tokens: self.tokens, assoc: self.assoc, productions: self.productions, user_code: self.user_code, typename: self.typename }
     }
 
     fn parse_file(&mut self, file: Pair<Rule>) {
@@ -124,6 +126,7 @@ impl GrammarConfigParser {
                 match pair.as_rule() {
                     Rule::token_decl => self.parse_token_decl(pair),
                     Rule::assoc_decl => self.parse_assoc_decl(pair),
+                    Rule::type_decl => self.parse_type_decl(pair),
                     _ => unreachable!(),
                 }
             }
@@ -147,6 +150,11 @@ impl GrammarConfigParser {
             _ => unreachable!()
         };
         self.assoc.push(assoc);
+    }
+
+    /// type声明
+    fn parse_type_decl(&mut self, decl: Pair<Rule>) {
+        self.typename = decl.into_inner().as_str().to_string();
     }
 
     /// 解析文法相关

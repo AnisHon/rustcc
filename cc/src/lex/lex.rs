@@ -1,8 +1,8 @@
 use crate::err::lex_error::{LexError, LexResult};
 use crate::lex::lex_yy::{find_next, find_token, TokenType, INIT_STATE};
-use crate::lex::token::Token;
+use crate::types::token::Token;
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader, Cursor, Read};
+use std::io::{BufRead, BufReader, Read};
 
 pub struct Lex<R: Read> {
     pos: usize,  // 当前指针位置，可以回退，但始终在buff范围内
@@ -69,12 +69,7 @@ impl <R: Read> Lex<R> {
                 let (value, size) = self.pop_buff();
                 let pos = self.pos - size;
                 self.reset_state(); // 重要！必须重置状态
-                Some(Ok(Token {
-                    typ,
-                    value,
-                    pos,
-                    line: self.line,
-                }))
+                Some(Ok(Token::new(pos, self.line, typ, value)))
             }
         }
     }
@@ -179,19 +174,9 @@ impl <R: Read> Lex<R> {
 
 }
 
-
-
-#[test]
-fn test_lex() {
-    let code = include_str!("../../resources/test.c");
-    // let code = "abc";
-    let mut lex = Lex::new(Cursor::new(code));
-    while let Some(tok) = lex.next_token() {
-        let tok = tok.unwrap();
-        println!("{:?}", tok);
+impl <R: Read> Iterator for Lex<R> {
+    type Item = LexResult<Token>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_token()
     }
-    
-    
-    
-
 }

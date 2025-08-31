@@ -54,12 +54,13 @@ impl TableWriter {
         // 先替换 $$
         let step1 = self.re_dollar_dollar.replace_all(input, VALUE_NAME);
 
+
         // 再替换 $数字，使用闭包计算新索引
         let result = self.re_dollar_num.replace_all(&step1, |caps: &regex::Captures| {
             // 提取匹配到的数字
             let num_str = &caps[1];
             match num_str.parse::<usize>() {
-                Ok(num) => format!("{}[{}]", VALUE_STACK_NAME, num - 1),  // 数字减1得到新索引
+                Ok(num) => format!("mem::take(&mut {}[{}])", VALUE_STACK_NAME, num - 1),  // 数字减1得到新索引
                 Err(err) => panic!("{}", err) // 解析失败，
             }
         });
@@ -70,6 +71,8 @@ impl TableWriter {
     /// 写入文件
     pub fn write(self) {
         let (action_table, goto_table, init_state) = self.builder.build_lr_table();
+
+        let typename = self.builder.config.typename.clone();
 
         // 结束符号在所有token之后
         let end_symbol = self.builder.token_meta.len();
@@ -87,8 +90,8 @@ impl TableWriter {
         let action_codes = self.resolve_action();
 
         // 压缩矩阵
-        let (action_base, action_next, action_check) = compress_matrix(&action_table, LRAction::Error);
-        let (goto_base, goto_next, goto_check) = compress_matrix(&goto_table, None);
+        let (action_base, action_next, action_check, action_row_id) = compress_matrix(&action_table, LRAction::Error);
+        let (goto_base, goto_next, goto_check, goto_row_id) = compress_matrix(&goto_table, None);
 
         // 处理成代码字符串数组
         let action_base = option_to_code_str(action_base);
@@ -108,9 +111,11 @@ impl TableWriter {
         context.insert("action_base", &action_base);
         context.insert("action_next", &action_next);
         context.insert("action_check", &action_check);
+        context.insert("action_row_id", &action_row_id);
         context.insert("goto_base", &goto_base);
         context.insert("goto_next", &goto_next);
         context.insert("goto_check", &goto_check);
+        context.insert("goto_row_id", &goto_row_id);
         context.insert("expr_lens", &expr_lens);
         context.insert("expr_names", &expr_names);
         context.insert("expr_ids", &expr_ids);
@@ -121,6 +126,7 @@ impl TableWriter {
         context.insert("user_code", &user_code);
         context.insert("init_state", &init_state);
         context.insert("end_symbol", &end_symbol);
+        context.insert("typename", &typename);
 
         
         

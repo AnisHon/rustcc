@@ -17,7 +17,8 @@ int main() {
     if (x > MAX_VALUE) {
         printf("Overflow\n");
     } else {
-        for (int i = 0; i < x; i++) {
+        int i = 0;
+        for (i; i < x; i++) {
             y *= i + 1;
         }
     }

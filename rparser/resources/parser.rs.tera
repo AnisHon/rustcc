@@ -1,3 +1,4 @@
+use std::mem;
 {{ user_code }}
 
 #[derive(Debug, Clone)]
@@ -21,6 +22,10 @@ const ACTION_CHECK: [Option<usize>; {{ action_check | length }}] = [
     {%- for item in action_check -%}{{ item }},{%- endfor -%}
 ];
 
+const ACTION_ROW_ID: [usize; {{ action_row_id | length }}] = [
+    {%- for item in action_row_id -%}{{ item }},{%- endfor -%}
+];
+
 // goto matrix -> base next check
 const GOTO_BASE: [Option<usize>; {{ goto_base | length }}] = [
     {%- for item in goto_base -%}{{ item }},{%- endfor -%}
@@ -32,6 +37,10 @@ const GOTO_NEXT: [Option<usize>; {{ goto_next | length }}] = [
 
 const GOTO_CHECK: [Option<usize>; {{ goto_check | length }}] = [
     {%- for item in goto_check -%}{{ item }},{%- endfor -%}
+];
+
+const GOTO_ROW_ID: [usize; {{ goto_row_id | length }}] = [
+    {%- for item in goto_row_id -%}{{ item }},{%- endfor -%}
 ];
 
 
@@ -60,7 +69,8 @@ pub const END_SYMBOL: usize = {{ end_symbol }};
 
 /// action_table[state][token]
 pub fn get_action(state: usize, token: usize) -> LRAction {
-    let base = ACTION_BASE[state];
+    let row_id = ACTION_ROW_ID[state];
+    let base = ACTION_BASE[row_id];
     if base.is_none() {
         return LRAction::Error
     }
@@ -73,7 +83,7 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
         return LRAction::Error
     }
 
-    if check.unwrap() == state {
+    if check.unwrap() == row_id {
         ACTION_NEXT[idx].clone()
     } else {
         LRAction::Error
@@ -82,8 +92,9 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
 
 /// action_table[state][EXPR_IDS[prod_id]]
 pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
+    let row_id = GOTO_ROW_ID[state];
     let rule_id = EXPR_IDS[prod_id];
-    let base = GOTO_BASE[state];
+    let base = GOTO_BASE[row_id];
     if base.is_none() {
         return None;
     }
@@ -96,7 +107,7 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
         return None
     }
 
-    if check.unwrap() == state {
+    if check.unwrap() == row_id {
         GOTO_NEXT[idx]
     } else {
         None
@@ -104,15 +115,16 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
 }
 
 /// action_code[state](params)
-pub fn exec_action<T>(rule: usize, mut {{ cv_name }}: T, {{ vs_name }}: Vec<T>) -> T {
+pub fn exec_action(rule: usize, mut {{ vs_name }}: Vec<{{ typename }}>) -> {{ typename }} {
+    let {{ cv_name }}: {{ typename }};
     match rule {
         {%- for item in action_codes -%}
             {% if item %}
                 {{ loop.index0 }} => {{ item }},
             {% endif %}
         {%- endfor -%}
-        _ => {}
+        _ => { {{ cv_name }} = {{ typename }}::default() }
     };
-    value
+    {{ cv_name }}
 }
 

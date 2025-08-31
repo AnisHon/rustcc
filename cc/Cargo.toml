@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+enum-as-inner = "0.6.1"
+num-derive = "0.4.2"
+num-traits = "0.2.19"
+strum = "0.27.2"

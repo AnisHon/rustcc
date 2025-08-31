@@ -1,33 +1,54 @@
+use std::hash::Hash;
 use bitvec::bitvec;
 use bitvec::vec::BitVec;
+use indexmap::IndexMap;
+use crate::utils::id_util::IncIDFactory;
+use crate::utils::unique_id_factory::UniqueIDFactory;
 
-pub fn compress_matrix<T: Eq + Copy>(
+pub fn compress_matrix<T: Eq + Copy + Hash>(
     matrix: &Vec<Vec<T>>, zero_value: T
-) -> (Vec<Option<usize>>, Vec<T>, Vec<Option<usize>>) {
+) -> (Vec<Option<usize>>, Vec<T>, Vec<Option<usize>>, Vec<usize>) {
     let rows = matrix.len();
     let stride = matrix[0].len();
     let mut bitmap = bitvec![0; rows];
 
+    let mut factory = IncIDFactory::new(0);
+
+    let mut id_row: Vec<Option<usize>> = vec![None; rows];
+    let mut row_id: Vec<usize> = vec![0; rows];
     let mut base: Vec<Option<usize>> = vec![None; rows];
     let mut next: Vec<T> = vec![zero_value; stride];
     let mut check: Vec<Option<usize>> = vec![None; stride];
 
-    let mut row_cols: Vec<(_, Vec<_>)> = (0..rows)
-        .map(|row|
+    let mut dup_map: IndexMap<Vec<T>, usize> = IndexMap::new();
+
+    matrix.iter().enumerate().for_each(|(idx, row)| { // 去重
+        row_id[idx] = *dup_map.entry(row.clone()).or_insert_with(|| {
+            let id = factory.next_id();
+            id_row[id] = Some(idx);
+            id
+        }); // 分配ID
+    });
+
+    // 遍历不重复的边
+    let mut row_cols: Vec<(_, Vec<_>)> = dup_map.values()
+        .map(|&id| {
+            let row = id_row[id].unwrap();
             (
-                row,
+                id,
                 matrix[row].iter().enumerate().filter_map(|(idx, &x)| match x.ne(&zero_value) {
                     true => Some(idx),
                     false => None
                 }).collect()
             )
-        )
+        })
         .collect();
     row_cols.sort_by_key(|(_, edges)| edges.len());
     row_cols.reverse();
 
 
-    for (row, cols) in row_cols {
+    for (id, cols) in row_cols {
+        let row = id_row[id].unwrap();
         if cols.is_empty() {
             continue;
         }
@@ -47,12 +68,12 @@ pub fn compress_matrix<T: Eq + Copy>(
         for edge in cols {
             let pos = offset + edge;
             next[pos] = matrix[row][edge];
-            check[pos] = Some(row);
+            check[pos] = Some(id);
         }
-        base[row] = Some(offset);
+        base[id] = Some(offset);
     }
 
-    (base, next, check)
+    (base, next, check, row_id)
 }
 
 // 分配一个可用的base

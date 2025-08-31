@@ -10,9 +10,10 @@ file = { SOI ~ decls ~ "%%" ~ rules ~ "%%" ~ user_code? ~ EOI }
 // file       = { decls ~ "%%" ~ rules ~ "%%" ~ user_code? }
 
 decls      = { (decl)* }
-decl       = { token_decl | assoc_decl }
+decl       = { token_decl | assoc_decl | type_decl }
 token_decl = { "%token" ~ ident+ }
 assoc_decl = { ("%left" | "%right" | "%nonassoc") ~ ident+ }
+type_decl  = { "%type" ~ ident+}
 
 rules      = { (rule_decl)+ }
 rule_decl  = { ident ~ ":" ~ production_with_prec ~ ("|" ~ production_with_prec)* ~ ";" }
