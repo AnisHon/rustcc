@@ -1,8 +1,12 @@
+use std::cell::RefCell;
 use crate::err::lex_error::{LexError, LexResult};
 use crate::lex::lex_yy::{find_next, find_token, TokenType, INIT_STATE};
 use crate::types::token::Token;
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read};
+use std::rc::Rc;
+use crate::types::symbol_table::SymbolTable;
+use crate::util::try_type_name::try_type_name;
 
 pub struct Lex<R: Read> {
     pos: usize,  // 当前指针位置，可以回退，但始终在buff范围内
@@ -13,10 +17,11 @@ pub struct Lex<R: Read> {
     reader: BufReader<R>,
     last_pos: Option<usize>,
     last_state: Option<usize>,
+    symbol_table: Rc<RefCell<SymbolTable<()>>>
 }
 
 impl <R: Read> Lex<R> {
-    pub fn new(reader: R) -> Self {
+    pub fn new(reader: R, symbol_table: Rc<RefCell<SymbolTable<()>>>) -> Self {
         Self {
             pos: 0,
             line: 0,
@@ -26,6 +31,7 @@ impl <R: Read> Lex<R> {
             reader: BufReader::new(reader),
             last_pos: None,
             last_state: None,
+            symbol_table
         }
     }
 
@@ -170,13 +176,30 @@ impl <R: Read> Lex<R> {
         self.state = INIT_STATE;
     }
 
-
-
 }
 
 impl <R: Read> Iterator for Lex<R> {
-    type Item = LexResult<Token>;
+    type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
-        self.next_token()
+        loop {
+            let result = match self.next_token() {
+                None => return None,
+                Some(x) => x
+            };
+
+            let mut token = match result { // 错误处理未实现
+                Ok(x) => x,
+                Err(err) => panic!("{:?}", err)
+            };
+
+
+            if token.ignore() {  // 过滤无用Token
+                continue;
+            }
+
+            try_type_name(&mut token, &self.symbol_table); // 尝试使用符号表转换token
+
+            return Some(token);
+        }
     }
 }

@@ -2,11 +2,25 @@
    用于测试词法分析器的注释处理能力
 */
 
+typedef const int wtf;
+
 // 函数声明
 int factorial(int n);
 
+//wtf factorial(wtf w);
+
+struct Person {
+    char name[20];
+    int age;
+};
+
+typedef struct Person Person;  // 为struct Person起别名Person
+
+Person p;
+
 // 主函数
 int main() {
+
     // 变量声明与初始化
     int x = 42;
     float y = 3.14e-2;

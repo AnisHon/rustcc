@@ -3,6 +3,7 @@ use enum_as_inner::EnumAsInner;
 use num_traits::FromPrimitive;
 use crate::lex::lex_yy::TokenType;
 use crate::parser::parser_yy::END_SYMBOL;
+use crate::types::symbol_table::SymbolTable;
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum TokenValue {
@@ -45,7 +46,11 @@ impl Token {
             value,
         }
     }
-
+    
+    pub fn is(&self, typ: TokenType) -> bool {
+        self.typ == typ as usize
+    }
+    
     pub fn end() -> Self {
         Self {
             pos: 0,
@@ -68,7 +73,7 @@ impl Debug for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.as_type() {
             None => {write!(f, "Token(END)")}
-            Some(x) => {write!(f, "Token(pos: {:?}, line: {:?}, type: {:?}, value: {:?})", x, self.line, self.pos, self.value)}
+            Some(x) => {write!(f, "Token(pos: {:?}, line: {:?}, type: {:?}, value: {:?})", self.pos, self.line, x, self.value)}
         }
     }
 }

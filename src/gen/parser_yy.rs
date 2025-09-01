@@ -67,8 +67,8 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
 }
 
 /// action_table[state][EXPR_IDS[prod_id]]
-pub fn get_goto(row_id: usize, prod_id: usize) -> Option<usize> {
-    let row_id = ACTION_ROW_ID[state];
+pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
+    let row_id = GOTO_ROW_ID[state];
     let rule_id = EXPR_IDS[prod_id];
     let base = GOTO_BASE[row_id];
     if base.is_none() {

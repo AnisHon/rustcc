@@ -10,7 +10,7 @@
 //!
 //!
 
-use crate::common::grammar::{EndSymbol, Grammar, ProdMeta, Rule, RuleID, Symbol, SymbolBound, SymbolMeta};
+use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, Symbol, SymbolBound};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 
