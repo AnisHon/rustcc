@@ -64,7 +64,7 @@ where
 
         Ok(value.into_translation_unit().map_err(|_| {
             let x = self.get_latest_token();
-            ParserError::new(x.pos, x.line, "Syntax Error",self.get_latest_expr())
+            ParserError::new(x.beg, x.end, "Syntax Error", self.get_latest_expr())
         })?)
     }
 
@@ -98,7 +98,7 @@ where
             Some(x) => x,
         };
         match specifiers {
-            DeclarationSpecifiers::StorageClass(StorageClassSpecifier::Typedef, _) => true,
+            DeclarationSpecifiers::StorageClass(StorageClassSpecifier::Typedef(_), _) => true,
             DeclarationSpecifiers::StorageClass(_, rest) => Self::is_type_def(rest.as_deref()),
             DeclarationSpecifiers::TypeSpecifier(_, rest) => Self::is_type_def(rest.as_deref()),
             DeclarationSpecifiers::TypeQualifier(_, rest) => Self::is_type_def(rest.as_deref()),
@@ -180,7 +180,7 @@ where
 
     fn error(&mut self, token: Token) -> ParserError {    // 错误恢复没做
         let expr = self.get_latest_expr();
-        ParserError::new(token.pos, token.line, "Syntax Error", expr)
+        ParserError::new(token.beg, token.end, "Syntax Error", expr)
     }
 
     /// 获取最近的token,优先从Iter中获取

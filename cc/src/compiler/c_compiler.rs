@@ -33,11 +33,15 @@ impl<R: Read> CCompiler<R> {
 
         let lex = Lex::new(self.input, Rc::clone(&symbol_table));
         let iter = lex.into_iter()
-            .chain(std::iter::once(Token::end())); // 末尾加上结束符
+            .chain(std::iter::once(Token::end_token())); // 末尾加上结束符
 
         let parser = Parser::new(iter, symbol_table);
         let cst = parser.parse().unwrap();
         
         println!("{:?}", cst);
+
+
+
+
     }
 }
