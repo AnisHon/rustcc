@@ -71,8 +71,9 @@ macro_rules! make_insert {
 
 macro_rules! make_zero {
     ($variant:ident, $variant_field:ident, $func_name:ident) => {
-        pub fn $func_name() -> SemanticValue {
-            SemanticValue::$variant($variant::$variant_field)
+        pub fn $func_name(item: SemanticValue) -> SemanticValue {
+            let token = item.into_token().unwrap();
+            SemanticValue::$variant($variant::$variant_field(token))
         }
     };
 }
@@ -267,6 +268,12 @@ impl DeclarationList {
         let decl = decl.into_declaration().unwrap();
         SemanticValue::DeclarationList(Self(list_push(list.0, decl)))
     }
+
+    /// 返回一个空的DeclarationList
+    pub fn empty() -> DeclarationList {
+        DeclarationList(Vec::new())
+    }
+
 }
 
 #[derive(Debug, Clone)]
@@ -292,6 +299,7 @@ pub struct InitDeclaratorList(pub Vec<InitDeclarator>);
 impl InitDeclaratorList {
     make_struct_list!(into_init_declarator, InitDeclaratorList, make_init_decl_list);
     make_struct_insert!(into_init_declarator_list, into_init_declarator, InitDeclaratorList, insert);
+
 }
 
 #[derive(Debug, Clone)]
@@ -336,11 +344,11 @@ impl DeclarationSpecifiers {
 
 #[derive(Debug, Clone)]
 pub enum StorageClassSpecifier {
-    Typedef,
-    Extern,
-    Static,
-    Auto,
-    Register,
+    Typedef(Token),
+    Extern(Token),
+    Static(Token),
+    Auto(Token),
+    Register(Token),
 }
 
 impl StorageClassSpecifier {
@@ -353,15 +361,15 @@ impl StorageClassSpecifier {
 
 #[derive(Debug, Clone)]
 pub enum TypeSpecifier {
-    Void,
-    Char,
-    Short,
-    Int,
-    Long,
-    Signed,
-    Unsigned,
-    Float,
-    Double,
+    Void(Token),
+    Char(Token),
+    Short(Token),
+    Int(Token),
+    Long(Token),
+    Signed(Token),
+    Unsigned(Token),
+    Float(Token),
+    Double(Token),
     StructOrUnion(StructOrUnionSpecifier),
     Enum(EnumSpecifier),
     TypeName(Token), // typedef name resolved by lexer
@@ -386,8 +394,8 @@ impl TypeSpecifier {
 
 #[derive(Debug, Clone)]
 pub enum TypeQualifier {
-    Const,
-    Volatile,
+    Const(Token),
+    Volatile(Token),
 }
 
 impl TypeQualifier {
@@ -434,8 +442,8 @@ impl StructOrUnionSpecifier {
 
 #[derive(Debug, Clone)]
 pub enum StructOrUnion {
-    Struct,
-    Union,
+    Struct(Token),
+    Union(Token),
 }
 
 impl StructOrUnion {
@@ -643,7 +651,7 @@ impl LabeledStatement {
 
 #[derive(Debug, Clone)]
 pub enum CompoundStatement {
-    Empty,
+    Empty(Token),
     Block(Vec<BlockItem>),
 }
 
@@ -666,7 +674,7 @@ impl BlockItem {
 
 #[derive(Debug, Clone)]
 pub enum ExpressionStatement {
-    Empty,
+    Empty(Token),
     Expr(Expression),
 }
 
@@ -769,8 +777,8 @@ impl IterationStatement {
 #[derive(Debug, Clone)]
 pub enum JumpStatement {
     Goto(Token),
-    Continue,
-    Break,
+    Continue(Token),
+    Break(Token),
     Return(Option<Expression>),
 }
 
@@ -813,9 +821,9 @@ impl PrimaryExpression {
 
 #[derive(Debug, Clone)]
 pub enum Constant {
-    Int,   // could refine later
-    Float,
-    Char,
+    Int(Token),   // could refine later
+    Float(Token),
+    Char(Token),
 }
 
 impl Constant {
@@ -924,12 +932,12 @@ impl UnaryExpression {
 
 #[derive(Debug, Clone)]
 pub enum UnaryOperator {
-    AddressOf,
-    Deref,
-    Plus,
-    Minus,
-    BitNot,
-    Not,
+    AddressOf(Token),
+    Deref(Token),
+    Plus(Token),
+    Minus(Token),
+    BitNot(Token),
+    Not(Token),
 }
 
 impl UnaryOperator {
@@ -1259,17 +1267,17 @@ impl AssignmentExpression {
 
 #[derive(Debug, Clone)]
 pub enum AssignmentOperator {
-    Assign,
-    MulAssign,
-    DivAssign,
-    ModAssign,
-    AddAssign,
-    SubAssign,
-    ShlAssign,
-    ShrAssign,
-    AndAssign,
-    XorAssign,
-    OrAssign,
+    Assign(Token),
+    MulAssign(Token),
+    DivAssign(Token),
+    ModAssign(Token),
+    AddAssign(Token),
+    SubAssign(Token),
+    ShlAssign(Token),
+    ShrAssign(Token),
+    AndAssign(Token),
+    XorAssign(Token),
+    OrAssign(Token),
 }
 
 impl AssignmentOperator {

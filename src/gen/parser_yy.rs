@@ -138,33 +138,33 @@ pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> Semantic
             
                 21 => {value = make_declarator_list_opt(mem::take(&mut value_stack[0]));},
             
-                22 => {value = StorageClassSpecifier::make_typedef();},
+                22 => {value = StorageClassSpecifier::make_typedef(mem::take(&mut value_stack[0]));},
             
-                23 => {value = StorageClassSpecifier::make_extern();},
+                23 => {value = StorageClassSpecifier::make_extern(mem::take(&mut value_stack[0]));},
             
-                24 => {value = StorageClassSpecifier::make_static();},
+                24 => {value = StorageClassSpecifier::make_static(mem::take(&mut value_stack[0]));},
             
-                25 => {value = StorageClassSpecifier::make_auto();},
+                25 => {value = StorageClassSpecifier::make_auto(mem::take(&mut value_stack[0]));},
             
-                26 => {value = StorageClassSpecifier::make_register();},
+                26 => {value = StorageClassSpecifier::make_register(mem::take(&mut value_stack[0]));},
             
-                27 => {value = TypeSpecifier::make_void();},
+                27 => {value = TypeSpecifier::make_void(mem::take(&mut value_stack[0]));},
             
-                28 => {value = TypeSpecifier::make_char();},
+                28 => {value = TypeSpecifier::make_char(mem::take(&mut value_stack[0]));},
             
-                29 => {value = TypeSpecifier::make_short();},
+                29 => {value = TypeSpecifier::make_short(mem::take(&mut value_stack[0]));},
             
-                30 => {value = TypeSpecifier::make_int();},
+                30 => {value = TypeSpecifier::make_int(mem::take(&mut value_stack[0]));},
             
-                31 => {value = TypeSpecifier::make_long();},
+                31 => {value = TypeSpecifier::make_long(mem::take(&mut value_stack[0]));},
             
-                32 => {value = TypeSpecifier::make_signed();},
+                32 => {value = TypeSpecifier::make_signed(mem::take(&mut value_stack[0]));},
             
-                33 => {value = TypeSpecifier::make_unsigned();},
+                33 => {value = TypeSpecifier::make_unsigned(mem::take(&mut value_stack[0]));},
             
-                34 => {value = TypeSpecifier::make_float();},
+                34 => {value = TypeSpecifier::make_float(mem::take(&mut value_stack[0]));},
             
-                35 => {value = TypeSpecifier::make_double();},
+                35 => {value = TypeSpecifier::make_double(mem::take(&mut value_stack[0]));},
             
                 36 => {value = TypeSpecifier::make_struct(mem::take(&mut value_stack[0]));},
             
@@ -172,17 +172,17 @@ pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> Semantic
             
                 38 => {value = TypeSpecifier::make_type_name(mem::take(&mut value_stack[0]));},
             
-                39 => {value = TypeQualifier::make_const();},
+                39 => {value = TypeQualifier::make_const(mem::take(&mut value_stack[0]));},
             
-                40 => {value = TypeQualifier::make_volatile();},
+                40 => {value = TypeQualifier::make_volatile(mem::take(&mut value_stack[0]));},
             
                 41 => {value = StructOrUnionSpecifier::make_defined(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]), mem::take(&mut value_stack[3]));},
             
                 42 => {value = StructOrUnionSpecifier::make_named(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
             
-                43 => {value = StructOrUnion::make_struct();},
+                43 => {value = StructOrUnion::make_struct(mem::take(&mut value_stack[0]));},
             
-                44 => {value = StructOrUnion::make_union();},
+                44 => {value = StructOrUnion::make_union(mem::take(&mut value_stack[0]));},
             
                 45 => {value = SemanticValue::IdentifierOpt(None);},
             
@@ -326,7 +326,7 @@ pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> Semantic
             
                 115 => {value = LabeledStatement::make_default(mem::take(&mut value_stack[2]));},
             
-                116 => {value = CompoundStatement::make_empty();},
+                116 => {value = CompoundStatement::make_empty(mem::take(&mut value_stack[0]));},
             
                 117 => {value = CompoundStatement::make_expr(mem::take(&mut value_stack[1]));},
             
@@ -338,7 +338,7 @@ pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> Semantic
             
                 121 => {value = BlockItem::make_statement(mem::take(&mut value_stack[0]));},
             
-                122 => {value = ExpressionStatement::make_empty();},
+                122 => {value = ExpressionStatement::make_empty(mem::take(&mut value_stack[0]));},
             
                 123 => {value = ExpressionStatement::make_expr(mem::take(&mut value_stack[0]));},
             
@@ -360,9 +360,9 @@ pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> Semantic
             
                 132 => {value = JumpStatement::make_goto(mem::take(&mut value_stack[1]));},
             
-                133 => {value = JumpStatement::make_continue();},
+                133 => {value = JumpStatement::make_continue(mem::take(&mut value_stack[0]));},
             
-                134 => {value = JumpStatement::make_break();},
+                134 => {value = JumpStatement::make_break(mem::take(&mut value_stack[0]));},
             
                 135 => {value = JumpStatement::make_return(SemanticValue::None);},
             
@@ -376,11 +376,11 @@ pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> Semantic
             
                 140 => {value = PrimaryExpression::make_paren(mem::take(&mut value_stack[1]));},
             
-                141 => {value = Constant::make_int();},
+                141 => {value = Constant::make_int(mem::take(&mut value_stack[0]));},
             
-                142 => {value = Constant::make_float();},
+                142 => {value = Constant::make_float(mem::take(&mut value_stack[0]));},
             
-                143 => {value = Constant::make_char();},
+                143 => {value = Constant::make_char(mem::take(&mut value_stack[0]));},
             
                 144 => {value = make_string(mem::take(&mut value_stack[0]));},
             
@@ -420,17 +420,17 @@ pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> Semantic
             
                 162 => {value = UnaryExpression::make_sizeof_type(mem::take(&mut value_stack[2]));},
             
-                163 => {value = UnaryOperator::address_of();},
+                163 => {value = UnaryOperator::address_of(mem::take(&mut value_stack[0]));},
             
-                164 => {value = UnaryOperator::deref();},
+                164 => {value = UnaryOperator::deref(mem::take(&mut value_stack[0]));},
             
-                165 => {value = UnaryOperator::plus();},
+                165 => {value = UnaryOperator::plus(mem::take(&mut value_stack[0]));},
             
-                166 => {value = UnaryOperator::minus();},
+                166 => {value = UnaryOperator::minus(mem::take(&mut value_stack[0]));},
             
-                167 => {value = UnaryOperator::bit_not();},
+                167 => {value = UnaryOperator::bit_not(mem::take(&mut value_stack[0]));},
             
-                168 => {value = UnaryOperator::not();},
+                168 => {value = UnaryOperator::not(mem::take(&mut value_stack[0]));},
             
                 169 => {value = CastExpression::make_cast(mem::take(&mut value_stack[1]), mem::take(&mut value_stack[3]));},
             
@@ -500,27 +500,27 @@ pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> Semantic
             
                 202 => {value = AssignmentExpression::make_assign(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]), mem::take(&mut value_stack[2]))},
             
-                203 => {value = AssignmentOperator::assign();},
+                203 => {value = AssignmentOperator::assign(mem::take(&mut value_stack[0]));},
             
-                204 => {value = AssignmentOperator::mul_assign();},
+                204 => {value = AssignmentOperator::mul_assign(mem::take(&mut value_stack[0]));},
             
-                205 => {value = AssignmentOperator::div_assign();},
+                205 => {value = AssignmentOperator::div_assign(mem::take(&mut value_stack[0]));},
             
-                206 => {value = AssignmentOperator::mod_assign();},
+                206 => {value = AssignmentOperator::mod_assign(mem::take(&mut value_stack[0]));},
             
-                207 => {value = AssignmentOperator::add_assign();},
+                207 => {value = AssignmentOperator::add_assign(mem::take(&mut value_stack[0]));},
             
-                208 => {value = AssignmentOperator::sub_assign();},
+                208 => {value = AssignmentOperator::sub_assign(mem::take(&mut value_stack[0]));},
             
-                209 => {value = AssignmentOperator::shl_assign();},
+                209 => {value = AssignmentOperator::shl_assign(mem::take(&mut value_stack[0]));},
             
-                210 => {value = AssignmentOperator::shr_assign();},
+                210 => {value = AssignmentOperator::shr_assign(mem::take(&mut value_stack[0]));},
             
-                211 => {value = AssignmentOperator::and_assign();},
+                211 => {value = AssignmentOperator::and_assign(mem::take(&mut value_stack[0]));},
             
-                212 => {value = AssignmentOperator::xor_assign();},
+                212 => {value = AssignmentOperator::xor_assign(mem::take(&mut value_stack[0]));},
             
-                213 => {value = AssignmentOperator::or_assign();},
+                213 => {value = AssignmentOperator::or_assign(mem::take(&mut value_stack[0]));},
             
                 214 => {value = Expression::make_single(mem::take(&mut value_stack[0]));},
             

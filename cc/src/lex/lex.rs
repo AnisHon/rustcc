@@ -75,7 +75,7 @@ impl <R: Read> Lex<R> {
                 let (value, size) = self.pop_buff();
                 let pos = self.pos - size;
                 self.reset_state(); // 重要！必须重置状态
-                Some(Ok(Token::new(pos, self.line, typ, value)))
+                Some(Ok(Token::new(pos, typ, value)))
             }
         }
     }

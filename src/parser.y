@@ -132,31 +132,31 @@ declaration_specifiers_opt
     ;
 
 storage_class_specifier
-    : KEYWORD_TYPEDEF   {$$ = StorageClassSpecifier::make_typedef();}
-    | KEYWORD_EXTERN    {$$ = StorageClassSpecifier::make_extern();}
-    | KEYWORD_STATIC    {$$ = StorageClassSpecifier::make_static();}
-    | KEYWORD_AUTO      {$$ = StorageClassSpecifier::make_auto();}
-    | KEYWORD_REGISTER  {$$ = StorageClassSpecifier::make_register();}
+    : KEYWORD_TYPEDEF   {$$ = StorageClassSpecifier::make_typedef($1);}
+    | KEYWORD_EXTERN    {$$ = StorageClassSpecifier::make_extern($1);}
+    | KEYWORD_STATIC    {$$ = StorageClassSpecifier::make_static($1);}
+    | KEYWORD_AUTO      {$$ = StorageClassSpecifier::make_auto($1);}
+    | KEYWORD_REGISTER  {$$ = StorageClassSpecifier::make_register($1);}
     ;
 
 type_specifier
-    : KEYWORD_VOID              {$$ = TypeSpecifier::make_void();}
-    | KEYWORD_CHAR              {$$ = TypeSpecifier::make_char();}
-    | KEYWORD_SHORT             {$$ = TypeSpecifier::make_short();}
-    | KEYWORD_INT               {$$ = TypeSpecifier::make_int();}
-    | KEYWORD_LONG              {$$ = TypeSpecifier::make_long();}
-    | KEYWORD_SIGNED            {$$ = TypeSpecifier::make_signed();}
-    | KEYWORD_UNSIGNED          {$$ = TypeSpecifier::make_unsigned();}
-    | KEYWORD_FLOAT             {$$ = TypeSpecifier::make_float();}
-    | KEYWORD_DOUBLE            {$$ = TypeSpecifier::make_double();}
+    : KEYWORD_VOID              {$$ = TypeSpecifier::make_void($1);}
+    | KEYWORD_CHAR              {$$ = TypeSpecifier::make_char($1);}
+    | KEYWORD_SHORT             {$$ = TypeSpecifier::make_short($1);}
+    | KEYWORD_INT               {$$ = TypeSpecifier::make_int($1);}
+    | KEYWORD_LONG              {$$ = TypeSpecifier::make_long($1);}
+    | KEYWORD_SIGNED            {$$ = TypeSpecifier::make_signed($1);}
+    | KEYWORD_UNSIGNED          {$$ = TypeSpecifier::make_unsigned($1);}
+    | KEYWORD_FLOAT             {$$ = TypeSpecifier::make_float($1);}
+    | KEYWORD_DOUBLE            {$$ = TypeSpecifier::make_double($1);}
     | struct_or_union_specifier {$$ = TypeSpecifier::make_struct($1);}
     | enum_specifier            {$$ = TypeSpecifier::make_enum($1);}
     | TYPE_NAME                 {$$ = TypeSpecifier::make_type_name($1);}      /* resolved by lexer using typedef table */
     ;
 
 type_qualifier
-    : KEYWORD_CONST     {$$ = TypeQualifier::make_const();}
-    | KEYWORD_VOLATILE  {$$ = TypeQualifier::make_volatile();}
+    : KEYWORD_CONST     {$$ = TypeQualifier::make_const($1);}
+    | KEYWORD_VOLATILE  {$$ = TypeQualifier::make_volatile($1);}
     ;
 
 struct_or_union_specifier
@@ -165,8 +165,8 @@ struct_or_union_specifier
     ;
 
 struct_or_union
-    : KEYWORD_STRUCT    {$$ = StructOrUnion::make_struct();}
-    | KEYWORD_UNION     {$$ = StructOrUnion::make_union();}
+    : KEYWORD_STRUCT    {$$ = StructOrUnion::make_struct($1);}
+    | KEYWORD_UNION     {$$ = StructOrUnion::make_union($1);}
     ;
 
 identifier_opt
@@ -332,7 +332,7 @@ labeled_statement
     ;
 
 compound_statement
-    : LBRACE RBRACE                 {$$ = CompoundStatement::make_empty();}
+    : LBRACE RBRACE                 {$$ = CompoundStatement::make_empty($1);}
     | LBRACE block_item_list RBRACE {$$ = CompoundStatement::make_expr($2);}
     ;
 
@@ -347,7 +347,7 @@ block_item
     ;
 
 expression_statement
-    : SEMICOLON             {$$ = ExpressionStatement::make_empty();}
+    : SEMICOLON             {$$ = ExpressionStatement::make_empty($1);}
     | expression SEMICOLON  {$$ = ExpressionStatement::make_expr($1);}
     ;
 
@@ -370,8 +370,8 @@ expression_opt
 
 jump_statement
     : KEYWORD_GOTO ID SEMICOLON             {$$ = JumpStatement::make_goto($2);}
-    | KEYWORD_CONTINUE SEMICOLON            {$$ = JumpStatement::make_continue();}
-    | KEYWORD_BREAK SEMICOLON               {$$ = JumpStatement::make_break();}
+    | KEYWORD_CONTINUE SEMICOLON            {$$ = JumpStatement::make_continue($1);}
+    | KEYWORD_BREAK SEMICOLON               {$$ = JumpStatement::make_break($1);}
     | KEYWORD_RETURN SEMICOLON              {$$ = JumpStatement::make_return(SemanticValue::None);}
     | KEYWORD_RETURN expression SEMICOLON   {$$ = JumpStatement::make_return($2);}
     ;
@@ -385,9 +385,9 @@ primary_expression
     ;
 
 constant
-    : INT                   {$$ = Constant::make_int();}
-    | FLOAT                 {$$ = Constant::make_float();}
-    | CHARACTER_CONSTANT    {$$ = Constant::make_char();}
+    : INT                   {$$ = Constant::make_int($1);}
+    | FLOAT                 {$$ = Constant::make_float($1);}
+    | CHARACTER_CONSTANT    {$$ = Constant::make_char($1);}
     ;
 
 /* adjacent string literal concatenation */
@@ -426,12 +426,12 @@ unary_expression
     ;
 
 unary_operator
-    : OP_BITAND             {$$ = UnaryOperator::address_of();}
-    | OP_TIMES              {$$ = UnaryOperator::deref();}
-    | OP_PLUS               {$$ = UnaryOperator::plus();}    %prec right
-    | OP_MINUS              {$$ = UnaryOperator::minus();}   %prec right
-    | OP_BIT_NOT            {$$ = UnaryOperator::bit_not();}
-    | OP_NOT                {$$ = UnaryOperator::not();}
+    : OP_BITAND             {$$ = UnaryOperator::address_of($1);}
+    | OP_TIMES              {$$ = UnaryOperator::deref($1);}
+    | OP_PLUS               {$$ = UnaryOperator::plus($1);}    %prec right
+    | OP_MINUS              {$$ = UnaryOperator::minus($1);}   %prec right
+    | OP_BIT_NOT            {$$ = UnaryOperator::bit_not($1);}
+    | OP_NOT                {$$ = UnaryOperator::not($1);}
     ;
 
 cast_expression
@@ -508,17 +508,17 @@ assignment_expression
     ;
 
 assignment_operator
-    : OP_ASSIGN                 {$$ = AssignmentOperator::assign();}
-    | OP_MUL_ASSIGN             {$$ = AssignmentOperator::mul_assign();}
-    | OP_DIV_ASSIGN             {$$ = AssignmentOperator::div_assign();}
-    | OP_MOD_ASSIGN             {$$ = AssignmentOperator::mod_assign();}
-    | OP_ADD_ASSIGN             {$$ = AssignmentOperator::add_assign();}
-    | OP_SUB_ASSIGN             {$$ = AssignmentOperator::sub_assign();}
-    | OP_L_SHIFT_ASSIGN         {$$ = AssignmentOperator::shl_assign();}
-    | OP_R_SHIFT_ASSIGN         {$$ = AssignmentOperator::shr_assign();}
-    | OP_AND_ASSIGN             {$$ = AssignmentOperator::and_assign();}
-    | OP_XOR_ASSIGN             {$$ = AssignmentOperator::xor_assign();}
-    | OP_OR_ASSIGN              {$$ = AssignmentOperator::or_assign();}
+    : OP_ASSIGN                 {$$ = AssignmentOperator::assign($1);}
+    | OP_MUL_ASSIGN             {$$ = AssignmentOperator::mul_assign($1);}
+    | OP_DIV_ASSIGN             {$$ = AssignmentOperator::div_assign($1);}
+    | OP_MOD_ASSIGN             {$$ = AssignmentOperator::mod_assign($1);}
+    | OP_ADD_ASSIGN             {$$ = AssignmentOperator::add_assign($1);}
+    | OP_SUB_ASSIGN             {$$ = AssignmentOperator::sub_assign($1);}
+    | OP_L_SHIFT_ASSIGN         {$$ = AssignmentOperator::shl_assign($1);}
+    | OP_R_SHIFT_ASSIGN         {$$ = AssignmentOperator::shr_assign($1);}
+    | OP_AND_ASSIGN             {$$ = AssignmentOperator::and_assign($1);}
+    | OP_XOR_ASSIGN             {$$ = AssignmentOperator::xor_assign($1);}
+    | OP_OR_ASSIGN              {$$ = AssignmentOperator::or_assign($1);}
     ;
 
 expression

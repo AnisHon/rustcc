@@ -1,37 +1,45 @@
-use std::fmt::{Debug, Formatter};
-use enum_as_inner::EnumAsInner;
-use num_traits::FromPrimitive;
 use crate::lex::lex_yy::TokenType;
 use crate::parser::parser_yy::END_SYMBOL;
-use crate::types::symbol_table::SymbolTable;
+use enum_as_inner::EnumAsInner;
+use num_traits::FromPrimitive;
+use std::fmt::{Debug, Formatter};
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum TokenValue {
-    Number(usize),
+    Number{ value: usize, signed: bool },
     Float(f64),
     String(String),
-    Char(char),
+    Char(u8),
     Other,
 }
 
 /// 词法分析输出Token
 #[derive(Clone)]
 pub struct Token {
-    pub pos: usize,
-    pub line: usize,
+    pub beg: usize,
+    pub end: usize,
     pub typ: usize,
     pub value: TokenValue,
 }
 
 impl Token {
 
-    pub fn new(pos: usize, line: usize, typ: TokenType, value: String ) -> Self {
-
+    pub fn new(beg: usize, typ: TokenType, value: String ) -> Self {
+        let end = beg + value.len();
         let (value, typ) = match typ {
             TokenType::Id => (TokenValue::String(value), typ as usize),
-            TokenType::Hex => (TokenValue::Number(hex2int(value)), TokenType::Int as usize),
-            TokenType::Oct => (TokenValue::Number(oct2int(value)), TokenType::Int as usize),
-            TokenType::Int => (TokenValue::Number(str2int(value)), TokenType::Int as usize),
+            TokenType::Hex => {
+                let (value, signed) = hex2int(value);
+                (TokenValue::Number{value, signed}, TokenType::Int as usize)
+            },
+            TokenType::Oct => {
+                let (value, signed) = oct2int(value);
+                (TokenValue::Number{value, signed}, TokenType::Int as usize)
+            },
+            TokenType::Int => {
+                let (value, signed) = oct2int(value);
+                (TokenValue::Number{value, signed}, TokenType::Int as usize)
+            },
             TokenType::Float => (TokenValue::Float(str2float(value)), typ as usize),
             TokenType::StringLiteral => (TokenValue::String(format_str(value)), typ as usize),
             TokenType::CharacterConstant => (TokenValue::Char(format_char(value)), typ as usize),
@@ -40,8 +48,8 @@ impl Token {
         };
 
         Self {
-            pos,
-            line,
+            beg,
+            end,
             typ,
             value,
         }
@@ -51,10 +59,10 @@ impl Token {
         self.typ == typ as usize
     }
     
-    pub fn end() -> Self {
+    pub fn end_token() -> Self {
         Self {
-            pos: 0,
-            line: 0,
+            beg: 0,
+            end: 0,
             typ: END_SYMBOL,
             value: TokenValue::Other,
         }
@@ -73,32 +81,43 @@ impl Debug for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.as_type() {
             None => {write!(f, "Token(END)")}
-            Some(x) => {write!(f, "Token(pos: {:?}, line: {:?}, type: {:?}, value: {:?})", self.pos, self.line, x, self.value)}
+            Some(x) => {write!(f, "Token(beg: {:?}, end: {:?}, type: {:?}, value: {:?})", self.beg, self.end, x, self.value)}
         }
     }
 }
 
-fn oct2int(num: String) -> usize {
-    isize::from_str_radix(&num, 8).unwrap() as usize
+// todo 处理数字后缀
+
+fn oct2int(num: String) -> (usize, bool) {
+    // todo 解析int
+    let value = isize::from_str_radix(&num, 8).unwrap() as usize;
+    (value, false)
 }
 
-fn hex2int(num: String) -> usize {
-    isize::from_str_radix(&num[2..], 16).unwrap() as usize // 去除0x部分
+fn hex2int(num: String) -> (usize, bool) {
+    // todo 解析int
+    let value = isize::from_str_radix(&num[2..], 16).unwrap() as usize; // 去除0x部分
+    (value, false)
 }
-fn str2int(num: String) -> usize {
-    isize::from_str_radix(num.as_str(), 10).unwrap() as usize
+fn str2int(num: String) -> (usize, bool) {
+    // todo 解析int
+    let value = isize::from_str_radix(num.as_str(), 10).unwrap() as usize;
+    (value, false)
 }
 
 fn str2float(num: String) -> f64 {
+    // todo 解析float
     num.parse::<f64>().unwrap()
 }
 
 fn format_str(str: String) -> String {
+    // todo 格式化string
     str
 }
 
-fn format_char(str: String) -> char {
-    str.chars().nth(0).unwrap()
+fn format_char(str: String) -> u8 {
+    // todo 格式化char
+    str.into_bytes()[0]
 }
 
 

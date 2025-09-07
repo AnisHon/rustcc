@@ -12,6 +12,7 @@ use crate::err::parser_error::{ParserError, ParserResult};
 ///
 /// 符号类型
 ///
+#[derive(Debug, Clone, PartialEq)]
 pub struct Symbol {
 
 }
