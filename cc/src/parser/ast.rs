@@ -94,11 +94,48 @@ pub struct TranslationUnit {
     pub span: Span,
 }
 
+
+impl TranslationUnit {
+    pub fn make_translation_unit(ext_decl: ExternalDeclaration) -> ASTNode {
+        let span = ext_decl.unwrap_span();
+        TranslationUnit {
+            ext_decls: vec![ext_decl],
+            span
+        }.into()
+    }
+
+    pub fn insert_ext_decl(mut translation_unit: TranslationUnit, ext_decl: ExternalDeclaration) {
+        translation_unit.span.merge_self(&ext_decl.unwrap_span());
+        translation_unit.ext_decls.push(ext_decl);
+    }
+
+}
+
 // 外部声明：函数或变量
 #[derive(Debug, Clone)]
 pub enum ExternalDeclaration {
     Function(FunctionDefinition, Span),
     Variable(Declaration, Span),
+}
+
+impl ExternalDeclaration {
+
+    pub fn make_func(func_def: FunctionDefinition) -> ASTNode {
+        let span = func_def.span;
+        Self::Function(func_def, span).into()
+    }
+
+    pub fn make_variable(decl: Declaration) -> ASTNode {
+        let span = decl.span;
+        Self::Variable(decl, span).into()
+    }
+
+    pub fn unwrap_span(&self) -> Span {
+        match self {
+            ExternalDeclaration::Function(_, x) => *x,
+            ExternalDeclaration::Variable(_, x) => *x
+        }
+    }
 }
 
 // 函数定义
@@ -122,6 +159,11 @@ pub struct Declaration {
     pub init: Option<Initializer>,
     pub span: Span,
 }
+
+impl Declaration {
+
+}
+
 
 // 类型系统
 #[derive(Debug, Clone, PartialEq)]
@@ -249,12 +291,58 @@ pub enum StorageClass {
     Register(Span),
 }
 
+impl StorageClass {
+    pub fn make(token: Token) -> ASTNode {
+        let span = Span::from_token(&token);
+        let result = match token.as_type().unwrap() {
+            TokenType::KeywordTypedef => StorageClass::Typedef(span),
+            TokenType::KeywordExtern => StorageClass::Extern(span),
+            TokenType::KeywordStatic => StorageClass::Static(span),
+            TokenType::KeywordAuto => StorageClass::Auto(span),
+            TokenType::KeywordRegister => StorageClass::Register(span),
+            _ => unreachable!()
+        };
+        result.into()
+    }
+}
+
 // 类型限定符
 #[derive(Debug, Clone, Default)]
 pub struct Qualifiers {
     pub is_const: bool,
     pub is_volatile: bool,
-    pub is_static: bool,
+    // pub is_static: bool, // ?
+}
+
+impl Qualifiers {
+
+    pub fn new(is_const: bool, is_volatile: bool) -> Self {
+        Self {
+            is_const,
+            is_volatile
+        }
+    }
+    pub fn make(decl: Option<Qualifiers>, qual: Token) -> ASTNode {
+        let result = match (decl, qual.as_type().unwrap()) {
+            (None, TokenType::KeywordConst) => Qualifiers::new(true, false),
+            (Some(mut decl), TokenType::KeywordConst) => {decl.set_const(); decl},
+            (None, TokenType::KeywordVolatile) => Qualifiers::new(false, true),
+            (Some(mut decl), TokenType::KeywordVolatile) => {decl.set_volatile(); decl},
+            _ => unreachable!(),
+        };
+
+        result.into()
+    }
+
+    pub fn set_const(&mut self) {
+        // todo 检查
+        self.is_const = true;
+    }
+
+    pub fn set_volatile(&mut self) {
+        // todo 检查
+        self.is_volatile = true;
+    }
 }
 
 // 结构体/联合体字段
@@ -265,6 +353,15 @@ pub struct Field {
     pub ty: Type,
     pub bit_width: Option<u32>, // for bitfields
     pub span: Span,
+}
+
+impl Field {
+
+    pub fn make(name: String, ty: Type, span: Span) {
+
+    }
+
+
 }
 
 // 函数参数
@@ -336,7 +433,7 @@ impl Statement {
 #[derive(Debug, Clone)]
 pub struct Expression {
     pub kind: ExpressionKind,
-    pub ty: Type, // 推导出的类型
+    pub ty: Option<Type>, // 类型交给后期多次遍历时填充，
     pub span: Span,
 }
 
@@ -367,9 +464,8 @@ impl Expression {
 
     pub fn make_literal(constant: Constant) -> ASTNode {
         let span = constant.unwrap_span();
-        let ty = constant.get_type();
         let kind = ExpressionKind::Literal(constant, span.clone());
-        Expression { kind, ty, span }.into()
+        Expression { kind, ty: None, span }.into()
     }
 
     pub fn make_id(token: Token, symbol_table: SymbolTable) -> ASTNode {
@@ -384,84 +480,97 @@ impl Expression {
     /// 最后的token是 arr[...] <-这个字符，用来精确确定位置
     pub fn make_array_access(base: Expression, index: Expression, token: Token) -> ASTNode {
         let span = base.span.merge(&Span::from_token(&token));
-        let ty = array_access_type(&base.ty, &index.ty);
         let kind = ExpressionKind::ArrayAccess { base: Box::new(base), index: Box::new(index) };
-        Expression { kind, ty, span }.into()
+        Expression { kind, ty: None, span }.into()
     }
 
     /// 最后的token是 foo(...) <-这个字符，用来精确确定位置
     pub fn make_call(func: Expression, args: Vec<Expression>, token: Token) -> ASTNode {
         let span = func.span.merge(&Span::from_token(&token));
         let arg_refs: Vec<_> = args.iter().map(|x| &x.ty).collect();
-        let ty = func_call_type(&func.ty, arg_refs);
         let kind = ExpressionKind::Call {func: Box::new(func), args};
 
-        Expression { kind, ty, span }.into()
+        Expression { kind, ty: None, span }.into()
     }
 
     pub fn make_field_access(base: Expression, field: Token) -> ASTNode {
         let span = base.span.merge(&Span::from_token(&field));
         let field = field.value.into_string().unwrap();
-        let ty = field_access(&base.ty, &field, false);
         let kind = ExpressionKind::FieldAccess { base: Box::new(base), field };
 
-        Expression { kind, ty, span }.into()
+        Expression { kind, ty: None, span }.into()
     }
 
     pub fn make_arrow(base: Expression, field: Token) -> ASTNode {
         let span = base.span.merge(&Span::from_token(&field));
         let field = field.value.into_string().unwrap();
-        let ty = field_access(&base.ty, &field, true);
         let kind = ExpressionKind::Arrow { base: Box::new(base), field };
 
-        Expression { kind, ty, span }.into()
+        Expression { kind, ty: None, span }.into()
 
     }
 
-    pub fn make_post_inc(expr: Expression) -> ASTNode {
-        if expr.is_rvalue() {
-            panic!("Cannot apply postfix operator++ to rvalue");
-        }
-        todo!()
-    }
+    ///
+    /// 构建 前后置 ++ --
+    /// # Arguments
+    /// expr:
+    /// token:
+    /// post: 是否是后置
+    ///
+    pub fn make_inc(expr: Expression, token: Token, post: bool) -> ASTNode {
+        let span = Span::from_token(&token).merge(&expr.span);
 
-    pub fn make_post_dec(expr: Expression) -> ASTNode {
-        if expr.is_rvalue() {
-            panic!("Cannot apply postfix operator-- to rvalue");
-        }
-        todo!()
-    }
+        let kind = match (token.as_type().unwrap(), post) {
+            (TokenType::OpDec, true) => ExpressionKind::PostDec,
+            (TokenType::OpDec, false) => ExpressionKind::PreDec,
+            (TokenType::OpInc, true) => ExpressionKind::PostInc,
+            (TokenType::OpInc, false) => ExpressionKind::PreInc,
+            _ => unreachable!()
+        };
 
-    pub fn make_pre_inc(expr: Expression) -> ASTNode {
-        if expr.is_rvalue() {
-            panic!("Cannot apply prefix operator++ to rvalue");
-        }
-        todo!()
-    }
-
-    pub fn make_pre_dec(expr: Expression) -> ASTNode {
-        if expr.is_rvalue() {
-            panic!("Cannot apply prefix operator-- to rvalue");
-        }
-        todo!()
+        let kind = kind(Box::new(expr));
+        Expression { kind, ty: None, span }.into()
     }
 
     pub fn make_unary(token: Token, expr: Expression) -> ASTNode {
-        todo!()
+        let token_span = Span::from_token(&token);
+        let span = token_span.merge(&expr.span);
+        let op = match token.as_type().unwrap() {
+            TokenType::OpBitand => UnaryOp::AddressOf(token_span),
+            TokenType::OpTimes => UnaryOp::Deref(token_span),
+            TokenType::OpPlus => UnaryOp::Plus(token_span),
+            TokenType::OpMinus => UnaryOp::Minus(token_span),
+            TokenType::OpBitNot => UnaryOp::BitNot(token_span),
+            TokenType::OpNot => UnaryOp::LogicalNot(token_span),
+            _ => unreachable!()
+        };
+        let kind = ExpressionKind::Unary {op, expr: Box::new(expr)};
+
+        Expression { kind , ty: None, span }.into()
     }
 
+    ///
     pub fn make_sizeof_expr(expr: Expression) -> ASTNode {
-        todo!()
+        let span = expr.span.clone();
+        let kind = ExpressionKind::SizeofExpr(Box::new(expr));
+
+        Expression { kind, ty: None, span }.into()
     }
 
     pub fn make_sizeof_type(typ: Type) -> ASTNode {
-        todo!()
+        let span = typ.unwarp_span();
+        let kind = ExpressionKind::SizeofType(typ);
+
+        Expression { kind, ty: None, span }.into()
     }
 
 
     /// 第一个token 是类型转换的第一个括号-> (X)X
     pub fn make_cast(token: Token, typ: Type, expr: Expression) -> ASTNode {
-        todo!()
+        let span = Span::from_token(&token).merge(&expr.span);
+        let kind = ExpressionKind::Cast { ty: typ, expr: Box::new(expr) };
+
+        Expression { kind, ty: None, span }.into()
     }
 
     pub fn make_binary(lhs: Expression, token: Token, rhs: Expression) -> ASTNode {
@@ -490,14 +599,21 @@ impl Expression {
             TokenType::OpOr => BinaryOp::LogicalOr(span_token),
             _ => unreachable!()
         };
-        let ty = type_binary(&lhs.ty, &op, &rhs.ty);
         let kind = ExpressionKind::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
 
-        Expression { kind, ty, span }.into()
+        Expression { kind, ty: None, span }.into()
     }
 
+
     pub fn make_conditional(cond: Expression, then_expr: Expression, else_expr: Expression) -> ASTNode {
-        todo!()
+        let span = cond.span.merge(&else_expr.span);
+        let kind = ExpressionKind::Conditional {
+            cond: Box::new(cond),
+            then_expr: Box::new(then_expr),
+            else_expr: Box::new(else_expr)
+        };
+
+        Expression { kind, ty: None, span }.into()
     }
 
     pub fn make_assign(lhs: Expression, token: Token, rhs: Expression) -> ASTNode {
@@ -520,9 +636,8 @@ impl Expression {
             _ => unreachable!(),
         };
         let span = lhs.span.merge(&rhs.span);
-        let ty = assign_type(&lhs.ty, &op, &rhs.ty);
         let kind = ExpressionKind::Assign { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
-        Expression { kind, ty, span }.into()
+        Expression { kind, ty: None, span }.into()
     }
 
     pub fn make_comma(mut exprs: Vec<Expression>, expr: Expression) -> ASTNode {
