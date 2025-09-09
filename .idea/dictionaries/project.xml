@@ -10,6 +10,7 @@
       <w>nonassoc</w>
       <w>prec</w>
       <w>rlexer</w>
+      <w>rparen</w>
     </words>
   </dictionary>
 </component>

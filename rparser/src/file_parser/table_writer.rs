@@ -60,7 +60,7 @@ impl TableWriter {
             // 提取匹配到的数字
             let num_str = &caps[1];
             match num_str.parse::<usize>() {
-                Ok(num) => format!("mem::take(&mut {}[{}])", VALUE_STACK_NAME, num - 1),  // 数字减1得到新索引
+                Ok(num) => format!("mem::take(&mut {}[{}]).into()", VALUE_STACK_NAME, num - 1),  // 数字减1得到新索引
                 Err(err) => panic!("{}", err) // 解析失败，
             }
         });

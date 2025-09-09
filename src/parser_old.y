@@ -9,7 +9,7 @@
  * 5) Old-style (K&R) parameter declarations are accepted.
  */
 
-%type ASTNode
+%type SemanticValue
 
 /* ====== Tokens ====== */
 %token ID TYPE_NAME
@@ -72,13 +72,13 @@
 
 /* 6.9 Translation unit */
 translation_unit
-    : external_declaration                  {$$ = TranslationUnit::make_translation_unit($1);}
-    | translation_unit external_declaration {$$ = TranslationUnit::insert_ext_decl($1, $2);}
+    : external_declaration                  {$$ = TranslationUnit::make_single($1);}
+    | translation_unit external_declaration {$$ = TranslationUnit::make_multi($1, $2);}
     ;
 
 external_declaration
-    : function_definition   {$$ = ExternalDeclaration::make_func($1);}
-    | declaration           {$$ = ExternalDeclaration::make_variable($1);}
+    : function_definition   {$$ = ExternalDeclaration::make_function_definition($1);}
+    | declaration           {$$ = ExternalDeclaration::make_declaration($1);}
     ;
 
 /* 6.9.1 Function definition (C89 allows old-style parameter decls) */
@@ -347,63 +347,63 @@ block_item
     ;
 
 expression_statement
-    : SEMICOLON             {$$ = Statement::make_expression(None);}
-    | expression SEMICOLON  {$$ = Statement::make_expression(Some($1));}
+    : SEMICOLON             {$$ = ExpressionStatement::make_empty($1);}
+    | expression SEMICOLON  {$$ = ExpressionStatement::make_expr($1);}
     ;
 
 selection_statement
-    : KEYWORD_IF LPAREN expression RPAREN statement                         {$$ = Statement::make_if($1, $3, $5, None);} %prec nonassoc
-    | KEYWORD_IF LPAREN expression RPAREN statement KEYWORD_ELSE statement  {$$ = Statement::make_if($1, $3, $5, Some($7));}
-    | KEYWORD_SWITCH LPAREN expression RPAREN statement                     {$$ = Statement::make_switch($1, $3, $5);}
+    : KEYWORD_IF LPAREN expression RPAREN statement                         {$$ = SelectionStatement::make_if($3, $5, SemanticValue::None);} %prec nonassoc
+    | KEYWORD_IF LPAREN expression RPAREN statement KEYWORD_ELSE statement  {$$ = SelectionStatement::make_if($3, $5, $7);}
+    | KEYWORD_SWITCH LPAREN expression RPAREN statement                     {$$ = SelectionStatement::make_switch($3, $5);}
     ;
 
 iteration_statement
-    : KEYWORD_WHILE LPAREN expression RPAREN statement                                                      {$$ = Statement::make_while($1, $3, $5, None);}
-    | KEYWORD_DO statement KEYWORD_WHILE LPAREN expression RPAREN SEMICOLON                                 {$$ = Statement::make_while($1, $2, $5, Some($6));}
-    | KEYWORD_FOR LPAREN expression_opt SEMICOLON expression_opt SEMICOLON expression_opt RPAREN statement  {$$ = Statement::make_for($1, $3, $5, $7, $9);}
+    : KEYWORD_WHILE LPAREN expression RPAREN statement                                                      {$$ = IterationStatement::make_while($3, $5);}
+    | KEYWORD_DO statement KEYWORD_WHILE LPAREN expression RPAREN SEMICOLON                                 {$$ = IterationStatement::make_do_while($2, $5);}
+    | KEYWORD_FOR LPAREN expression_opt SEMICOLON expression_opt SEMICOLON expression_opt RPAREN statement  {$$ = IterationStatement::make_for($3, $5, $7, $9);}
     ;
 
 expression_opt
-    : /* empty */   {$$ = ASTNode::None;}
-    | expression    {$$ = $1;}
+    : /* empty */   {$$ = SemanticValue::ExpressionOpt(None);}
+    | expression    {$$ = make_expression_opt($1);}
     ;
 
 jump_statement
-    : KEYWORD_GOTO ID SEMICOLON             {$$ = Statement::make_goto($1, $2);}
-    | KEYWORD_CONTINUE SEMICOLON            {$$ = Statement::make_continue_break($1);}
-    | KEYWORD_BREAK SEMICOLON               {$$ = Statement::make_continue_break($1);}
-    | KEYWORD_RETURN SEMICOLON              {$$ = Statement::make_return($1, None);}
-    | KEYWORD_RETURN expression SEMICOLON   {$$ = Statement::make_return($1, $2);}
+    : KEYWORD_GOTO ID SEMICOLON             {$$ = JumpStatement::make_goto($2);}
+    | KEYWORD_CONTINUE SEMICOLON            {$$ = JumpStatement::make_continue($1);}
+    | KEYWORD_BREAK SEMICOLON               {$$ = JumpStatement::make_break($1);}
+    | KEYWORD_RETURN SEMICOLON              {$$ = JumpStatement::make_return(SemanticValue::None);}
+    | KEYWORD_RETURN expression SEMICOLON   {$$ = JumpStatement::make_return($2);}
     ;
 
 /* 6.5 Expressions */
 primary_expression
-    : ID                        {$$ = Expression::make_id($1);}
-    | constant                  {$$ = Expression::make_literal($1);}
-    | string                    {$$ = Expression::make_literal($1);}
-    | LPAREN expression RPAREN  {$$ = $2;}
+    : ID                        {$$ = PrimaryExpression::make_id($1);}
+    | constant                  {$$ = PrimaryExpression::make_constant($1);}
+    | string                    {$$ = PrimaryExpression::make_string_literal($1);}
+    | LPAREN expression RPAREN  {$$ = PrimaryExpression::make_paren($2);}
     ;
 
 constant
-    : INT                   {$$ = Constant::make($1);}
-    | FLOAT                 {$$ = Constant::make($1);}
-    | CHARACTER_CONSTANT    {$$ = Constant::make($1);}
+    : INT                   {$$ = Constant::make_int($1);}
+    | FLOAT                 {$$ = Constant::make_float($1);}
+    | CHARACTER_CONSTANT    {$$ = Constant::make_char($1);}
     ;
 
 /* adjacent string literal concatenation */
 string
-    : STRING_LITERAL        {$$ = Constant::make($1);}
-    | string STRING_LITERAL {$$ = Constant::insert_str($1, $2);}
+    : STRING_LITERAL        {$$ = make_string($1);}
+    | string STRING_LITERAL {$$ = insert_string($1, $2);}
     ;
 
 postfix_expression
-    : primary_expression                                            {$$ = $1;}
-    | postfix_expression LBRACKET expression RBRACKET               {$$ = Expression::make_array_access($1, $3, $4);}
-    | postfix_expression LPAREN argument_expression_list_opt RPAREN {$$ = Expression::make_call($1, $3, $4);}
-    | postfix_expression DOT ID                                     {$$ = Expression::make_field($1, $3);}
-    | postfix_expression OP_ARROW ID                                {$$ = Expression::make_arrow($1, $3);}
-    | postfix_expression OP_INC                                     {$$ = Expression::make_update($1, $2, true);}
-    | postfix_expression OP_DEC                                     {$$ = Expression::make_update($1, $2, true);}
+    : primary_expression                                            {$$ = PostfixExpression::make_primary($1);}
+    | postfix_expression LBRACKET expression RBRACKET               {$$ = PostfixExpression::make_array($1, $3);}
+    | postfix_expression LPAREN argument_expression_list_opt RPAREN {$$ = PostfixExpression::make_call($1, $3);}
+    | postfix_expression DOT ID                                     {$$ = PostfixExpression::make_field($1, $3);}
+    | postfix_expression OP_ARROW ID                                {$$ = PostfixExpression::make_arrow($1, $3);}
+    | postfix_expression OP_INC                                     {$$ = PostfixExpression::make_inc($1);}
+    | postfix_expression OP_DEC                                     {$$ = PostfixExpression::make_dec($1);}
     ;
 
 argument_expression_list_opt
@@ -417,112 +417,112 @@ argument_expression_list
     ;
 
 unary_expression
-    : postfix_expression                        {$$ = $1;}
-    | OP_INC unary_expression                   {$$ = Expression::make_update($2, $1, false);}
-    | OP_DEC unary_expression                   {$$ = Expression::make_update($2, $1, true);}
-    | unary_operator cast_expression            {$$ = Expression::make_unary($1, $2);}
-    | KEYWORD_SIZEOF unary_expression           {$$ = Expression::make_sizeof_expr($1, $2);}
-    | KEYWORD_SIZEOF LPAREN type_name RPAREN    {$$ = Expression::make_sizeof_type($1, $3, $4);}
+    : postfix_expression                        {$$ = UnaryExpression::make_postfix($1);}
+    | OP_INC unary_expression                   {$$ = UnaryExpression::make_pre_inc($2);}
+    | OP_DEC unary_expression                   {$$ = UnaryExpression::make_pre_dec($2);}
+    | unary_operator cast_expression            {$$ = UnaryExpression::make_unary_op($1, $2);}
+    | KEYWORD_SIZEOF unary_expression           {$$ = UnaryExpression::make_sizeof_expr($2);}
+    | KEYWORD_SIZEOF LPAREN type_name RPAREN    {$$ = UnaryExpression::make_sizeof_type($3);}
     ;
 
 unary_operator
-    : OP_BITAND             {$$ = $1;}
-    | OP_TIMES              {$$ = $1;}
-    | OP_PLUS               {$$ = $1;}      %prec right
-    | OP_MINUS              {$$ = $1;}      %prec right
-    | OP_BIT_NOT            {$$ = $1;}
-    | OP_NOT                {$$ = $1;}
+    : OP_BITAND             {$$ = UnaryOperator::address_of($1);}
+    | OP_TIMES              {$$ = UnaryOperator::deref($1);}
+    | OP_PLUS               {$$ = UnaryOperator::plus($1);}    %prec right
+    | OP_MINUS              {$$ = UnaryOperator::minus($1);}   %prec right
+    | OP_BIT_NOT            {$$ = UnaryOperator::bit_not($1);}
+    | OP_NOT                {$$ = UnaryOperator::not($1);}
     ;
 
 cast_expression
-    : LPAREN type_name RPAREN cast_expression       {$$ = Expression::make_cast($1, $2, $4);}
-    | unary_expression                              {$$ = $1;}
+    : LPAREN type_name RPAREN cast_expression       {$$ = CastExpression::make_cast($2, $4);}
+    | unary_expression                              {$$ = CastExpression::make_unary($1);}
     ;
 
 multiplicative_expression
-    : multiplicative_expression OP_TIMES cast_expression        {$$ = Expression::make_binary($1, $2, $3);}
-    | multiplicative_expression OP_DIVIDE cast_expression       {$$ = Expression::make_binary($1, $2, $3);}
-    | multiplicative_expression OP_MOD cast_expression          {$$ = Expression::make_binary($1, $2, $3);}
-    | cast_expression                                           {$$ = $1;}
+    : multiplicative_expression OP_TIMES cast_expression        {$$ = MultiplicativeExpression::make_mul($1, $3);}
+    | multiplicative_expression OP_DIVIDE cast_expression       {$$ = MultiplicativeExpression::make_div($1, $3);}
+    | multiplicative_expression OP_MOD cast_expression          {$$ = MultiplicativeExpression::make_mod($1, $3);}
+    | cast_expression                                           {$$ = MultiplicativeExpression::make_cast($1);}
     ;
 
 additive_expression
-    : additive_expression OP_PLUS multiplicative_expression     {$$ = Expression::make_binary($1, $2, $3);}
-    | additive_expression OP_MINUS multiplicative_expression    {$$ = Expression::make_binary($1, $2, $3);}
-    | multiplicative_expression                                 {$$ = $1;}
+    : additive_expression OP_PLUS multiplicative_expression     {$$ = AdditiveExpression::make_add($1, $3);}
+    | additive_expression OP_MINUS multiplicative_expression    {$$ = AdditiveExpression::make_sub($1, $3);}
+    | multiplicative_expression                                 {$$ = AdditiveExpression::make_mul($1);}
     ;
 
 shift_expression
-    : shift_expression OP_L_SHIFT additive_expression           {$$ = Expression::make_binary($1, $2, $3);}
-    | shift_expression OP_R_SHIFT additive_expression           {$$ = Expression::make_binary($1, $2, $3);}
-    | additive_expression                                       {$$ = $1;}
+    : shift_expression OP_L_SHIFT additive_expression           {$$ = ShiftExpression::make_shl($1, $3);}
+    | shift_expression OP_R_SHIFT additive_expression           {$$ = ShiftExpression::make_shr($1, $3);}
+    | additive_expression                                       {$$ = ShiftExpression::make_add($1);}
     ;
 
 relational_expression
-    : relational_expression OP_LT shift_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | relational_expression OP_GT shift_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | relational_expression OP_LE shift_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | relational_expression OP_GE shift_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | shift_expression                                          {$$ = $1;}
+    : relational_expression OP_LT shift_expression              {$$ = RelationalExpression::make_lt($1, $3);}
+    | relational_expression OP_GT shift_expression              {$$ = RelationalExpression::make_gt($1, $3);}
+    | relational_expression OP_LE shift_expression              {$$ = RelationalExpression::make_le($1, $3);}
+    | relational_expression OP_GE shift_expression              {$$ = RelationalExpression::make_ge($1, $3);}
+    | shift_expression                                          {$$ = RelationalExpression::make_shift($1);}
     ;
 
 equality_expression
-    : equality_expression OP_EQ relational_expression           {$$ = Expression::make_binary($1, $2, $3);}
-    | equality_expression OP_NE relational_expression           {$$ = Expression::make_binary($1, $2, $3);}
-    | relational_expression                                     {$$ = $1;}
+    : equality_expression OP_EQ relational_expression           {$$ = EqualityExpression::make_eq($1, $3);}
+    | equality_expression OP_NE relational_expression           {$$ = EqualityExpression::make_ne($1, $3);}
+    | relational_expression                                     {$$ = EqualityExpression::make_rel($1);}
     ;
 
 and_expression
-    : and_expression OP_BITAND equality_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | equality_expression                                       {$$ = $1;}
+    : and_expression OP_BITAND equality_expression              {$$ = AndExpression::make_and($1, $3);}
+    | equality_expression                                       {$$ = AndExpression::make_eq($1)}
     ;
 
 exclusive_or_expression
-    : exclusive_or_expression OP_XOR and_expression             {$$ = Expression::make_binary($1, $2, $3);}
-    | and_expression                                            {$$ = $1;}
+    : exclusive_or_expression OP_XOR and_expression             {$$ = ExclusiveOrExpression::make_xor($1, $3);}
+    | and_expression                                            {$$ = ExclusiveOrExpression::make_and($1);}
     ;
 
 inclusive_or_expression
-    : inclusive_or_expression OP_BITOR exclusive_or_expression  {$$ = Expression::make_binary($1, $2, $3);}
-    | exclusive_or_expression                                   {$$ = $1;}
+    : inclusive_or_expression OP_BITOR exclusive_or_expression  {$$ = InclusiveOrExpression::make_or($1, $3);}
+    | exclusive_or_expression                                   {$$ = InclusiveOrExpression::make_xor($1);}
     ;
 
 logical_and_expression
-    : logical_and_expression OP_AND inclusive_or_expression     {$$ = Expression::make_binary($1, $2, $3);}
-    | inclusive_or_expression                                   {$$ = $1;}
+    : logical_and_expression OP_AND inclusive_or_expression     {$$ = LogicalAndExpression::make_and($1, $3);}
+    | inclusive_or_expression                                   {$$ = LogicalAndExpression::make_or($1);}
     ;
 
 logical_or_expression
-    : logical_or_expression OP_OR logical_and_expression        {$$ = Expression::make_binary($1, $2, $3);}
-    | logical_and_expression                                    {$$ = $1;}
+    : logical_or_expression OP_OR logical_and_expression        {$$ = LogicalOrExpression::make_or($1, $3);}
+    | logical_and_expression                                    {$$ = LogicalOrExpression::make_and($1);}
     ;
 
 conditional_expression
-    : logical_or_expression                                                     {$$ = $1;}
-    | logical_or_expression QUESTION expression COLON conditional_expression    {$$ = ConditionalExpression::make_conditional($1, $3, $5);}
+    : logical_or_expression                                                     {$$ = ConditionalExpression::make_or($1);}
+    | logical_or_expression QUESTION expression COLON conditional_expression    {$$ = ConditionalExpression::make_cond($1, $3, $5);}
     ;
 
 assignment_expression
-    : conditional_expression                                        {$$ = $1;}
-    | unary_expression assignment_operator assignment_expression    {$$ = Expression::make_assign($1, $2, $3)}
+    : conditional_expression                                        {$$ = AssignmentExpression::make_conditional($1);}
+    | unary_expression assignment_operator assignment_expression    {$$ = AssignmentExpression::make_assign($1, $2, $3)}
     ;
 
 assignment_operator
-    : OP_ASSIGN                 {$$ = $1;}
-    | OP_MUL_ASSIGN             {$$ = $1;}
-    | OP_DIV_ASSIGN             {$$ = $1;}
-    | OP_MOD_ASSIGN             {$$ = $1;}
-    | OP_ADD_ASSIGN             {$$ = $1;}
-    | OP_SUB_ASSIGN             {$$ = $1;}
-    | OP_L_SHIFT_ASSIGN         {$$ = $1;}
-    | OP_R_SHIFT_ASSIGN         {$$ = $1;}
-    | OP_AND_ASSIGN             {$$ = $1;}
-    | OP_XOR_ASSIGN             {$$ = $1;}
-    | OP_OR_ASSIGN              {$$ = $1;}
+    : OP_ASSIGN                 {$$ = AssignmentOperator::assign($1);}
+    | OP_MUL_ASSIGN             {$$ = AssignmentOperator::mul_assign($1);}
+    | OP_DIV_ASSIGN             {$$ = AssignmentOperator::div_assign($1);}
+    | OP_MOD_ASSIGN             {$$ = AssignmentOperator::mod_assign($1);}
+    | OP_ADD_ASSIGN             {$$ = AssignmentOperator::add_assign($1);}
+    | OP_SUB_ASSIGN             {$$ = AssignmentOperator::sub_assign($1);}
+    | OP_L_SHIFT_ASSIGN         {$$ = AssignmentOperator::shl_assign($1);}
+    | OP_R_SHIFT_ASSIGN         {$$ = AssignmentOperator::shr_assign($1);}
+    | OP_AND_ASSIGN             {$$ = AssignmentOperator::and_assign($1);}
+    | OP_XOR_ASSIGN             {$$ = AssignmentOperator::xor_assign($1);}
+    | OP_OR_ASSIGN              {$$ = AssignmentOperator::or_assign($1);}
     ;
 
 expression
-    : assignment_expression                     {$$ = $1;}
+    : assignment_expression                     {$$ = Expression::make_single($1);}
     | expression COMMA assignment_expression    {$$ = Expression::make_comma($1, $3);}
     ;
 
@@ -537,4 +537,4 @@ type_name
     ;
 
 %%
-use crate::parser::ast::*;
+use crate::parser::cst::*;
