@@ -1,7 +1,7 @@
 //!
 //! 定义了语义化AST节点
 //!
-use crate::parser::span::Span;
+use crate::types::span::Span;
 use crate::types::symbol_table::Symbol;
 use enum_as_inner::EnumAsInner;
 use std::rc::Rc;
@@ -143,7 +143,7 @@ pub enum StorageClass {
 }
 
 // 类型限定符
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Qualifiers {
     pub is_const: bool,
     pub is_volatile: bool,

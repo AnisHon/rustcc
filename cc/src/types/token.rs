@@ -77,6 +77,7 @@ impl Token {
        TokenType::from_usize(self.typ)
     }
 }
+
 impl Debug for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.as_type() {

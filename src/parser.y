@@ -9,7 +9,7 @@
  * 5) Old-style (K&R) parameter declarations are accepted.
  */
 
-%type ASTNode
+%type ParserNode
 
 /* ====== Tokens ====== */
 %token ID TYPE_NAME
@@ -83,75 +83,75 @@ external_declaration
 
 /* 6.9.1 Function definition (C89 allows old-style parameter decls) */
 function_definition
-    : declaration_specifiers declarator declaration_list_opt compound_statement     {$$ = FunctionDefinition::make_with_specifiers($1, $2, $3, $4);}
-    | declarator declaration_list_opt compound_statement                            {$$ = FunctionDefinition::make_without_specifiers($1, $2, $3);}
+    : declaration_specifiers declarator declaration_list_opt compound_statement     {$$ = }
+    | declarator declaration_list_opt compound_statement                            {$$ = }
     ;
 
 declaration_list_opt
-    : /* empty */       {$$ = SemanticValue::DeclarationListOpt(None);}
-    | declaration_list  {$$ = make_declaration_list_opt($1);}
+    : /* empty */       {$$ = ParserNode::None;}
+    | declaration_list  {$$ = }
     ;
 
 declaration_list
-    : declaration                   {$$ = DeclarationList::make_decl_list($1);}
-    | declaration_list declaration  {$$ = DeclarationList::insert($1, $2);}
+    : declaration                   {$$ = }
+    | declaration_list declaration  {$$ = }
     ;
 
 /* 6.7 Declarations */
 
 declaration
-    : declaration_specifiers init_declarator_list_opt SEMICOLON {$$ = Declaration::make_declaration($1, $2);}
+    : declaration_specifiers init_declarator_list_opt SEMICOLON {$$ = }
     ;
 
 init_declarator_list_opt
-    : /* empty */           {$$ = SemanticValue::InitDeclaratorListOpt(None);}
-    | init_declarator_list  {$$ = make_init_declarator_list_opt($1);}
+    : /* empty */           {$$ = ParserNode::None;;}
+    | init_declarator_list  {$$ = }
     ;
 
 init_declarator_list
-    : init_declarator                               {$$ = InitDeclaratorList::make_init_decl_list($1);}
-    | init_declarator_list COMMA init_declarator    {$$ = InitDeclaratorList::insert($1, $3);}
+    : init_declarator                               {$$ = }
+    | init_declarator_list COMMA init_declarator    {$$ = }
     ;
 
 init_declarator
-    : declarator                        {$$ = InitDeclarator::make_plain($1);}
-    | declarator OP_ASSIGN initializer  {$$ = InitDeclarator::make_initialized($1, $3);}
+    : declarator                        {$$ = }
+    | declarator OP_ASSIGN initializer  {$$ = }
     ;
 
 /* specifiers and qualifiers */
 
 declaration_specifiers
-    : storage_class_specifier declaration_specifiers_opt    {$$ = DeclarationSpecifiers::make_storage_class($1, $2);}
-    | type_specifier        declaration_specifiers_opt      {$$ = DeclarationSpecifiers::make_type_specifier($1, $2);}
-    | type_qualifier        declaration_specifiers_opt      {$$ = DeclarationSpecifiers::make_type_qualifier($1, $2);}
+    : storage_class_specifier declaration_specifiers_opt    {$$ = }
+    | type_specifier        declaration_specifiers_opt      {$$ = }
+    | type_qualifier        declaration_specifiers_opt      {$$ = }
     ;
 
 declaration_specifiers_opt
-    : /* empty */               {$$ = SemanticValue::DeclarationSpecifiersOpt(None);}
-    | declaration_specifiers    {$$ = make_declarator_list_opt($1);}
+    : /* empty */               {$$ = ParserNode::None;}
+    | declaration_specifiers    {$$ = ;}
     ;
 
 storage_class_specifier
-    : KEYWORD_TYPEDEF   {$$ = StorageClassSpecifier::make_typedef($1);}
-    | KEYWORD_EXTERN    {$$ = StorageClassSpecifier::make_extern($1);}
-    | KEYWORD_STATIC    {$$ = StorageClassSpecifier::make_static($1);}
-    | KEYWORD_AUTO      {$$ = StorageClassSpecifier::make_auto($1);}
-    | KEYWORD_REGISTER  {$$ = StorageClassSpecifier::make_register($1);}
+    : KEYWORD_TYPEDEF   {$$ = $1;}
+    | KEYWORD_EXTERN    {$$ = $1;}
+    | KEYWORD_STATIC    {$$ = $1;}
+    | KEYWORD_AUTO      {$$ = $1;}
+    | KEYWORD_REGISTER  {$$ = $1;}
     ;
 
 type_specifier
-    : KEYWORD_VOID              {$$ = TypeSpecifier::make_void($1);}
-    | KEYWORD_CHAR              {$$ = TypeSpecifier::make_char($1);}
-    | KEYWORD_SHORT             {$$ = TypeSpecifier::make_short($1);}
-    | KEYWORD_INT               {$$ = TypeSpecifier::make_int($1);}
-    | KEYWORD_LONG              {$$ = TypeSpecifier::make_long($1);}
-    | KEYWORD_SIGNED            {$$ = TypeSpecifier::make_signed($1);}
-    | KEYWORD_UNSIGNED          {$$ = TypeSpecifier::make_unsigned($1);}
-    | KEYWORD_FLOAT             {$$ = TypeSpecifier::make_float($1);}
-    | KEYWORD_DOUBLE            {$$ = TypeSpecifier::make_double($1);}
-    | struct_or_union_specifier {$$ = TypeSpecifier::make_struct($1);}
-    | enum_specifier            {$$ = TypeSpecifier::make_enum($1);}
-    | TYPE_NAME                 {$$ = TypeSpecifier::make_type_name($1);}      /* resolved by lexer using typedef table */
+    : KEYWORD_VOID              {$$ = TypeSpec::make_simple($1);}
+    | KEYWORD_CHAR              {$$ = TypeSpec::make_simple($1);}
+    | KEYWORD_SHORT             {$$ = TypeSpec::make_simple($1);}
+    | KEYWORD_INT               {$$ = TypeSpec::make_simple($1);}
+    | KEYWORD_LONG              {$$ = TypeSpec::make_simple($1);}
+    | KEYWORD_SIGNED            {$$ = TypeSpec::make_simple($1);}
+    | KEYWORD_UNSIGNED          {$$ = TypeSpec::make_simple($1);}
+    | KEYWORD_FLOAT             {$$ = TypeSpec::make_simple($1);}
+    | KEYWORD_DOUBLE            {$$ = TypeSpec::make_simple($1);}
+    | struct_or_union_specifier {$$ = TypeSpec::make_struct_or_union($1);}
+    | enum_specifier            {$$ = TypeSpec::make_enum($1);}
+    | TYPE_NAME                 {$$ = TypeSpec::make_simple($1);}      /* resolved by lexer using typedef table */
     ;
 
 type_qualifier
@@ -160,159 +160,159 @@ type_qualifier
     ;
 
 struct_or_union_specifier
-    : struct_or_union identifier_opt LBRACE struct_declaration_list RBRACE  {$$ = StructOrUnionSpecifier::make_defined($1, $2, $4);}
-    | struct_or_union ID                                                    {$$ = StructOrUnionSpecifier::make_named($1, $2);}
+    : struct_or_union identifier_opt LBRACE struct_declaration_list RBRACE  {$$ = }
+    | struct_or_union ID                                                    {$$ = }
     ;
 
 struct_or_union
-    : KEYWORD_STRUCT    {$$ = StructOrUnion::make_struct($1);}
-    | KEYWORD_UNION     {$$ = StructOrUnion::make_union($1);}
+    : KEYWORD_STRUCT    {$$ = $1;}
+    | KEYWORD_UNION     {$$ = $1;}
     ;
 
 identifier_opt
-    : /* empty */   {$$ = SemanticValue::IdentifierOpt(None);}
-    | ID            {$$ = make_identifier_opt($1);}
+    : /* empty */   {$$ = ParserNode::None;}
+    | ID            {$$ = }
     ;
 
 struct_declaration_list
-    : struct_declaration                            {$$ = make_struct_declaration_list($1);}
-    | struct_declaration_list struct_declaration    {$$ = insert_struct_declaration_list($1, $2);}
+    : struct_declaration                            {$$ = }
+    | struct_declaration_list struct_declaration    {$$ = }
     ;
 
 struct_declaration
-    : specifier_qualifier_list struct_declarator_list SEMICOLON {$$ = StructDeclaration::make_struct_declaration($1, $2);}
+    : specifier_qualifier_list struct_declarator_list SEMICOLON {$$ = }
     ;
 
 specifier_qualifier_list
-    : type_specifier specifier_qualifier_list_opt   {$$ = SpecifierQualifierList::make_type_specifier($1, $2);}
-    | type_qualifier specifier_qualifier_list_opt   {$$ = SpecifierQualifierList::make_type_qualifier($1, $2);}
+    : type_specifier specifier_qualifier_list_opt   {$$ = }
+    | type_qualifier specifier_qualifier_list_opt   {$$ = }
     ;
 
 specifier_qualifier_list_opt
-    : /* empty */               {$$ = SemanticValue::SpecifierQualifierListOpt(None);}
-    | specifier_qualifier_list  {$$ = make_specifier_qualifier_list_opt($1);}
+    : /* empty */               {$$ = ParserNode::None;}
+    | specifier_qualifier_list  {$$ = }
     ;
 
 struct_declarator_list
-    : struct_declarator                                 {$$ = make_struct_declarator_list($1);}
-    | struct_declarator_list COMMA struct_declarator    {$$ = insert_struct_declarator_list($1, $3);}
+    : struct_declarator                                 {$$ = }
+    | struct_declarator_list COMMA struct_declarator    {$$ = }
     ;
 
 struct_declarator
-    : declarator                            {$$ = StructDeclarator::make_declarator($1);}
-    | COLON constant_expression             {$$ = StructDeclarator::make_bitfield(SemanticValue::None, $2);}
-    | declarator COLON constant_expression  {$$ = StructDeclarator::make_bitfield($1, $3);}
+    : declarator                            {$$ = }
+    | COLON constant_expression             {$$ = }
+    | declarator COLON constant_expression  {$$ = }
     ;
 
 enum_specifier
-    : KEYWORD_ENUM identifier_opt LBRACE enumerator_list RBRACE {$$ = EnumSpecifier::make_defined($2, $4);}
-    | KEYWORD_ENUM ID                                           {$$ = EnumSpecifier::make_named($2);}
+    : KEYWORD_ENUM identifier_opt LBRACE enumerator_list RBRACE {$$ = }
+    | KEYWORD_ENUM ID                                           {$$ = }
     ;
 
 enumerator_list
-    : enumerator                        {$$ = make_enumerator_list($1);}
-    | enumerator_list COMMA enumerator  {$$ = insert_enumerator_list($1, $3);}
+    : enumerator                        {$$ = }
+    | enumerator_list COMMA enumerator  {$$ = }
     ;
 
 enumerator
-    : ID                                {$$ = Enumerator::make_plain($1);}
-    | ID OP_ASSIGN constant_expression  {$$ = Enumerator::make_with_value($1, $3);}
+    : ID                                {$$ = }
+    | ID OP_ASSIGN constant_expression  {$$ = }
     ;
 
 /* declarators */
 
 declarator
-    : pointer_opt direct_declarator {$$ = Declarator::make_declarator($1, $2);}
+    : pointer_opt direct_declarator {$$ = Declarator::add_pointer($1, $2);}
     ;
 
 pointer_opt
-    : /* empty */   {$$ = SemanticValue::PointerOpt(None);}
-    | pointer       {$$ = make_pointer_opt($1);}
+    : /* empty */   {$$ = ParserNode::None;}
+    | pointer       {$$ = $1;}
     ;
 
 pointer
-    : OP_TIMES                              {$$ = Pointer::make_pointer(SemanticValue::None, SemanticValue::None);}
-    | OP_TIMES type_qualifier_list          {$$ = Pointer::make_pointer($2, SemanticValue::None);}
-    | OP_TIMES pointer                      {$$ = Pointer::make_pointer(SemanticValue::None, $3);}
-    | OP_TIMES type_qualifier_list pointer  {$$ = Pointer::make_pointer($2, $3);}
+    : OP_TIMES                              {$$ = DeclaratorChunk::make_pointer($1, None, None);}
+    | OP_TIMES type_qualifier_list          {$$ = DeclaratorChunk::make_pointer($1, Some($2), None);}
+    | OP_TIMES pointer                      {$$ = DeclaratorChunk::make_pointer($1, None, Some($3));}
+    | OP_TIMES type_qualifier_list pointer  {$$ = DeclaratorChunk::make_pointer($1, Some($2), Some($3));}
     ;
 
 type_qualifier_list
-    : type_qualifier                        {$$ = Qualifiers::make(None, $1);}
-    | type_qualifier_list type_qualifier    {$$ = Qualifiers::make(Some($1), $2);}
+    : type_qualifier                        {$$ = TypeQual::make(None, $1);}
+    | type_qualifier_list type_qualifier    {$$ = TypeQual::make(Some($1), $2);}
     ;
 /* 最后的那个是老式声明 */
 direct_declarator
-    : ID                                                            {$$ = DirectDeclarator::make_id($1);}
-    | LPAREN declarator RPAREN                                      {$$ = DirectDeclarator::make_paren($2);}
-    | direct_declarator LBRACKET constant_expression_opt RBRACKET   {$$ = DirectDeclarator::make_array($1, $3);}
-    | direct_declarator LPAREN parameter_type_list RPAREN           {$$ = DirectDeclarator::make_func_params($1, $3);}
-    | direct_declarator LPAREN identifier_list_opt RPAREN           {$$ = DirectDeclarator::make_func_identifiers($1, $3);}
+    : ID                                                            {$$ = Declarator::make($1);}
+    | LPAREN declarator RPAREN                                      {$$ = Declarator::add_span($1, $2, $3);}
+    | direct_declarator LBRACKET constant_expression_opt RBRACKET   {$$ = Declarator::make_array($1, $2, $3, $4);}
+    | direct_declarator LPAREN parameter_type_list RPAREN           {$$ = Declarator::make_function($1, $2, $3, $4);}
+    | direct_declarator LPAREN identifier_list_opt RPAREN           {$$ = Declarator::make_old_function($1, $2, $3, $4);}
     ;
 
 constant_expression_opt
-    : /* empty */           {$$ = SemanticValue::ConstantExpressionOpt(None);}
-    | constant_expression   {$$ = make_constant_expression_opt($1);}
+    : /* empty */           {$$ = ParserNode::None;}
+    | constant_expression   {$$ = $1;}
     ;
 
 identifier_list_opt
-    : /* empty */       {$$ = SemanticValue::IdentifierListOpt(None);}
-    | identifier_list   {$$ = make_identifier_list_opt($1);}
+    : /* empty */       {$$ = ParserNode::None;}
+    | identifier_list   {$$ = $1;}
     ;
 
 identifier_list
-    : ID                        {$$ = IdentifierList::make_list($1);}
-    | identifier_list COMMA ID  {$$ = IdentifierList::insert($1, $3);}
+    : ID                        {$$ = make_ident_list(None, $1);}
+    | identifier_list COMMA ID  {$$ = make_ident_list(Some($1), $3);}
     ;
 
 parameter_type_list
-    : parameter_list                    {$$ = ParameterTypeList::make_params($1);}
-    | parameter_list COMMA OP_ELLIPSIS  {$$ = ParameterTypeList::make_variadic($1);}
+    : parameter_list                    {$$ = }
+    | parameter_list COMMA OP_ELLIPSIS  {$$ = }
     ;
 
 parameter_list
-    : parameter_declaration                         {$$ = make_parameter_list($1);}
-    | parameter_list COMMA parameter_declaration    {$$ = insert_parameter_list($1, $3);}
+    : parameter_declaration                         {$$ = }
+    | parameter_list COMMA parameter_declaration    {$$ = }
     ;
 
 parameter_declaration
-    : declaration_specifiers declarator                 {$$ = ParameterDeclaration::make_declarator($1, $2);}
-    | declaration_specifiers abstract_declarator_opt    {$$ = ParameterDeclaration::make_abstract($1, $2);}
+    : declaration_specifiers declarator                 {$$ = }
+    | declaration_specifiers abstract_declarator_opt    {$$ = }
     ;
 
 abstract_declarator_opt
-    : /* empty */           {$$ = SemanticValue::AbstractDeclaratorOpt(None);}
-    | abstract_declarator   {$$ = make_abstract_declarator_opt($1);}
+    : /* empty */           {$$ = }
+    | abstract_declarator   {$$ = }
     ;
 
 abstract_declarator
-    : pointer                                   {$$ = AbstractDeclarator::make_pointer($1);}
-    | pointer_opt direct_abstract_declarator    {$$ = AbstractDeclarator::make_direct($1, $2);}
+    : pointer                                   {$$ = }
+    | pointer_opt direct_abstract_declarator    {$$ = }
     ;
 
 direct_abstract_declarator
-    : LPAREN abstract_declarator RPAREN                                     {$$ = DirectAbstractDeclarator::make_paren($2);}
-    | LBRACKET constant_expression_opt RBRACKET                             {$$ = DirectAbstractDeclarator::make_array($2);}
-    | direct_abstract_declarator LBRACKET constant_expression_opt RBRACKET  {$$ = DirectAbstractDeclarator::make_array_nested($1, $3);}
-    | LPAREN parameter_type_list_opt RPAREN                                 {$$ = DirectAbstractDeclarator::make_func($2);}
-    | direct_abstract_declarator LPAREN parameter_type_list_opt RPAREN      {$$ = DirectAbstractDeclarator::make_func_nested($1, $3);}
+    : LPAREN abstract_declarator RPAREN                                     {$$ = }
+    | LBRACKET constant_expression_opt RBRACKET                             {$$ = }
+    | direct_abstract_declarator LBRACKET constant_expression_opt RBRACKET  {$$ = }
+    | LPAREN parameter_type_list_opt RPAREN                                 {$$ = }
+    | direct_abstract_declarator LPAREN parameter_type_list_opt RPAREN      {$$ = }
     ;
 
 parameter_type_list_opt
-    : /* empty */           {$$ = SemanticValue::ParameterTypeListOpt(None);}
-    | parameter_type_list   {$$ = make_parameter_type_list_opt($1);}
+    : /* empty */           {$$ = ParserNode::None;}
+    | parameter_type_list   {$$ = }
     ;
 
 /* Initializers (C89) */
 initializer
-    : assignment_expression                 {$$ = Initializer::make_assignment($1);}
-    | LBRACE initializer_list RBRACE        {$$ = Initializer::make_list($2);}
-    | LBRACE initializer_list COMMA RBRACE  {$$ = Initializer::make_list($2);}  /* trailing comma is widely accepted; tighten if needed */
+    : assignment_expression                 {$$ = }
+    | LBRACE initializer_list RBRACE        {$$ = }
+    | LBRACE initializer_list COMMA RBRACE  {$$ = }  /* trailing comma is widely accepted; tighten if needed */
     ;
 
 initializer_list
-    : initializer                           {$$ = InitializerList::make($1);}
-    | initializer_list COMMA initializer    {$$ = InitializerList::insert($1, $3);}
+    : initializer                           {$$ = }
+    | initializer_list COMMA initializer    {$$ = }
     ;
 
 /* 6.8 Statements */
@@ -332,18 +332,18 @@ labeled_statement
     ;
 
 compound_statement
-    : LBRACE RBRACE                 {$$ = CompoundStatement::make_empty($1);}
-    | LBRACE block_item_list RBRACE {$$ = CompoundStatement::make_expr($2);}
+    : LBRACE RBRACE                 {$$ = }
+    | LBRACE block_item_list RBRACE {$$ = }
     ;
 
 block_item_list
-    : block_item                    {$$ = make_block_item($1);}
-    | block_item_list block_item    {$$ = insert_block_item($1, $2);}
+    : block_item                    {$$ = }
+    | block_item_list block_item    {$$ = }
     ;
 
 block_item
-    : declaration   {$$ = BlockItem::make_declaration($1);}
-    | statement     {$$ = BlockItem::make_statement($1);}
+    : declaration   {$$ = }
+    | statement     {$$ = }
     ;
 
 expression_statement
@@ -364,7 +364,7 @@ iteration_statement
     ;
 
 expression_opt
-    : /* empty */   {$$ = ASTNode::None;}
+    : /* empty */   {$$ = ParserNode::None;}
     | expression    {$$ = $1;}
     ;
 
@@ -407,13 +407,13 @@ postfix_expression
     ;
 
 argument_expression_list_opt
-    : /* empty */               {$$ = SemanticValue::ArgumentExpressionListOpt(None)}
-    | argument_expression_list  {$$ = make_argument_expression_list_opt($1);}
+    : /* empty */               {$$ = ParserNode::None;}
+    | argument_expression_list  {$$ = }
     ;
 
 argument_expression_list
-    : assignment_expression                                 {$$ = makeargument_expression_list($1);}
-    | argument_expression_list COMMA assignment_expression  {$$ = insert_argument_expression_list($1, $3);}
+    : assignment_expression                                 {$$ = }
+    | argument_expression_list COMMA assignment_expression  {$$ = }
     ;
 
 unary_expression
@@ -533,8 +533,12 @@ constant_expression
 /* 6.7.6 Type names (for casts/sizeof) */
 
 type_name
-    : specifier_qualifier_list abstract_declarator_opt  {$$ = TypeName::make_type_name($1, $2);}
+    : specifier_qualifier_list abstract_declarator_opt  {$$ = }
     ;
 
 %%
-use crate::parser::ast::*;
+use crate::types::ast::ast_nodes::*;
+use crate::types::ast::decl_info::*;
+use crate::types::ast::parser_node::*;
+use crate::types::ast::sema::*;
+use crate::types::ast::temp::*;
