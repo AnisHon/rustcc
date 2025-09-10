@@ -1,5 +1,3 @@
-use crate::parser::ast::*;
-
 struct ASTWalker<T: ASTVisitor> {
     visitor: T,
 }

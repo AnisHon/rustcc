@@ -155,8 +155,8 @@ type_specifier
     ;
 
 type_qualifier
-    : KEYWORD_CONST     {$$ = TypeQualifier::make_const($1);}
-    | KEYWORD_VOLATILE  {$$ = TypeQualifier::make_volatile($1);}
+    : KEYWORD_CONST     {$$ = $1;}
+    | KEYWORD_VOLATILE  {$$ = $1;}
     ;
 
 struct_or_union_specifier
@@ -238,8 +238,8 @@ pointer
     ;
 
 type_qualifier_list
-    : type_qualifier                        {$$ = make_type_qualifier_list($1);}
-    | type_qualifier_list type_qualifier    {$$ = insert_type_qualifier_list($1, $2);}
+    : type_qualifier                        {$$ = Qualifiers::make(None, $1);}
+    | type_qualifier_list type_qualifier    {$$ = Qualifiers::make(Some($1), $2);}
     ;
 
 direct_declarator
@@ -499,7 +499,7 @@ logical_or_expression
 
 conditional_expression
     : logical_or_expression                                                     {$$ = $1;}
-    | logical_or_expression QUESTION expression COLON conditional_expression    {$$ = ConditionalExpression::make_conditional($1, $3, $5);}
+    | logical_or_expression QUESTION expression COLON conditional_expression    {$$ = Expression::make_conditional($1, $3, $5);}
     ;
 
 assignment_expression
@@ -527,7 +527,7 @@ expression
     ;
 
 constant_expression
-    : conditional_expression                    {$$ = ConditionalExpression::make_constant($1);}
+    : conditional_expression                    {$$ = $1;}
     ;
 
 /* 6.7.6 Type names (for casts/sizeof) */
