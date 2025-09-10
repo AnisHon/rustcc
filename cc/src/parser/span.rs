@@ -1,3 +1,4 @@
+use std::cmp::{max, min};
 use crate::types::token::Token;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,6 +16,21 @@ impl Span {
         Span {
             start: token.beg,
             end: token.end,
+        }
+    }
+
+    pub fn from_tokens(tokens: &[Token]) -> Self {
+        assert!(!tokens.is_empty());
+        let mut start = usize::MIN;
+        let mut end = usize::MAX;
+
+        for token in tokens {
+            start = min(start, token.beg);
+            end = max(end, token.end);
+        }
+        Self {
+            start,
+            end
         }
     }
 

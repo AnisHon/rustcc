@@ -8,6 +8,7 @@
 
 
 use crate::parser::ast::ast_nodes::*;
+use crate::parser::ast::temp_nodes::DeclaratorChunk;
 use crate::types::token::Token;
 
 
@@ -70,6 +71,7 @@ pub enum ParserNode {
     UnaryOpNode(UnaryOp),
     BinaryOpNode(BinaryOp),
     AssignOpNode(AssignOp),
+    DeclChunkNode(DeclaratorChunk),
     TokenNode(Token),
     None,
 }
@@ -102,5 +104,6 @@ impl_from_variants!(ParserNode {
     UnaryOpNode(UnaryOp),
     BinaryOpNode(BinaryOp),
     AssignOpNode(AssignOp),
+    DeclChunkNode(DeclaratorChunk),
     TokenNode(Token),
 });

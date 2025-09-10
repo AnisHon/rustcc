@@ -241,7 +241,7 @@ type_qualifier_list
     : type_qualifier                        {$$ = Qualifiers::make(None, $1);}
     | type_qualifier_list type_qualifier    {$$ = Qualifiers::make(Some($1), $2);}
     ;
-
+/* 最后的那个是老式声明 */
 direct_declarator
     : ID                                                            {$$ = DirectDeclarator::make_id($1);}
     | LPAREN declarator RPAREN                                      {$$ = DirectDeclarator::make_paren($2);}
