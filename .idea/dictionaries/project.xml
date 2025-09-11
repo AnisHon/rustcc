@@ -7,6 +7,7 @@
       <w>endfor</w>
       <w>exprs</w>
       <w>lbracket</w>
+      <w>lparen</w>
       <w>noassoc</w>
       <w>nonassoc</w>
       <w>prec</w>
