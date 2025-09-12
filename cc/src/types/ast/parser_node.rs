@@ -8,7 +8,7 @@
 
 
 use crate::types::ast::ast_nodes::*;
-use crate::types::ast::decl_info::{DeclSpec, DeclaratorChunk, StructOrUnionSpec, TypeQual, TypeSpec};
+use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclaratorChunk, StructOrUnionSpec, TypeQual, TypeSpec};
 use crate::types::token::Token;
 
 
@@ -72,12 +72,15 @@ pub enum ParserNode {
     BinaryOpNode(BinaryOp),
     AssignOpNode(AssignOp),
     DeclSpecNode(DeclSpec),
+    DeclaratorNode(Declarator),
     DeclChunkNode(DeclaratorChunk),
     DeclChunkList(Vec<DeclaratorChunk>),
     TypeSpecNode(TypeSpec),
     TypeQualNode(TypeQual),
+    TypeQualListNode(Vec<TypeQual>),
     StructOrUnionSpecNode(StructOrUnionSpec),
     TokenNode(Token),
+    TokenListNode(Vec<Token>),
     None,
 }
 
@@ -109,10 +112,19 @@ impl_from_variants!(ParserNode {
     UnaryOpNode(UnaryOp),
     BinaryOpNode(BinaryOp),
     AssignOpNode(AssignOp),
+    DeclaratorNode(Declarator),
     DeclChunkNode(DeclaratorChunk),
     DeclChunkList(Vec<DeclaratorChunk>),
     TypeSpecNode(TypeSpec),
     TypeQualNode(TypeQual),
+    TypeQualListNode(Vec<TypeQual>),
     StructOrUnionSpecNode(StructOrUnionSpec),
     TokenNode(Token),
+    TokenListNode(Vec<Token>),
 });
+
+pub fn make_ident_list(ident_list: Option<Vec<Token>>, ident: Token) -> ParserNode {
+    let mut ident_list = ident_list.unwrap_or_else(Vec::new);
+    ident_list.push(ident);
+    ident_list.into()
+}

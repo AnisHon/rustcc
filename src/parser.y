@@ -222,47 +222,47 @@ enumerator
 /* declarators */
 
 declarator
-    : pointer_opt direct_declarator {$$ = }
+    : pointer_opt direct_declarator {$$ = Declarator::add_pointer($1, $2);}
     ;
 
 pointer_opt
     : /* empty */   {$$ = ParserNode::None;}
-    | pointer       {$$ = }
+    | pointer       {$$ = $1;}
     ;
 
 pointer
-    : OP_TIMES                              {$$ = }
-    | OP_TIMES type_qualifier_list          {$$ = }
-    | OP_TIMES pointer                      {$$ = }
-    | OP_TIMES type_qualifier_list pointer  {$$ = }
+    : OP_TIMES                              {$$ = DeclaratorChunk::make_pointer($1, None, None);}
+    | OP_TIMES type_qualifier_list          {$$ = DeclaratorChunk::make_pointer($1, Some($2), None);}
+    | OP_TIMES pointer                      {$$ = DeclaratorChunk::make_pointer($1, None, Some($3));}
+    | OP_TIMES type_qualifier_list pointer  {$$ = DeclaratorChunk::make_pointer($1, Some($2), Some($3));}
     ;
 
 type_qualifier_list
-    : type_qualifier                        {$$ = }
-    | type_qualifier_list type_qualifier    {$$ = }
+    : type_qualifier                        {$$ = TypeQual::make(None, $1);}
+    | type_qualifier_list type_qualifier    {$$ = TypeQual::make(Some($1), $2);}
     ;
 /* 最后的那个是老式声明 */
 direct_declarator
-    : ID                                                            {$$ = }
-    | LPAREN declarator RPAREN                                      {$$ = }
-    | direct_declarator LBRACKET constant_expression_opt RBRACKET   {$$ = DeclaratorChunk::make_array($1, $2, $3, $4);}
-    | direct_declarator LPAREN parameter_type_list RPAREN           {$$ = DeclaratorChunk::make_function($1, $2, $3, $4);}
-    | direct_declarator LPAREN identifier_list_opt RPAREN           {$$ = DeclaratorChunk::make_function($1, $2, $3, $4);}
+    : ID                                                            {$$ = Declarator::make($1);}
+    | LPAREN declarator RPAREN                                      {$$ = Declarator::add_span($1, $2, $3);}
+    | direct_declarator LBRACKET constant_expression_opt RBRACKET   {$$ = Declarator::make_array($1, $2, $3, $4);}
+    | direct_declarator LPAREN parameter_type_list RPAREN           {$$ = Declarator::make_function($1, $2, $3, $4);}
+    | direct_declarator LPAREN identifier_list_opt RPAREN           {$$ = Declarator::make_old_function($1, $2, $3, $4);}
     ;
 
 constant_expression_opt
-    : /* empty */           {$$ = }
-    | constant_expression   {$$ = }
+    : /* empty */           {$$ = ParserNode::None;}
+    | constant_expression   {$$ = $1;}
     ;
 
 identifier_list_opt
-    : /* empty */       {$$ = }
-    | identifier_list   {$$ = }
+    : /* empty */       {$$ = ParserNode::None;}
+    | identifier_list   {$$ = $1;}
     ;
 
 identifier_list
-    : ID                        {$$ = }
-    | identifier_list COMMA ID  {$$ = }
+    : ID                        {$$ = make_ident_list(None, $1);}
+    | identifier_list COMMA ID  {$$ = make_ident_list(Some($1), $3);}
     ;
 
 parameter_type_list
@@ -407,13 +407,13 @@ postfix_expression
     ;
 
 argument_expression_list_opt
-    : /* empty */               {$$ = SemanticValue::ArgumentExpressionListOpt(None)}
-    | argument_expression_list  {$$ = make_argument_expression_list_opt($1);}
+    : /* empty */               {$$ = ParserNode::None;}
+    | argument_expression_list  {$$ = }
     ;
 
 argument_expression_list
-    : assignment_expression                                 {$$ = makeargument_expression_list($1);}
-    | argument_expression_list COMMA assignment_expression  {$$ = insert_argument_expression_list($1, $3);}
+    : assignment_expression                                 {$$ = }
+    | argument_expression_list COMMA assignment_expression  {$$ = }
     ;
 
 unary_expression

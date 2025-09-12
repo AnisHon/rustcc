@@ -6,7 +6,7 @@
 use crate::lex::lex_yy::TokenType;
 use crate::types::ast::ast_nodes::*;
 use crate::types::ast::parser_node::ParserNode;
-use crate::parser::span::Span;
+use crate::types::span::Span;
 use crate::types::token::{Token, TokenValue};
 
 impl TranslationUnit {

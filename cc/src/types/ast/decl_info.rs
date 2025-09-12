@@ -3,7 +3,7 @@
 //!
 
 use crate::lex::lex_yy::TokenType;
-use crate::parser::span::Span;
+use crate::types::span::Span;
 use crate::types::ast::ast_nodes;
 use crate::types::ast::ast_nodes::ExpressionKind;
 use crate::types::ast::parser_node::ParserNode;
@@ -14,7 +14,7 @@ pub struct DeclSpec {
     pub storage_class: Option<Token>,
     pub type_quals: Vec<Token>,
     pub type_specs: Vec<TypeSpec>,
-    pub declarator: Vec<DeclaratorChunk>,
+    pub decl: Declarator,
     pub span: Span,
 }
 
@@ -32,14 +32,17 @@ impl TypeQual {
         }
     }
 
-    pub fn make(token: Token) -> ParserNode {
+    pub fn make(list: Option<Vec<TypeQual>>, token: Token) -> ParserNode {
         let span = Span::from_token(&token);
+        let mut list = list.unwrap_or_else(Vec::new);
         let result = match token.as_type().unwrap() {
             TokenType::KeywordConst => TypeQual::Const(span),
             TokenType::KeywordVolatile => TypeQual::Volatile(span),
             _ => unreachable!()
         };
-        result.into()
+
+        list.push(result);
+        list.into()
     }
 }
 
@@ -147,11 +150,61 @@ pub struct Enumerator {
     pub span: Span,
 }
 
+#[derive(Debug, Clone)]
+pub struct Declarator {
+    pub name: String,
+    pub chunks: Vec<DeclaratorChunk>,
+    pub span: Span,
+}
+
+impl Declarator {
+    pub fn make(token: Token) -> ParserNode {
+        assert_eq!(token.as_type(), Some(TokenType::Id));
+        let span = Span::from_token(&token);
+        let name = token.value.into_string().unwrap();
+        Self {
+            name,
+            chunks: Vec::new(),
+            span,
+        }.into()
+    }
+
+    pub fn add_pointer(ptr: Option<Vec<DeclaratorChunk>>, declarator: Declarator) -> ParserNode {
+        let chunks = match ptr {
+            None => declarator.chunks,
+            Some(mut x) => {
+                x.extend(declarator.chunks.into_iter());
+                x
+            }
+        };
+
+        let span = if !chunks.is_empty() {
+            let a = chunks.first().unwrap().unwrap_span();
+            let b = chunks.last().unwrap().unwrap_span();
+            a.merge(&b)
+        } else {
+            declarator.span
+        };
+
+        Self {
+            name: declarator.name,
+            chunks,
+            span
+        }.into()
+    }
+
+    /// 拓展一下span
+    pub fn add_span(lparen: Token, mut declarator: Declarator, rparen: Token) -> ParserNode {
+        let span = Span::from_tokens(&[lparen, rparen]);
+        declarator.span.merge_self(&span);
+        declarator.into()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum DeclaratorChunk {
     Pointer{
-        quals: Vec<TypeQual>,
+        quals: Option<Vec<TypeQual>>,
         span: Span, // 只是*符号的span位置
     },
     Array {
@@ -167,20 +220,28 @@ pub enum DeclaratorChunk {
 
 impl DeclaratorChunk {
 
+    pub fn unwrap_span(&self) -> Span {
+        match self {
+            DeclaratorChunk::Pointer { span, .. }
+            | DeclaratorChunk::Array { span, .. }
+            | DeclaratorChunk::Function { span, .. } => span.clone()
+        }
+    }
+
+
     /// 构建pointer
     /// # Returns
     /// 注意返回的Chunk的数组
-    pub fn make_pointer(chunks: Option<Vec<DeclaratorChunk>>, token: Token, type_quals: Option<Vec<TypeQual>>) -> ParserNode {
+    pub fn make_pointer(token: Token, quals: Option<Vec<TypeQual>>, chunks: Option<Vec<DeclaratorChunk>>) -> ParserNode {
         let span = Span::from_token(&token);
-        let quals = type_quals.unwrap_or_else(Vec::new);
         let mut chunks = chunks.unwrap_or_else(Vec::new);
         chunks.push(Self::Pointer { span, quals });
         chunks.into()
     }
 
-    pub fn make_array(chunks: Option<Vec<DeclaratorChunk>>, lbracket: Token, size: Option<ast_nodes::Expression>, rbracket: Token) -> ParserNode {
+    pub fn make_array(mut declarator: Declarator, lbracket: Token, size: Option<ast_nodes::Expression>, rbracket: Token) -> ParserNode {
         let span = Span::from_tokens(&[lbracket, rbracket]);
-        let mut chunks = chunks.unwrap_or_else(Vec::new);
+
         let asm = match &size {
             Some(x) => match x.kind {
                 ExpressionKind::Literal(_, _) => ArraySizeModifier::Normal,
@@ -189,18 +250,40 @@ impl DeclaratorChunk {
             None => ArraySizeModifier::Static
         };
 
-        chunks.push(Self::Array { size, asm, span });
-        chunks.into()
+        declarator.chunks.push(Self::Array { size, asm, span });
+        declarator.into()
     }
 
-    pub fn make_function(chunks: Option<Vec<DeclaratorChunk>>, lparen: Token, param_list: Option<ParamList>, rparen: Token) -> ParserNode {
+    pub fn make_function(mut declarator: Declarator, lparen: Token, param_list: Option<ParamList>, rparen: Token) -> ParserNode {
         let span = Span::from_tokens(&[lparen, rparen]);
-        let mut chunks = chunks.unwrap_or_else(Vec::new);
 
-        chunks.push(Self::Function { param_list, span });
-        chunks.into()
+        declarator.chunks.push(Self::Function { param_list, span });
+        declarator.into()
     }
 
+    pub fn make_old_function(mut declarator: Declarator, lparen: Token, ident_list: Option<Vec<Token>>, rparen: Token) -> ParserNode {
+        let span = Span::from_tokens(&[lparen, rparen]);
+        let ident_list = ident_list.unwrap_or_else(Vec::new);
+        let params: Vec<_> = ident_list.into_iter().map(|x| {
+            let span = Span::from_token(&x);
+            let name = x.value.into_string().unwrap();
+            ParamInfo::Ident(name, span)
+        }).collect();
+
+        let param_list = ParamList {
+            is_variadic: false,
+            has_prototype: false,
+            params,
+        };
+
+        declarator.chunks.push(
+            Self::Function {
+                param_list:Some(param_list),
+                span
+            }
+        );
+        declarator.into()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -219,7 +302,7 @@ pub struct ParamList {
 
 #[derive(Debug, Clone)]
 pub enum ParamInfo {
-    Ident(Token),
+    Ident(String, Span),
     Decl(ast_nodes::Declaration),
 }
 
