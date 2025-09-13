@@ -127,7 +127,7 @@ impl <R: Read> Lex<R> {
 
     /// 拿到下一个char，自动选择流或者缓冲区，更新pos
     fn next_char(&mut self) -> Option<char> {
-        // 计算偏移值, pos - buff_begin_pos
+        // 计算偏移值, pos - buff_begin_pos todo 这里if没必要嵌套两层
         let buff_pos = self.get_buff_pos();
         if buff_pos >= self.buff.len() && !self.read_line() {
             return None;
