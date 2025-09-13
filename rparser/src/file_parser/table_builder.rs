@@ -8,16 +8,12 @@
 //! - 'LRTableBuilder' 带Lookahead文法的文法矩阵构造工具
 //!
 
-use std::fs::File;
-use std::io::BufReader;
 use crate::common::grammar::{Assoc, EndSymbol, Grammar, ProdMeta, Symbol, SymbolID, SymbolMeta};
 use crate::common::lr_type::LRAction;
 use crate::file_parser::config_reader::{get_grammar, token_from_lexer, GrammarConfig, GrammarConfigParser};
 use crate::lr::lalr1::{AdvancedLALR1Builder, LALR1Builder};
 use crate::lr::lr1::LR1Builder;
 use indexmap::IndexMap;
-use crate::file_parser::util::item_set_to_string;
-use crate::lr::lr0::LR0Builder;
 
 pub enum TableType {
     LALR1,
@@ -55,8 +51,7 @@ impl LRTableBuilder {
         let  (grammar, token_meta, prod_map) = get_grammar(&config, lex_tokens);
         // 子式->id映射表
         let rule_id_map: IndexMap<_, _> = (0..grammar.get_size())
-            .map(|i| (0..grammar.get_rule(i).unwrap().len()).map(move |j| (i, j)))
-            .flatten()
+            .flat_map(|i| (0..grammar.get_rule(i).unwrap().len()).map(move |j| (i, j)))
             .enumerate()
             .map(|(i, j)| (j, i))
             .collect();
@@ -77,6 +72,7 @@ impl LRTableBuilder {
     /// 'Vec<Vec<Option<usize>>>': goto table
     /// 'usize': init state
     ///
+    /// todo 这里的返回值太复杂 (Vec<Vec<LRAction>>, Vec<Vec<Option<usize>>>, usize)，可以考虑使用type起别名
     pub fn build_lr_table(&self) -> (Vec<Vec<LRAction>>, Vec<Vec<Option<usize>>>, usize) {
         let (item_set_map, transition_table, init_state) = match self.table_type {
             TableType::LALR1 => LALR1Builder::new(&self.grammar).build_table(),
@@ -161,6 +157,7 @@ impl LRTableBuilder {
         let new_assoc = self.get_assoc(&new, symbol_id);
 
         // 使用优先级解决冲突
+        // todo 使用match代替if chian
         if origin_priority < new_priority {
             return new
         } else if origin_priority > new_priority {

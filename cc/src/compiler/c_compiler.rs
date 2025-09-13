@@ -4,7 +4,6 @@ use crate::parser::parser::Parser;
 use crate::types::token::Token;
 use std::io::Read;
 use std::rc::Rc;
-use crate::lex::lex_yy::TokenType;
 use crate::types::symbol_table::SymbolTable;
 
 pub struct CCompiler<R: Read> {
@@ -22,7 +21,7 @@ impl<R: Read> CCompiler<R> {
     /// 
     /// 编译代码，lexer --> parser --> CST --> AST 
     /// 1. 前端部分lexer parser相互协作，parser提供基础的typedef定义（临时符号表），parser需要在构建CST的同时最小
-    /// 限度解析作用域和typedef符号定义，lexer使用临时符号表，查询ID是否为TYPE_NAME
+    ///    限度解析作用域和typedef符号定义，lexer使用临时符号表，查询ID是否为TYPE_NAME
     /// 2. AST
     /// 
     /// 

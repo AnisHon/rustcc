@@ -5,8 +5,9 @@ use indexmap::IndexMap;
 use crate::utils::id_util::IncIDFactory;
 use crate::utils::unique_id_factory::UniqueIDFactory;
 
+/// todo 返回值太复杂
 pub fn compress_matrix<T: Eq + Copy + Hash>(
-    matrix: &Vec<Vec<T>>, zero_value: T
+    matrix: &[Vec<T>], zero_value: T
 ) -> (Vec<Option<usize>>, Vec<T>, Vec<Option<usize>>, Vec<usize>) {
     let rows = matrix.len();
     let stride = matrix[0].len();
@@ -102,7 +103,7 @@ fn alloc_base(bitmap: &mut BitVec, edges: &Vec<usize>, max_edge: usize) -> usize
 
 }
 
-fn try_allocate(bitmap: &mut BitVec, edges: &Vec<usize>, offset: usize, max_edge: usize) -> bool {
+fn try_allocate(bitmap: &mut BitVec, edges: &[usize], offset: usize, max_edge: usize) -> bool {
     for &edge in edges.iter() {
         let pos = edge + offset;
         // 自动增长逻辑

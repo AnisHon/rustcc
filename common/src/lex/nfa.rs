@@ -64,9 +64,8 @@ impl NFA {
         self.status.keys()
     }
 
-    ///
     pub fn get_symbols(&self, state: StateID) -> &BTreeSet<NFASymbol> {
-        &self.status_edges.get(&state).unwrap()
+        self.status_edges.get(&state).unwrap()
     }
 
     pub fn get_terminated_states(&self) -> &BTreeSet<StateID> {
@@ -121,7 +120,7 @@ impl NFA {
 
         self.edges // 添加边
             .entry((from, edge))
-            .or_insert_with(BTreeSet::new)
+            .or_default()
             .insert(to);
 
         self.status_edges // 维护状态边映射
@@ -149,10 +148,10 @@ impl NFA {
             let entry = self
                 .edges
                 .entry((from, class))
-                .or_insert_with(BTreeSet::new);
+                .or_default();
 
             for to in targets {
-                if self.status.contains_key(&to) == false {
+                if !self.status.contains_key(&to) {
                     panic!(
                         "Target state {} not found in status map during edge merge",
                         to
@@ -167,7 +166,7 @@ impl NFA {
         for (sid, class_ids) in other.status_edges.into_iter() {
             self.status_edges
                 .entry(sid)
-                .or_insert_with(BTreeSet::new)
+                .or_default()
                 .extend(class_ids.iter().copied());
         }
 
@@ -201,10 +200,10 @@ impl NFA {
             let entry = self
                 .edges
                 .entry((from, *class))
-                .or_insert_with(BTreeSet::new);
+                .or_default();
 
             for to in targets {
-                if self.status.contains_key(&to) == false {
+                if !self.status.contains_key(&to) {
                     panic!(
                         "Target state {} not found in status map during edge merge",
                         to
@@ -220,7 +219,7 @@ impl NFA {
             let sid = *sid + offset;
             self.status_edges
                 .entry(sid)
-                .or_insert_with(BTreeSet::new)
+                .or_default()
                 .extend(class_ids.iter().copied());
         }
 

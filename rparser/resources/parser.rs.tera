@@ -9,36 +9,44 @@ pub enum LRAction {
     Error          // 出错Error
 }
 
+#[allow(clippy::large_array_const)]
 // action matrix -> base next check
 const ACTION_BASE: [Option<usize>; {{ action_base | length }}] = [
     {%- for item in action_base -%}{{ item }},{%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
 const ACTION_NEXT: [LRAction; {{ action_next | length }}] = [
     {%- for item in action_next -%}LRAction::{{ item }},{%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
 const ACTION_CHECK: [Option<usize>; {{ action_check | length }}] = [
     {%- for item in action_check -%}{{ item }},{%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
 const ACTION_ROW_ID: [usize; {{ action_row_id | length }}] = [
     {%- for item in action_row_id -%}{{ item }},{%- endfor -%}
 ];
 
 // goto matrix -> base next check
+#[allow(clippy::large_array_const)]
 const GOTO_BASE: [Option<usize>; {{ goto_base | length }}] = [
     {%- for item in goto_base -%}{{ item }},{%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
 const GOTO_NEXT: [Option<usize>; {{ goto_next | length }}] = [
     {%- for item in goto_next -%}{{ item }},{%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
 const GOTO_CHECK: [Option<usize>; {{ goto_check | length }}] = [
     {%- for item in goto_check -%}{{ item }},{%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
 const GOTO_ROW_ID: [usize; {{ goto_row_id | length }}] = [
     {%- for item in goto_row_id -%}{{ item }},{%- endfor -%}
 ];

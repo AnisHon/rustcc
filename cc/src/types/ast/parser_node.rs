@@ -124,7 +124,7 @@ impl_from_variants!(ParserNode {
 });
 
 pub fn make_ident_list(ident_list: Option<Vec<Token>>, ident: Token) -> ParserNode {
-    let mut ident_list = ident_list.unwrap_or_else(Vec::new);
+    let mut ident_list = ident_list.unwrap_or_default();
     ident_list.push(ident);
     ident_list.into()
 }

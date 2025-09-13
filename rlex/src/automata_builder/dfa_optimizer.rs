@@ -64,7 +64,7 @@ impl DFAOptimizer {
     /// 翻转DFA(to, symbol) -> {from}，由于太少了所以BTreeSet更高效
     fn reverse_dfa_table(
         dfa: &DFA,
-        symbol_table: &Vec<BTreeSet<StateID>>,
+        symbol_table: &[BTreeSet<StateID>],
     ) -> HashMap<(StateID, ClassID), BTreeSet<StateID>> {
         let mut reverse_table = HashMap::new();
         reverse_table.reserve(dfa.size());
@@ -79,7 +79,7 @@ impl DFAOptimizer {
                 // 填充表格 (from, symbol, to) -> (to, symbol, from)
                 reverse_table
                     .entry((to, symbol))
-                    .or_insert_with(|| BTreeSet::new())
+                    .or_insert_with(BTreeSet::new)
                     .insert(from);
             }
         }
@@ -88,9 +88,8 @@ impl DFAOptimizer {
     }
 
     /// 符号表 State -> {Symbols}
-    fn symbol_table(dfa: &DFA, states: &Vec<StateID>) -> Vec<BTreeSet<ClassID>> {
-        let mut symbol_table = Vec::new();
-        symbol_table.reserve(dfa.size());
+    fn symbol_table(dfa: &DFA, states: &[StateID]) -> Vec<BTreeSet<ClassID>> {
+        let mut symbol_table = Vec::with_capacity(dfa.size());
 
         for &state_id in states.iter() {
             let set = dfa.get_symbols(state_id).into_iter().collect();
@@ -148,8 +147,8 @@ impl DFAOptimizer {
 
         // 不能遍历更新，采用延迟更新
         for set in partition.iter() {
-            let intersection: BTreeSet<_> = set.intersection(&predecessors).cloned().collect();
-            let difference: BTreeSet<_> = set.difference(&predecessors).cloned().collect();
+            let intersection: BTreeSet<_> = set.intersection(predecessors).cloned().collect();
+            let difference: BTreeSet<_> = set.difference(predecessors).cloned().collect();
 
             if !intersection.is_empty() && !difference.is_empty() {
                 update.push((set.clone(), intersection, difference));
@@ -210,8 +209,7 @@ impl DFAOptimizer {
 
     // 构建划分表 旧状态 -> 新状态
     fn build_partition_table(&mut self, partition: IndexSet<BTreeSet<StateID>>) -> Vec<StateID> {
-        let mut table = Vec::new();
-        table.resize(self.states.len(), 0);
+        let mut table = vec![0; self.states.len()];
 
         for set in partition {
             let new_state = self.next_id();
@@ -226,7 +224,7 @@ impl DFAOptimizer {
     // 构建转移表
     fn build_transaction_table(
         &self,
-        partition: &Vec<StateID>,
+        partition: &[StateID],
     ) -> IndexMap<(StateID, ClassID), StateID> {
         let mut transaction_table = IndexMap::new();
 
@@ -275,7 +273,7 @@ impl DFAOptimizer {
     // 反向构建partition_table 新状态 -> {旧状态}
     fn build_reverse_partition_table(
         &self,
-        partition_table: &Vec<StateID>,
+        partition_table: &[StateID],
     ) -> Vec<BTreeSet<StateID>> {
         let states: HashSet<StateID> = partition_table.iter().copied().collect();
         let mut reverse_partition_table = Vec::new();

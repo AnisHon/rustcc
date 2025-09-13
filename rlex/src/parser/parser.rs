@@ -23,16 +23,16 @@ pub struct ReParser {
 /// Quantified  -> Atomic (Star | Question | Plus | Range)
 /// Atomic      -> (Expression) | Literal | Dot | MetaChar | CharClass
 /// ```
-/// + * ()是运算符类似正则
-/// 没有左递归问题
-/// (Expression)就是捕获组Group 不太想继续建立新推导式
+/// - + * ()是运算符类似正则
+/// - 没有左递归问题
+/// - (Expression)就是捕获组Group 不太想继续建立新推导式
 ///
 ///
 impl ReParser {
     pub fn new(tokens: Vec<ReToken>) -> ReResult<ReParser> {
         let tokens = tokens
             .into_iter()
-            .map(|token| Rc::new(token)) // 套一层RC有时所有权真的挺烦的
+            .map(Rc::new) // 套一层RC有时所有权真的挺烦的
             .collect();
 
         let mut parser = ReParser {
@@ -42,7 +42,7 @@ impl ReParser {
             ast: None,
         };
         parser.parse_expression()?;
-        parser.ast = Some(to_ast(&parser.cst.as_ref().unwrap())?);
+        parser.ast = Some(to_ast(parser.cst.as_ref().unwrap())?);
         Ok(parser)
     }
 
@@ -367,7 +367,7 @@ fn resolve_char_class(token: &ReToken) -> ReResult<ASTClassNode> {
 
         if curr == '-' {
             // 非范围符
-            if matches!(last, None) || matches!(next, None) || matches!(next, Some('^')) {
+            if last.is_none() || next.is_none() || matches!(next, Some('^')) {
                 node_chars.push('-');
             } else {
                 // 范围符号
@@ -446,5 +446,5 @@ fn to_ast_recursive(node: &CSTNode) -> ReResult<ASTNode> {
 /// 去除Token，简化为字符，ASTClassNode，ASTRangeNode
 ///
 fn to_ast(ast: &CSTNode) -> ReResult<ASTNode> {
-    Ok(to_ast_recursive(ast)?)
+    to_ast_recursive(ast)
 }

@@ -226,7 +226,7 @@ impl Statement {
             | Statement::Goto { span, .. }
             | Statement::Continue(span)
             | Statement::Break(span)
-            | Statement::Return(_, span) => span.clone()
+            | Statement::Return(_, span) => *span
         }
     }
 

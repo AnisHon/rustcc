@@ -13,6 +13,7 @@ pub struct StateMeta {
     pub terminate: bool, // 其他
 }
 
+/// todo 这里应该用 default trait
 impl StateMeta {
     pub fn default() -> StateMeta {
         StateMeta {

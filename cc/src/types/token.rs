@@ -37,7 +37,7 @@ impl Token {
                 (TokenValue::Number{value, signed}, TokenType::Int as usize)
             },
             TokenType::Int => {
-                let (value, signed) = oct2int(value);
+                let (value, signed) = str2int(value);
                 (TokenValue::Number{value, signed}, TokenType::Int as usize)
             },
             TokenType::Float => (TokenValue::Float(str2float(value)), typ as usize),
@@ -102,7 +102,7 @@ fn hex2int(num: String) -> (usize, bool) {
 }
 fn str2int(num: String) -> (usize, bool) {
     // todo 解析int
-    let value = isize::from_str_radix(num.as_str(), 10).unwrap() as usize;
+    let value = num.as_str().parse::<isize>().unwrap() as usize;
     (value, false)
 }
 

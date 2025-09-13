@@ -52,6 +52,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
 
     /// 构建Table
+    /// todo 太复杂起类型别名
     pub fn build_table(self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let (id_state_item_map, state_item_id_map) = self.item_state_map();
         let (graph, mut lookahead_item_set_map) = self.init_propagation(&state_item_id_map);
@@ -92,11 +93,12 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
 
     /// 构建 id -> (state, LRItem) 的 Map
+    /// todo 太复杂起，类型别名
     fn item_state_map(&self) -> (Vec<(usize, LRItem)>, IndexMap<(usize, LRItem), usize>) {
         let id_state_item_map: Vec<_> = self.id2item_map.iter()
-            .map(|(state, item_set)|
-                item_set.iter().cloned().map(|item| (state.clone(), item))
-            ).flatten()
+            .flat_map(|(state, item_set)|
+                item_set.iter().cloned().map(|item| (*state, item))
+            )
             .collect();
         let state_item_id_map: IndexMap<_, _> = id_state_item_map.iter()
             .cloned().enumerate()
@@ -112,7 +114,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     /// Vec<LookaheadItemSet<T>> LALR item set表
     fn init_propagation(&self, state_item_id_map: &IndexMap<(usize, LRItem), usize>) -> (Vec<BTreeSet<usize>>, IndexMap<usize, LookaheadItemSet<T>>) {
         let mut graph = Vec::new();
-        graph.resize_with(state_item_id_map.len(), || BTreeSet::new());
+        graph.resize_with(state_item_id_map.len(), BTreeSet::new);
 
         // 转换为LookaheadItemSet
         let mut id2lookahead_map: IndexMap<_, _> = self.id2item_map.iter().map(|(&idx, item_set)| {
@@ -191,7 +193,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     }
     /// 工具方法，获取rule，失败触发panic
     fn get_rule(&self, rule_id: RuleID) -> &RuleVec<T> {
-        self.grammar.get_rule(rule_id).expect(format!("rule id {} not found", rule_id).as_str())
+        self.grammar.get_rule(rule_id).unwrap_or_else(panic!("rule id {} not found", rule_id))
     }
 
 
@@ -235,10 +237,8 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
 
     /// 一次闭包，也就是将item传入后向后闭包一次
     fn once_closure(&self, item: &LRItem) -> Option<BTreeSet<LRItem>> {
-        let next_symbol = match item.next_symbol(self.grammar) {
-            Some(x) => x,
-            None => return None
-        };
+        let next_symbol = item.next_symbol(self.grammar)?;
+
         let rule_id = match next_symbol {
             Symbol::NonTerminal(x) => x,
             _ => return None
@@ -279,6 +279,7 @@ impl<T: SymbolBound> AdvancedLALR1Builder<T> {
     }
 
     /// 开始合并LR1
+    /// todo 返回类型太复杂
     pub fn build_table(mut self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let mut id_map = HashMap::new();
         let mut core_id_map = HashMap::new();

@@ -29,7 +29,7 @@ impl Lexer {
         }
     }
 
-    fn init(lex: &Vec<LexStruct>) -> ReResult<(DFA, CharClassSet)> {
+    fn init(lex: &[LexStruct]) -> ReResult<(DFA, CharClassSet)> {
 
         if lex.is_empty() {
             panic!("No regex specified");

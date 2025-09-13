@@ -1,8 +1,6 @@
 
 //!
-//!
-//!
-//!
+//! 废弃，无用
 //!
 use crate::parser::cst::*;
 use crate::types::token::Token;

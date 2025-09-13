@@ -58,7 +58,7 @@ impl LexWriter {
             .collect();
 
         let (base, next, check, row_id) = compress_matrix(self.lexer.get_dfa().get_raw_matrix(), None);
-        let next: Vec<StateID> = next.into_iter().map(|x| x.unwrap_or_else(|| 0)).collect();
+        let next: Vec<StateID> = next.into_iter().map(|x| x.unwrap_or(0)).collect();
         // let (base, next, check) = self.compress_dfa();
         let base = Self::optional_to_string(base);
         let check = Self::optional_to_string(check);

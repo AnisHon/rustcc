@@ -39,7 +39,7 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
 
     /// 工具方法，获取rule，失败触发panic
     fn get_rule(&self, rule_id: RuleID) -> &RuleVec<T> {
-        self.grammar.get_rule(rule_id).expect(format!("rule id {} not found", rule_id).as_str())
+        self.grammar.get_rule(rule_id).unwrap_or_else(|| panic!("rule id {} not found", rule_id))
     }
 
     /// 跳过next_symbol，计算 first_set \[A ->x·BCx, xx\] FIRST(Cx xx) 跳过了B计算Cx而是BCx
@@ -92,7 +92,7 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
             let next_symbol = item.next_symbol(self.grammar);
             let lookahead = lookahead_map
                 .entry(item.clone())
-                .or_insert_with(BTreeSet::new);
+                .or_default();
 
             // 下一个symbol
             let symbol = match next_symbol {
@@ -117,7 +117,7 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
             // 拓展非终结符
             for item in items {
                 let item_lookahead = lookahead_map.entry(item.clone())
-                    .or_insert_with(BTreeSet::new);
+                    .or_default();
 
                 let changed = set_utils::extend(item_lookahead, next_lookahead.iter());
                 
@@ -181,6 +181,7 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
         item_set
     }
 
+    /// todo 返回值类型太复杂考虑别名
     pub fn build_table(&mut self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set.clone()]);

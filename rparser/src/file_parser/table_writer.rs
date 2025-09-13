@@ -43,7 +43,7 @@ impl TableWriter {
         self.builder.prod_map.iter().map(|prod_meta|  {
             let action = prod_meta.action.as_ref();
             match action {
-                None => return None,
+                None => None,
                 Some(x) => Some(self.convert_format_regex(x))
             }
         }).collect()

@@ -29,7 +29,7 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
 
     /// 工具方法，获取rule，失败触发panic
     fn get_rule(&self, rule_id: RuleID) -> &RuleVec<T> {
-        self.grammar.get_rule(rule_id).expect(format!("rule id {} not found", rule_id).as_str())
+        self.grammar.get_rule(rule_id).unwrap_or_else(|| panic!("rule id {} not found", rule_id))
     }
 
     /// 项目集闭包
@@ -121,6 +121,7 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
     /// # Returns
     /// - 'id2items_table': id映射表items_id -> item_set
     /// - 'lr0_table': LR0表，使用三元组表示(items_id, symbol, items_id)
+    /// todo 太复杂，别名
     pub fn build_table(mut self) -> (IndexMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>, usize) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set.clone()]);
