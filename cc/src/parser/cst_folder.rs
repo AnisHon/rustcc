@@ -1,8 +1,6 @@
 
 //!
-//!
-//!
-//!
+//! 废弃，无用
 //!
 use crate::parser::cst::*;
 use crate::types::token::Token;
@@ -79,10 +77,6 @@ pub trait CSTFolder {
     fn fold_function_definition_with(&mut self, decl_spec: Self::Result, declarator: Self::Result, decl_list: Vec<Self::Result>, body: Self::Result) -> Self::Result;
 
     fn fold_function_definition_without(&mut self, declarator: Self::Result, decl_list: Vec<Self::Result>, body: Self::Result) -> Self::Result;
-
-    // fn fold_declaration_list(&mut self, node: DeclarationList) -> Self::Result {
-    //     todo!() // todo 可能要删除
-    // }
 
     fn fold_declaration(&mut self, node: Declaration) -> Self::Result {
         let init_declarators = unwrap_list_opt!(node.init_declarators);

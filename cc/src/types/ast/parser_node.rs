@@ -24,6 +24,7 @@ macro_rules! impl_from_variants {
                 }
             }
 
+            #[allow(clippy::from_over_into)]
             impl Into<$ty> for $enum {
                 fn into(self) -> $ty {
                     match self {
@@ -33,6 +34,7 @@ macro_rules! impl_from_variants {
                 }
             }
 
+            #[allow(clippy::from_over_into)]
             impl Into<Option<$ty>> for ParserNode {
                 fn into(self) -> Option<$ty> {
                     match self {
@@ -124,7 +126,7 @@ impl_from_variants!(ParserNode {
 });
 
 pub fn make_ident_list(ident_list: Option<Vec<Token>>, ident: Token) -> ParserNode {
-    let mut ident_list = ident_list.unwrap_or_else(Vec::new);
+    let mut ident_list = ident_list.unwrap_or_default();
     ident_list.push(ident);
     ident_list.into()
 }

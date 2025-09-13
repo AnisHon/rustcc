@@ -1,5 +1,9 @@
 use std::mem;
-use crate::parser::cst::*;
+use crate::types::ast::ast_nodes::*;
+use crate::types::ast::decl_info::*;
+use crate::types::ast::parser_node::*;
+use crate::types::ast::sema::*;
+use crate::types::ast::temp::*;
 
 #[derive(Debug, Clone)]
 pub enum LRAction {
@@ -53,13 +57,9 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
 
     let idx = base.unwrap() + token;
 
-    let check = ACTION_CHECK[idx];
+    let check = ACTION_CHECK[idx]?;
 
-    if check.is_none() {
-        return LRAction::Error
-    }
-
-    if check.unwrap() == row_id {
+    if check == row_id {
         ACTION_NEXT[idx].clone()
     } else {
         LRAction::Error
@@ -70,20 +70,13 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
 pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     let row_id = GOTO_ROW_ID[state];
     let rule_id = EXPR_IDS[prod_id];
-    let base = GOTO_BASE[row_id];
-    if base.is_none() {
-        return None;
-    }
+    let base = GOTO_BASE[row_id]?;
 
     let idx = base.unwrap() + rule_id;
 
-    let check = GOTO_CHECK[idx];
+    let check = GOTO_CHECK[idx]?;
 
-    if check.is_none() {
-        return None
-    }
-
-    if check.unwrap() == row_id {
+    if check == row_id {
         GOTO_NEXT[idx]
     } else {
         None
@@ -91,445 +84,445 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
 }
 
 /// action_code[state](params)
-pub fn exec_action(rule: usize, mut value_stack: Vec<SemanticValue>) -> SemanticValue {
-    let value: SemanticValue;
+pub fn exec_action(rule: usize, mut value_stack: Vec<ParserNode>) -> ParserNode {
+    let value: ParserNode;
     match rule {
-                0 => {value = TranslationUnit::make_single(mem::take(&mut value_stack[0]));},
+                0 => {value = TranslationUnit::make_translation_unit(mem::take(&mut value_stack[0]).into());},
             
-                1 => {value = TranslationUnit::make_multi(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                1 => {value = TranslationUnit::insert_ext_decl(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into());},
             
-                2 => {value = ExternalDeclaration::make_function_definition(mem::take(&mut value_stack[0]));},
+                2 => {value = ExternalDeclaration::make_func(mem::take(&mut value_stack[0]).into());},
             
-                3 => {value = ExternalDeclaration::make_declaration(mem::take(&mut value_stack[0]));},
+                3 => {value = ExternalDeclaration::make_variable(mem::take(&mut value_stack[0]).into());},
             
-                4 => {value = FunctionDefinition::make_with_specifiers(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]), mem::take(&mut value_stack[2]), mem::take(&mut value_stack[3]));},
+                4 => {value = },
             
-                5 => {value = FunctionDefinition::make_without_specifiers(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]), mem::take(&mut value_stack[2]));},
+                5 => {value = },
             
-                6 => {value = SemanticValue::DeclarationListOpt(None);},
+                6 => {value = ParserNode::None;},
             
-                7 => {value = make_declaration_list_opt(mem::take(&mut value_stack[0]));},
+                7 => {value = },
             
-                8 => {value = DeclarationList::make_decl_list(mem::take(&mut value_stack[0]));},
+                8 => {value = },
             
-                9 => {value = DeclarationList::insert(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                9 => {value = },
             
-                10 => {value = Declaration::make_declaration(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                10 => {value = },
             
-                11 => {value = SemanticValue::InitDeclaratorListOpt(None);},
+                11 => {value = ParserNode::None;;},
             
-                12 => {value = make_init_declarator_list_opt(mem::take(&mut value_stack[0]));},
+                12 => {value = },
             
-                13 => {value = InitDeclaratorList::make_init_decl_list(mem::take(&mut value_stack[0]));},
+                13 => {value = },
             
-                14 => {value = InitDeclaratorList::insert(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                14 => {value = },
             
-                15 => {value = InitDeclarator::make_plain(mem::take(&mut value_stack[0]));},
+                15 => {value = },
             
-                16 => {value = InitDeclarator::make_initialized(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                16 => {value = },
             
-                17 => {value = DeclarationSpecifiers::make_storage_class(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                17 => {value = },
             
-                18 => {value = DeclarationSpecifiers::make_type_specifier(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                18 => {value = },
             
-                19 => {value = DeclarationSpecifiers::make_type_qualifier(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                19 => {value = },
             
-                20 => {value = SemanticValue::DeclarationSpecifiersOpt(None);},
+                20 => {value = ParserNode::None;},
             
-                21 => {value = make_declarator_list_opt(mem::take(&mut value_stack[0]));},
+                21 => {value = ;},
             
-                22 => {value = StorageClassSpecifier::make_typedef(mem::take(&mut value_stack[0]));},
+                22 => {value = mem::take(&mut value_stack[0]).into();},
             
-                23 => {value = StorageClassSpecifier::make_extern(mem::take(&mut value_stack[0]));},
+                23 => {value = mem::take(&mut value_stack[0]).into();},
             
-                24 => {value = StorageClassSpecifier::make_static(mem::take(&mut value_stack[0]));},
+                24 => {value = mem::take(&mut value_stack[0]).into();},
             
-                25 => {value = StorageClassSpecifier::make_auto(mem::take(&mut value_stack[0]));},
+                25 => {value = mem::take(&mut value_stack[0]).into();},
             
-                26 => {value = StorageClassSpecifier::make_register(mem::take(&mut value_stack[0]));},
+                26 => {value = mem::take(&mut value_stack[0]).into();},
             
-                27 => {value = TypeSpecifier::make_void(mem::take(&mut value_stack[0]));},
+                27 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                28 => {value = TypeSpecifier::make_char(mem::take(&mut value_stack[0]));},
+                28 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                29 => {value = TypeSpecifier::make_short(mem::take(&mut value_stack[0]));},
+                29 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                30 => {value = TypeSpecifier::make_int(mem::take(&mut value_stack[0]));},
+                30 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                31 => {value = TypeSpecifier::make_long(mem::take(&mut value_stack[0]));},
+                31 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                32 => {value = TypeSpecifier::make_signed(mem::take(&mut value_stack[0]));},
+                32 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                33 => {value = TypeSpecifier::make_unsigned(mem::take(&mut value_stack[0]));},
+                33 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                34 => {value = TypeSpecifier::make_float(mem::take(&mut value_stack[0]));},
+                34 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                35 => {value = TypeSpecifier::make_double(mem::take(&mut value_stack[0]));},
+                35 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                36 => {value = TypeSpecifier::make_struct(mem::take(&mut value_stack[0]));},
+                36 => {value = TypeSpec::make_struct_or_union(mem::take(&mut value_stack[0]).into());},
             
-                37 => {value = TypeSpecifier::make_enum(mem::take(&mut value_stack[0]));},
+                37 => {value = TypeSpec::make_enum(mem::take(&mut value_stack[0]).into());},
             
-                38 => {value = TypeSpecifier::make_type_name(mem::take(&mut value_stack[0]));},
+                38 => {value = TypeSpec::make_simple(mem::take(&mut value_stack[0]).into());},
             
-                39 => {value = TypeQualifier::make_const(mem::take(&mut value_stack[0]));},
+                39 => {value = mem::take(&mut value_stack[0]).into();},
             
-                40 => {value = TypeQualifier::make_volatile(mem::take(&mut value_stack[0]));},
+                40 => {value = mem::take(&mut value_stack[0]).into();},
             
-                41 => {value = StructOrUnionSpecifier::make_defined(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]), mem::take(&mut value_stack[3]));},
+                41 => {value = },
             
-                42 => {value = StructOrUnionSpecifier::make_named(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                42 => {value = },
             
-                43 => {value = StructOrUnion::make_struct(mem::take(&mut value_stack[0]));},
+                43 => {value = mem::take(&mut value_stack[0]).into();},
             
-                44 => {value = StructOrUnion::make_union(mem::take(&mut value_stack[0]));},
+                44 => {value = mem::take(&mut value_stack[0]).into();},
             
-                45 => {value = SemanticValue::IdentifierOpt(None);},
+                45 => {value = ParserNode::None;},
             
-                46 => {value = make_identifier_opt(mem::take(&mut value_stack[0]));},
+                46 => {value = },
             
-                47 => {value = make_struct_declaration_list(mem::take(&mut value_stack[0]));},
+                47 => {value = },
             
-                48 => {value = insert_struct_declaration_list(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                48 => {value = },
             
-                49 => {value = StructDeclaration::make_struct_declaration(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                49 => {value = },
             
-                50 => {value = SpecifierQualifierList::make_type_specifier(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                50 => {value = },
             
-                51 => {value = SpecifierQualifierList::make_type_qualifier(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                51 => {value = },
             
-                52 => {value = SemanticValue::SpecifierQualifierListOpt(None);},
+                52 => {value = ParserNode::None;},
             
-                53 => {value = make_specifier_qualifier_list_opt(mem::take(&mut value_stack[0]));},
+                53 => {value = },
             
-                54 => {value = make_struct_declarator_list(mem::take(&mut value_stack[0]));},
+                54 => {value = },
             
-                55 => {value = insert_struct_declarator_list(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                55 => {value = },
             
-                56 => {value = StructDeclarator::make_declarator(mem::take(&mut value_stack[0]));},
+                56 => {value = },
             
-                57 => {value = StructDeclarator::make_bitfield(SemanticValue::None, mem::take(&mut value_stack[1]));},
+                57 => {value = },
             
-                58 => {value = StructDeclarator::make_bitfield(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                58 => {value = },
             
-                59 => {value = EnumSpecifier::make_defined(mem::take(&mut value_stack[1]), mem::take(&mut value_stack[3]));},
+                59 => {value = },
             
-                60 => {value = EnumSpecifier::make_named(mem::take(&mut value_stack[1]));},
+                60 => {value = },
             
-                61 => {value = make_enumerator_list(mem::take(&mut value_stack[0]));},
+                61 => {value = },
             
-                62 => {value = insert_enumerator_list(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                62 => {value = },
             
-                63 => {value = Enumerator::make_plain(mem::take(&mut value_stack[0]));},
+                63 => {value = },
             
-                64 => {value = Enumerator::make_with_value(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                64 => {value = },
             
-                65 => {value = Declarator::make_declarator(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                65 => {value = Declarator::add_pointer(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into());},
             
-                66 => {value = SemanticValue::PointerOpt(None);},
+                66 => {value = ParserNode::None;},
             
-                67 => {value = make_pointer_opt(mem::take(&mut value_stack[0]));},
+                67 => {value = mem::take(&mut value_stack[0]).into();},
             
-                68 => {value = Pointer::make_pointer(SemanticValue::None, SemanticValue::None);},
+                68 => {value = DeclaratorChunk::make_pointer(mem::take(&mut value_stack[0]).into(), None, None);},
             
-                69 => {value = Pointer::make_pointer(mem::take(&mut value_stack[1]), SemanticValue::None);},
+                69 => {value = DeclaratorChunk::make_pointer(mem::take(&mut value_stack[0]).into(), Some(mem::take(&mut value_stack[1]).into()), None);},
             
-                70 => {value = Pointer::make_pointer(SemanticValue::None, mem::take(&mut value_stack[2]));},
+                70 => {value = DeclaratorChunk::make_pointer(mem::take(&mut value_stack[0]).into(), None, Some(mem::take(&mut value_stack[2]).into()));},
             
-                71 => {value = Pointer::make_pointer(mem::take(&mut value_stack[1]), mem::take(&mut value_stack[2]));},
+                71 => {value = DeclaratorChunk::make_pointer(mem::take(&mut value_stack[0]).into(), Some(mem::take(&mut value_stack[1]).into()), Some(mem::take(&mut value_stack[2]).into()));},
             
-                72 => {value = make_type_qualifier_list(mem::take(&mut value_stack[0]));},
+                72 => {value = TypeQual::make(None, mem::take(&mut value_stack[0]).into());},
             
-                73 => {value = insert_type_qualifier_list(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                73 => {value = TypeQual::make(Some(mem::take(&mut value_stack[0]).into()), mem::take(&mut value_stack[1]).into());},
             
-                74 => {value = DirectDeclarator::make_id(mem::take(&mut value_stack[0]));},
+                74 => {value = Declarator::make(mem::take(&mut value_stack[0]).into());},
             
-                75 => {value = DirectDeclarator::make_paren(mem::take(&mut value_stack[1]));},
+                75 => {value = Declarator::add_span(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                76 => {value = DirectDeclarator::make_array(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                76 => {value = Declarator::make_array(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[3]).into());},
             
-                77 => {value = DirectDeclarator::make_func_params(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                77 => {value = Declarator::make_function(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[3]).into());},
             
-                78 => {value = DirectDeclarator::make_func_identifiers(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                78 => {value = Declarator::make_old_function(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[3]).into());},
             
-                79 => {value = SemanticValue::ConstantExpressionOpt(None);},
+                79 => {value = ParserNode::None;},
             
-                80 => {value = make_constant_expression_opt(mem::take(&mut value_stack[0]));},
+                80 => {value = mem::take(&mut value_stack[0]).into();},
             
-                81 => {value = SemanticValue::IdentifierListOpt(None);},
+                81 => {value = ParserNode::None;},
             
-                82 => {value = make_identifier_list_opt(mem::take(&mut value_stack[0]));},
+                82 => {value = mem::take(&mut value_stack[0]).into();},
             
-                83 => {value = IdentifierList::make_list(mem::take(&mut value_stack[0]));},
+                83 => {value = make_ident_list(None, mem::take(&mut value_stack[0]).into());},
             
-                84 => {value = IdentifierList::insert(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                84 => {value = make_ident_list(Some(mem::take(&mut value_stack[0]).into()), mem::take(&mut value_stack[2]).into());},
             
-                85 => {value = ParameterTypeList::make_params(mem::take(&mut value_stack[0]));},
+                85 => {value = },
             
-                86 => {value = ParameterTypeList::make_variadic(mem::take(&mut value_stack[0]));},
+                86 => {value = },
             
-                87 => {value = make_parameter_list(mem::take(&mut value_stack[0]));},
+                87 => {value = },
             
-                88 => {value = insert_parameter_list(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                88 => {value = },
             
-                89 => {value = ParameterDeclaration::make_declarator(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                89 => {value = },
             
-                90 => {value = ParameterDeclaration::make_abstract(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                90 => {value = },
             
-                91 => {value = SemanticValue::AbstractDeclaratorOpt(None);},
+                91 => {value = },
             
-                92 => {value = make_abstract_declarator_opt(mem::take(&mut value_stack[0]));},
+                92 => {value = },
             
-                93 => {value = AbstractDeclarator::make_pointer(mem::take(&mut value_stack[0]));},
+                93 => {value = },
             
-                94 => {value = AbstractDeclarator::make_direct(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                94 => {value = },
             
-                95 => {value = DirectAbstractDeclarator::make_paren(mem::take(&mut value_stack[1]));},
+                95 => {value = },
             
-                96 => {value = DirectAbstractDeclarator::make_array(mem::take(&mut value_stack[1]));},
+                96 => {value = },
             
-                97 => {value = DirectAbstractDeclarator::make_array_nested(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                97 => {value = },
             
-                98 => {value = DirectAbstractDeclarator::make_func(mem::take(&mut value_stack[1]));},
+                98 => {value = },
             
-                99 => {value = DirectAbstractDeclarator::make_func_nested(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                99 => {value = },
             
-                100 => {value = SemanticValue::ParameterTypeListOpt(None);},
+                100 => {value = ParserNode::None;},
             
-                101 => {value = make_parameter_type_list_opt(mem::take(&mut value_stack[0]));},
+                101 => {value = },
             
-                102 => {value = Initializer::make_assignment(mem::take(&mut value_stack[0]));},
+                102 => {value = },
             
-                103 => {value = Initializer::make_list(mem::take(&mut value_stack[1]));},
+                103 => {value = },
             
-                104 => {value = Initializer::make_list(mem::take(&mut value_stack[1]));},
+                104 => {value = },
             
-                105 => {value = InitializerList::make(mem::take(&mut value_stack[0]));},
+                105 => {value = },
             
-                106 => {value = InitializerList::insert(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                106 => {value = },
             
-                107 => {value = Statement::make_labeled(mem::take(&mut value_stack[0]));},
+                107 => {value = Statement::make_labeled(mem::take(&mut value_stack[0]).into());},
             
-                108 => {value = Statement::make_compound(mem::take(&mut value_stack[0]));},
+                108 => {value = Statement::make_compound(mem::take(&mut value_stack[0]).into());},
             
-                109 => {value = Statement::make_expression(mem::take(&mut value_stack[0]));},
+                109 => {value = Statement::make_expression(mem::take(&mut value_stack[0]).into());},
             
-                110 => {value = Statement::make_selection(mem::take(&mut value_stack[0]));},
+                110 => {value = Statement::make_selection(mem::take(&mut value_stack[0]).into());},
             
-                111 => {value = Statement::make_iteration(mem::take(&mut value_stack[0]));},
+                111 => {value = Statement::make_iteration(mem::take(&mut value_stack[0]).into());},
             
-                112 => {value = Statement::make_jump(mem::take(&mut value_stack[0]));},
+                112 => {value = Statement::make_jump(mem::take(&mut value_stack[0]).into());},
             
-                113 => {value = LabeledStatement::make_label(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                113 => {value = LabeledStatement::make_label(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into());},
             
-                114 => {value = LabeledStatement::make_case(mem::take(&mut value_stack[1]), mem::take(&mut value_stack[3]));},
+                114 => {value = LabeledStatement::make_case(mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[3]).into());},
             
-                115 => {value = LabeledStatement::make_default(mem::take(&mut value_stack[2]));},
+                115 => {value = LabeledStatement::make_default(mem::take(&mut value_stack[2]).into());},
             
-                116 => {value = CompoundStatement::make_empty(mem::take(&mut value_stack[0]));},
+                116 => {value = },
             
-                117 => {value = CompoundStatement::make_expr(mem::take(&mut value_stack[1]));},
+                117 => {value = },
             
-                118 => {value = make_block_item(mem::take(&mut value_stack[0]));},
+                118 => {value = },
             
-                119 => {value = insert_block_item(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                119 => {value = },
             
-                120 => {value = BlockItem::make_declaration(mem::take(&mut value_stack[0]));},
+                120 => {value = },
             
-                121 => {value = BlockItem::make_statement(mem::take(&mut value_stack[0]));},
+                121 => {value = },
             
-                122 => {value = ExpressionStatement::make_empty(mem::take(&mut value_stack[0]));},
+                122 => {value = Statement::make_expression(None);},
             
-                123 => {value = ExpressionStatement::make_expr(mem::take(&mut value_stack[0]));},
+                123 => {value = Statement::make_expression(Some(mem::take(&mut value_stack[0]).into()));},
             
-                124 => {value = SelectionStatement::make_if(mem::take(&mut value_stack[2]), mem::take(&mut value_stack[4]), SemanticValue::None);},
+                124 => {value = Statement::make_if(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[4]).into(), None);},
             
-                125 => {value = SelectionStatement::make_if(mem::take(&mut value_stack[2]), mem::take(&mut value_stack[4]), mem::take(&mut value_stack[6]));},
+                125 => {value = Statement::make_if(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[4]).into(), Some(mem::take(&mut value_stack[6]).into()));},
             
-                126 => {value = SelectionStatement::make_switch(mem::take(&mut value_stack[2]), mem::take(&mut value_stack[4]));},
+                126 => {value = Statement::make_switch(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[4]).into());},
             
-                127 => {value = IterationStatement::make_while(mem::take(&mut value_stack[2]), mem::take(&mut value_stack[4]));},
+                127 => {value = Statement::make_while(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[4]).into(), None);},
             
-                128 => {value = IterationStatement::make_do_while(mem::take(&mut value_stack[1]), mem::take(&mut value_stack[4]));},
+                128 => {value = Statement::make_while(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[4]).into(), Some(mem::take(&mut value_stack[5]).into()));},
             
-                129 => {value = IterationStatement::make_for(mem::take(&mut value_stack[2]), mem::take(&mut value_stack[4]), mem::take(&mut value_stack[6]), mem::take(&mut value_stack[8]));},
+                129 => {value = Statement::make_for(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[4]).into(), mem::take(&mut value_stack[6]).into(), mem::take(&mut value_stack[8]).into());},
             
-                130 => {value = SemanticValue::ExpressionOpt(None);},
+                130 => {value = ParserNode::None;},
             
-                131 => {value = make_expression_opt(mem::take(&mut value_stack[0]));},
+                131 => {value = mem::take(&mut value_stack[0]).into();},
             
-                132 => {value = JumpStatement::make_goto(mem::take(&mut value_stack[1]));},
+                132 => {value = Statement::make_goto(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into());},
             
-                133 => {value = JumpStatement::make_continue(mem::take(&mut value_stack[0]));},
+                133 => {value = Statement::make_continue_break(mem::take(&mut value_stack[0]).into());},
             
-                134 => {value = JumpStatement::make_break(mem::take(&mut value_stack[0]));},
+                134 => {value = Statement::make_continue_break(mem::take(&mut value_stack[0]).into());},
             
-                135 => {value = JumpStatement::make_return(SemanticValue::None);},
+                135 => {value = Statement::make_return(mem::take(&mut value_stack[0]).into(), None);},
             
-                136 => {value = JumpStatement::make_return(mem::take(&mut value_stack[1]));},
+                136 => {value = Statement::make_return(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into());},
             
-                137 => {value = PrimaryExpression::make_id(mem::take(&mut value_stack[0]));},
+                137 => {value = Expression::make_id(mem::take(&mut value_stack[0]).into());},
             
-                138 => {value = PrimaryExpression::make_constant(mem::take(&mut value_stack[0]));},
+                138 => {value = Expression::make_literal(mem::take(&mut value_stack[0]).into());},
             
-                139 => {value = PrimaryExpression::make_string_literal(mem::take(&mut value_stack[0]));},
+                139 => {value = Expression::make_literal(mem::take(&mut value_stack[0]).into());},
             
-                140 => {value = PrimaryExpression::make_paren(mem::take(&mut value_stack[1]));},
+                140 => {value = mem::take(&mut value_stack[1]).into();},
             
-                141 => {value = Constant::make_int(mem::take(&mut value_stack[0]));},
+                141 => {value = Constant::make(mem::take(&mut value_stack[0]).into());},
             
-                142 => {value = Constant::make_float(mem::take(&mut value_stack[0]));},
+                142 => {value = Constant::make(mem::take(&mut value_stack[0]).into());},
             
-                143 => {value = Constant::make_char(mem::take(&mut value_stack[0]));},
+                143 => {value = Constant::make(mem::take(&mut value_stack[0]).into());},
             
-                144 => {value = make_string(mem::take(&mut value_stack[0]));},
+                144 => {value = Constant::make(mem::take(&mut value_stack[0]).into());},
             
-                145 => {value = insert_string(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                145 => {value = Constant::insert_str(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into());},
             
-                146 => {value = PostfixExpression::make_primary(mem::take(&mut value_stack[0]));},
+                146 => {value = mem::take(&mut value_stack[0]).into();},
             
-                147 => {value = PostfixExpression::make_array(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                147 => {value = Expression::make_array_access(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[3]).into());},
             
-                148 => {value = PostfixExpression::make_call(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                148 => {value = Expression::make_call(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[3]).into());},
             
-                149 => {value = PostfixExpression::make_field(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                149 => {value = Expression::make_field(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into());},
             
-                150 => {value = PostfixExpression::make_arrow(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                150 => {value = Expression::make_arrow(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into());},
             
-                151 => {value = PostfixExpression::make_inc(mem::take(&mut value_stack[0]));},
+                151 => {value = Expression::make_update(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), true);},
             
-                152 => {value = PostfixExpression::make_dec(mem::take(&mut value_stack[0]));},
+                152 => {value = Expression::make_update(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), true);},
             
-                153 => {value = SemanticValue::ArgumentExpressionListOpt(None)},
+                153 => {value = ParserNode::None;},
             
-                154 => {value = make_argument_expression_list_opt(mem::take(&mut value_stack[0]));},
+                154 => {value = },
             
-                155 => {value = makeargument_expression_list(mem::take(&mut value_stack[0]));},
+                155 => {value = },
             
-                156 => {value = insert_argument_expression_list(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                156 => {value = },
             
-                157 => {value = UnaryExpression::make_postfix(mem::take(&mut value_stack[0]));},
+                157 => {value = mem::take(&mut value_stack[0]).into();},
             
-                158 => {value = UnaryExpression::make_pre_inc(mem::take(&mut value_stack[1]));},
+                158 => {value = Expression::make_update(mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[0]).into(), false);},
             
-                159 => {value = UnaryExpression::make_pre_dec(mem::take(&mut value_stack[1]));},
+                159 => {value = Expression::make_update(mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[0]).into(), true);},
             
-                160 => {value = UnaryExpression::make_unary_op(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
+                160 => {value = Expression::make_unary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into());},
             
-                161 => {value = UnaryExpression::make_sizeof_expr(mem::take(&mut value_stack[1]));},
+                161 => {value = Expression::make_sizeof_expr(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into());},
             
-                162 => {value = UnaryExpression::make_sizeof_type(mem::take(&mut value_stack[2]));},
+                162 => {value = Expression::make_sizeof_type(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[3]).into());},
             
-                163 => {value = UnaryOperator::address_of(mem::take(&mut value_stack[0]));},
+                163 => {value = mem::take(&mut value_stack[0]).into();},
             
-                164 => {value = UnaryOperator::deref(mem::take(&mut value_stack[0]));},
+                164 => {value = mem::take(&mut value_stack[0]).into();},
             
-                165 => {value = UnaryOperator::plus(mem::take(&mut value_stack[0]));},
+                165 => {value = mem::take(&mut value_stack[0]).into();},
             
-                166 => {value = UnaryOperator::minus(mem::take(&mut value_stack[0]));},
+                166 => {value = mem::take(&mut value_stack[0]).into();},
             
-                167 => {value = UnaryOperator::bit_not(mem::take(&mut value_stack[0]));},
+                167 => {value = mem::take(&mut value_stack[0]).into();},
             
-                168 => {value = UnaryOperator::not(mem::take(&mut value_stack[0]));},
+                168 => {value = mem::take(&mut value_stack[0]).into();},
             
-                169 => {value = CastExpression::make_cast(mem::take(&mut value_stack[1]), mem::take(&mut value_stack[3]));},
+                169 => {value = Expression::make_cast(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[3]).into());},
             
-                170 => {value = CastExpression::make_unary(mem::take(&mut value_stack[0]));},
+                170 => {value = mem::take(&mut value_stack[0]).into();},
             
-                171 => {value = MultiplicativeExpression::make_mul(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                171 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                172 => {value = MultiplicativeExpression::make_div(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                172 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                173 => {value = MultiplicativeExpression::make_mod(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                173 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                174 => {value = MultiplicativeExpression::make_cast(mem::take(&mut value_stack[0]));},
+                174 => {value = mem::take(&mut value_stack[0]).into();},
             
-                175 => {value = AdditiveExpression::make_add(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                175 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                176 => {value = AdditiveExpression::make_sub(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                176 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                177 => {value = AdditiveExpression::make_mul(mem::take(&mut value_stack[0]));},
+                177 => {value = mem::take(&mut value_stack[0]).into();},
             
-                178 => {value = ShiftExpression::make_shl(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                178 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                179 => {value = ShiftExpression::make_shr(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                179 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                180 => {value = ShiftExpression::make_add(mem::take(&mut value_stack[0]));},
+                180 => {value = mem::take(&mut value_stack[0]).into();},
             
-                181 => {value = RelationalExpression::make_lt(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                181 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                182 => {value = RelationalExpression::make_gt(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                182 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                183 => {value = RelationalExpression::make_le(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                183 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                184 => {value = RelationalExpression::make_ge(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                184 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                185 => {value = RelationalExpression::make_shift(mem::take(&mut value_stack[0]));},
+                185 => {value = mem::take(&mut value_stack[0]).into();},
             
-                186 => {value = EqualityExpression::make_eq(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                186 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                187 => {value = EqualityExpression::make_ne(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                187 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                188 => {value = EqualityExpression::make_rel(mem::take(&mut value_stack[0]));},
+                188 => {value = mem::take(&mut value_stack[0]).into();},
             
-                189 => {value = AndExpression::make_and(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                189 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                190 => {value = AndExpression::make_eq(mem::take(&mut value_stack[0]))},
+                190 => {value = mem::take(&mut value_stack[0]).into();},
             
-                191 => {value = ExclusiveOrExpression::make_xor(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                191 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                192 => {value = ExclusiveOrExpression::make_and(mem::take(&mut value_stack[0]));},
+                192 => {value = mem::take(&mut value_stack[0]).into();},
             
-                193 => {value = InclusiveOrExpression::make_or(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                193 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                194 => {value = InclusiveOrExpression::make_xor(mem::take(&mut value_stack[0]));},
+                194 => {value = mem::take(&mut value_stack[0]).into();},
             
-                195 => {value = LogicalAndExpression::make_and(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                195 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                196 => {value = LogicalAndExpression::make_or(mem::take(&mut value_stack[0]));},
+                196 => {value = mem::take(&mut value_stack[0]).into();},
             
-                197 => {value = LogicalOrExpression::make_or(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                197 => {value = Expression::make_binary(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into());},
             
-                198 => {value = LogicalOrExpression::make_and(mem::take(&mut value_stack[0]));},
+                198 => {value = mem::take(&mut value_stack[0]).into();},
             
-                199 => {value = ConditionalExpression::make_or(mem::take(&mut value_stack[0]));},
+                199 => {value = mem::take(&mut value_stack[0]).into();},
             
-                200 => {value = ConditionalExpression::make_cond(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]), mem::take(&mut value_stack[4]));},
+                200 => {value = Expression::make_conditional(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into(), mem::take(&mut value_stack[4]).into());},
             
-                201 => {value = AssignmentExpression::make_conditional(mem::take(&mut value_stack[0]));},
+                201 => {value = mem::take(&mut value_stack[0]).into();},
             
-                202 => {value = AssignmentExpression::make_assign(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]), mem::take(&mut value_stack[2]))},
+                202 => {value = Expression::make_assign(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[1]).into(), mem::take(&mut value_stack[2]).into())},
             
-                203 => {value = AssignmentOperator::assign(mem::take(&mut value_stack[0]));},
+                203 => {value = mem::take(&mut value_stack[0]).into();},
             
-                204 => {value = AssignmentOperator::mul_assign(mem::take(&mut value_stack[0]));},
+                204 => {value = mem::take(&mut value_stack[0]).into();},
             
-                205 => {value = AssignmentOperator::div_assign(mem::take(&mut value_stack[0]));},
+                205 => {value = mem::take(&mut value_stack[0]).into();},
             
-                206 => {value = AssignmentOperator::mod_assign(mem::take(&mut value_stack[0]));},
+                206 => {value = mem::take(&mut value_stack[0]).into();},
             
-                207 => {value = AssignmentOperator::add_assign(mem::take(&mut value_stack[0]));},
+                207 => {value = mem::take(&mut value_stack[0]).into();},
             
-                208 => {value = AssignmentOperator::sub_assign(mem::take(&mut value_stack[0]));},
+                208 => {value = mem::take(&mut value_stack[0]).into();},
             
-                209 => {value = AssignmentOperator::shl_assign(mem::take(&mut value_stack[0]));},
+                209 => {value = mem::take(&mut value_stack[0]).into();},
             
-                210 => {value = AssignmentOperator::shr_assign(mem::take(&mut value_stack[0]));},
+                210 => {value = mem::take(&mut value_stack[0]).into();},
             
-                211 => {value = AssignmentOperator::and_assign(mem::take(&mut value_stack[0]));},
+                211 => {value = mem::take(&mut value_stack[0]).into();},
             
-                212 => {value = AssignmentOperator::xor_assign(mem::take(&mut value_stack[0]));},
+                212 => {value = mem::take(&mut value_stack[0]).into();},
             
-                213 => {value = AssignmentOperator::or_assign(mem::take(&mut value_stack[0]));},
+                213 => {value = mem::take(&mut value_stack[0]).into();},
             
-                214 => {value = Expression::make_single(mem::take(&mut value_stack[0]));},
+                214 => {value = mem::take(&mut value_stack[0]).into();},
             
-                215 => {value = Expression::make_comma(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[2]));},
+                215 => {value = Expression::make_comma(mem::take(&mut value_stack[0]).into(), mem::take(&mut value_stack[2]).into());},
             
-                216 => {value = ConditionalExpression::make_constant(mem::take(&mut value_stack[0]));},
+                216 => {value = mem::take(&mut value_stack[0]).into();},
             
-                217 => {value = TypeName::make_type_name(mem::take(&mut value_stack[0]), mem::take(&mut value_stack[1]));},
-            _ => { value = SemanticValue::default() }
+                217 => {value = },
+            _ => { value = ParserNode::default() }
     };
     value
 }

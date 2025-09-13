@@ -62,10 +62,10 @@ where
 
         let value = self.value_stack.pop().unwrap();
 
-        Ok(value.into_translation_unit().map_err(|_| {
+        value.into_translation_unit().map_err(|_| {
             let x = self.get_latest_token();
             ParserError::new(x.beg, x.end, "Syntax Error", self.get_latest_expr())
-        })?)
+        })
     }
 
     /// 处理规约

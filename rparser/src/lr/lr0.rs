@@ -6,13 +6,16 @@
 //!
 
 use crate::common::grammar::{Grammar, RuleID, RuleVec, Symbol, SymbolBound};
-use crate::common::lr_type::LRItem;
+use crate::common::lr_type::{LRItem, Transitions};
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
 use indexmap::IndexMap;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub type LR0ItemSet = BTreeSet<LRItem>;
+
+pub type LR0StateMap = IndexMap<usize, BTreeSet<LRItem>>;
+
 
 /// 只构建DFA状态机不检查冲突
 pub struct LR0Builder<'a, T: SymbolBound> {
@@ -29,7 +32,7 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
 
     /// 工具方法，获取rule，失败触发panic
     fn get_rule(&self, rule_id: RuleID) -> &RuleVec<T> {
-        self.grammar.get_rule(rule_id).expect(format!("rule id {} not found", rule_id).as_str())
+        self.grammar.get_rule(rule_id).unwrap_or_else(|| panic!("rule id {} not found", rule_id))
     }
 
     /// 项目集闭包
@@ -116,12 +119,17 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
         self.item_closure(start)
     }
 
-    /// 构建表
-    /// 
+    ///
+    /// 构建LR0状态映射表LR0转移表和
+    ///
+    /// 这里有点重复代码
+    ///
     /// # Returns
-    /// - 'id2items_table': id映射表items_id -> item_set
-    /// - 'lr0_table': LR0表，使用三元组表示(items_id, symbol, items_id)
-    pub fn build_table(mut self) -> (IndexMap<usize, LR0ItemSet>, Vec<(usize, Symbol<T>, usize)>, usize) {
+    /// - `usize`: 初始的state
+    /// - `Transitions`: LR0表，使用三元组表示(items_id, symbol, items_id)
+    /// - `LR0StateMap`: id映射表items_id -> item_set
+    ///
+    pub fn build_table(mut self) -> (LR0StateMap, Transitions<T>, usize) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set.clone()]);
         let mut items2id_table = BTreeMap::new(); // item_set -> item_id

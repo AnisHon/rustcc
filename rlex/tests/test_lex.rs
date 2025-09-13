@@ -1,4 +1,4 @@
-use rlex::lex::lex::re2tokens;
+use rlex::lex::lex_core::re2tokens;
 
 #[test]
 fn test_re2tokens() {

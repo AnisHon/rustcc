@@ -118,19 +118,13 @@ pub fn find_token(state_id: usize) -> Option<TokenType> {
 pub fn find_next(state_id: usize, chr: char) -> Option<usize> {
     let row_id = ROW_ID[state_id];
     let class_id = find_char(chr);
-    let base = BASE[row_id];
-    if base.is_none() {
-        return None
-    }
+    let base = BASE[row_id]?;
 
-    let idx = base.unwrap() + class_id;
-    let check = CHECK[idx];
-    if check.is_none() {
-        return None
-    }
+    let idx = base + class_id;
+    let check = CHECK[idx]?;
 
 
-    if check.unwrap() == row_id {
+    if check == row_id {
         Some(NEXT[idx])
     } else {
         None

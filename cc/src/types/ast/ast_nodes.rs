@@ -191,6 +191,7 @@ pub enum BlockItem {
 }
 
 // 语句
+/// todo 差别太大 IF For
 #[derive(Debug, Clone)]
 pub enum Statement {
     Labeled { label: String, stmt: Box<Statement>, span: Span },
@@ -226,7 +227,7 @@ impl Statement {
             | Statement::Goto { span, .. }
             | Statement::Continue(span)
             | Statement::Break(span)
-            | Statement::Return(_, span) => span.clone()
+            | Statement::Return(_, span) => *span
         }
     }
 

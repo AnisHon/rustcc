@@ -325,7 +325,7 @@ impl NFABuilder {
             init_state,
         );
 
-        let inner_init = nfa.merge_offset(&mut inner_nfa, self.peek_id());
+        let inner_init = nfa.merge_offset(&inner_nfa, self.peek_id());
         let offset = inner_init - inner_init_;
         let inner_out = inner_out_ + offset;
         self.skip_id(offset);
@@ -339,7 +339,7 @@ impl NFABuilder {
     }
 
     /// 创建联结NFA  A -> XXX -> B -> ... -> C
-    fn build_concat_nfa(&mut self, nodes: &Vec<ASTNode>) -> PartialNFA {
+    fn build_concat_nfa(&mut self, nodes: &[ASTNode]) -> PartialNFA {
         let (mut nfa, init_state, out_state) = self.default_nfa();
         let mut prev_state = init_state;
         nodes
@@ -355,7 +355,7 @@ impl NFABuilder {
     }
 
     /// 创建"候选"NFA A -> XXX | YYY | ZZZ -> C
-    fn build_alternation_nfa(&mut self, nodes: &Vec<ASTNode>) -> PartialNFA {
+    fn build_alternation_nfa(&mut self, nodes: &[ASTNode]) -> PartialNFA {
         let (mut nfa, init_state, out_state) = self.default_nfa();
         nodes
             .iter()

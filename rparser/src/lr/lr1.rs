@@ -6,8 +6,8 @@
 //!
 
 use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
-use crate::common::lr_type::{LRItem, LookaheadItemSet};
-use crate::util::first_set::build_first;
+use crate::common::lr_type::{LRItem, LookaheadItemSet, LookaheadStateMap, Transitions};
+use crate::util::first_set::{build_first, calc_suffix_first_set};
 use crate::util::set_utils;
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
@@ -39,45 +39,21 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
 
     /// 工具方法，获取rule，失败触发panic
     fn get_rule(&self, rule_id: RuleID) -> &RuleVec<T> {
-        self.grammar.get_rule(rule_id).expect(format!("rule id {} not found", rule_id).as_str())
+        self.grammar.get_rule(rule_id).unwrap_or_else(|| panic!("rule id {} not found", rule_id))
     }
 
     /// 跳过next_symbol，计算 first_set \[A ->x·BCx, xx\] FIRST(Cx xx) 跳过了B计算Cx而是BCx
     fn calc_lookahead(&self, item: &LRItem, lookahead: &BTreeSet<EndSymbol<T>>) -> BTreeSet<EndSymbol<T>> {
-        let mut lookahead_first_set: BTreeSet<EndSymbol<T>> = BTreeSet::new(); // 计算Lookahead是就是计算first 
-
         let (rule_id, alter_idx) = item.rule;
         let expr = self.get_expr(rule_id, alter_idx).unwrap_expr();
-        
-        let mut nullable = true; 
-        for idx in (item.pos + 1)..expr.len() {
-            let rule_id = match &expr[idx] {
-                Symbol::Terminal(x) => { // 终结符不能推出空，非nullable，停止迭代
-                    lookahead_first_set.insert(EndSymbol::Symbol(x.clone()));
-                    nullable = false;
-                    break
-                },
-                Symbol::NonTerminal(x) => x
-            };
 
-            let first_set = &self.first_map[rule_id];
-            lookahead_first_set.extend(
-                first_set.iter() 
-                    .filter(|&x| x.ne(&EpsilonSymbol::Epsilon))
-                    .map(|x| EndSymbol::Symbol(x.unwrap()))
-            );
-            
-            if !first_set.contains(&EpsilonSymbol::Epsilon) { // 不能推出空退出
-                nullable = false;
-                break;
-            }
-        }
-        
-        if nullable {  // 全部推出空则加入item集
-            lookahead_first_set.extend(lookahead.iter().cloned());
+        let (mut result, nullable) = calc_suffix_first_set(expr.iter().skip(item.pos + 1), &self.first_map);
+
+        if nullable {
+            result.extend(lookahead.iter().cloned());
         }
 
-        lookahead_first_set
+        result
     }
     
 
@@ -92,7 +68,7 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
             let next_symbol = item.next_symbol(self.grammar);
             let lookahead = lookahead_map
                 .entry(item.clone())
-                .or_insert_with(BTreeSet::new);
+                .or_default();
 
             // 下一个symbol
             let symbol = match next_symbol {
@@ -117,7 +93,7 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
             // 拓展非终结符
             for item in items {
                 let item_lookahead = lookahead_map.entry(item.clone())
-                    .or_insert_with(BTreeSet::new);
+                    .or_default();
 
                 let changed = set_utils::extend(item_lookahead, next_lookahead.iter());
                 
@@ -181,7 +157,14 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
         item_set
     }
 
-    pub fn build_table(&mut self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
+    ///
+    /// 构建LR1状态映射表LR1转移表和
+    ///
+    /// # Returns
+    /// - `usize`: 初始状态
+    /// - `Transitions`: 转移表
+    /// - `LookaheadStateMap`: 项目集表
+    pub fn build_table(&mut self) -> (LookaheadStateMap<T>, Transitions<T>, usize) {
         let init_set = self.init_item_set();
         let mut queue = VecDeque::from(vec![init_set.clone()]);
         let mut items2id_table = IndexMap::new(); // item_set -> item_id

@@ -7,12 +7,14 @@ pub enum TokenType {
     {% endfor %}
 }
 
+#[allow(clippy::large_array_const)]
 const STATE_MAP: [Option<TokenType>; {{ state_map_size }}] = [
     {%- for item in state_map -%}
         {%- if item %}Some(TokenType::{{ item }}){%- else %}None{%- endif -%},
     {%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
 const CHAR_CLASS: [(u32, u32); {{ char_class_size }}] = [
     {%- for item in char_class -%}({{ item[0] }}, {{ item[1] }}),{%- endfor -%}
 ];
@@ -25,14 +27,19 @@ const ASCII_MAPPING: [usize; 128] = [
     {%- for item in ascii_map -%}{{ item }},{%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
+
 const BASE: [Option<usize>; {{ state_map_size }}] = {{ base }};
 
+#[allow(clippy::large_array_const)]
 const NEXT: [usize; {{ next_size }}] = [
     {%- for item in next -%}{{ item }},{%- endfor -%}
 ];
 
+#[allow(clippy::large_array_const)]
 const CHECK: [Option<usize>; {{ next_size }}] = {{ check }};
 
+#[allow(clippy::large_array_const)]
 const ROW_ID: [usize; {{ row_id | length }}] = [
     {%- for item in row_id -%}{{ item }},{%- endfor -%}
 ];

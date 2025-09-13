@@ -121,3 +121,9 @@ impl<V> SymbolTable<V> {
         self.global.borrow().lookup(name)
     }
 }
+
+impl<V> Default for SymbolTable<V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}

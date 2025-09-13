@@ -77,13 +77,9 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
 
     let idx = base.unwrap() + token;
 
-    let check = ACTION_CHECK[idx];
+    let check = ACTION_CHECK[idx]?;
 
-    if check.is_none() {
-        return LRAction::Error
-    }
-
-    if check.unwrap() == row_id {
+    if check == row_id {
         ACTION_NEXT[idx].clone()
     } else {
         LRAction::Error
@@ -94,20 +90,13 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
 pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     let row_id = GOTO_ROW_ID[state];
     let rule_id = EXPR_IDS[prod_id];
-    let base = GOTO_BASE[row_id];
-    if base.is_none() {
-        return None;
-    }
+    let base = GOTO_BASE[row_id]?;
 
     let idx = base.unwrap() + rule_id;
 
-    let check = GOTO_CHECK[idx];
+    let check = GOTO_CHECK[idx]?;
 
-    if check.is_none() {
-        return None
-    }
-
-    if check.unwrap() == row_id {
+    if check == row_id {
         GOTO_NEXT[idx]
     } else {
         None

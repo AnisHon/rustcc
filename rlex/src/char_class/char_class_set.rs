@@ -18,8 +18,9 @@ impl CharClassSet {
             .map(|(l, r, _)| (l, r))
             .collect();
         let mut ascii_mapping: [usize; 128] = [0; 128]; // 缓存ascii范围字符
-        for chr in 0..ascii_mapping.len() {
-            ascii_mapping[chr] = binary_search(&ranges, chr as u32);
+
+        for (chr, item) in ascii_mapping.iter_mut().enumerate() {
+            *item = binary_search(&ranges, chr as u32);
         }
 
         Self {
@@ -45,17 +46,16 @@ impl CharClassSet {
         &self.ascii_mapping
     }
 
-    fn build_class_id_table(ranges: &Vec<(u32, u32, BTreeSet<usize>)>) -> Vec<usize> {
+    fn build_class_id_table(ranges: &[(u32, u32, BTreeSet<usize>)]) -> Vec<usize> {
         let mut tag_class_map: BTreeMap<Vec<usize>, usize> = BTreeMap::new();
         let mut next_class_id = 0;
-        let mut class_map = Vec::new();
-        class_map.reserve(ranges.len());
+        let mut class_map = Vec::with_capacity(ranges.len());
 
         // HashSet不能Hash所以这里转换成Vec
         let ranges: Vec<_> = ranges
             .iter()
             .map(|(l, r, tags)| {
-                let mut tags: Vec<usize> = tags.into_iter().map(|x| *x).collect();
+                let mut tags: Vec<usize> = tags.into_iter().copied().collect();
                 tags.sort_unstable();
                 (l, r, tags)
             })
@@ -124,7 +124,7 @@ impl CharClassSet {
 }
 
 /// 二分查找
-pub fn binary_search(ranges: &Vec<(u32, u32)>, chr: u32) -> usize {
+pub fn binary_search(ranges: &[(u32, u32)], chr: u32) -> usize {
     let mut idx_left = 0;
     let mut idx_right = ranges.len() - 1; // 左闭右闭
 

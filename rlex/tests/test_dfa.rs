@@ -2,8 +2,8 @@ use rlex::automata_builder::dfa_builder::DFABuilder;
 use rlex::automata_builder::dfa_optimizer::DFAOptimizer;
 use rlex::automata_builder::nfa_builder::NFABuilder;
 use rlex::char_class::char_class_builder::CharClassBuilder;
-use rlex::lex::lex::re2tokens;
-use rlex::parser::parser::ReParser;
+use rlex::lex::lex_core::re2tokens;
+use rlex::parser::parser_core::ReParser;
 
 #[test]
 fn test_dfa_builder() {

@@ -34,10 +34,6 @@ impl Span {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.end - self.start
-    }
-
     pub fn merge(&self, other: &Span) -> Span {
         Span {
             start: self.start.min(other.start),

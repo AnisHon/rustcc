@@ -51,6 +51,7 @@ impl ProdMeta {
 /// Right 右结合，同优级优先移入shift
 /// NonAssoc 无结合 同优先级下不允许结合
 /// None 未指定结合性质
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Debug, Copy)]
 pub enum Assoc {
     Left,

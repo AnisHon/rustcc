@@ -3,5 +3,5 @@
 ///
 pub mod ast;
 pub mod cst;
-pub mod parser;
+pub mod parser_core;
 mod types;

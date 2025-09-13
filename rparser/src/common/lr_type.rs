@@ -13,6 +13,19 @@
 use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, Symbol, SymbolBound};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
+use indexmap::IndexMap;
+
+/// LR一个状态项目集表
+pub type LookaheadStateMap<T> = IndexMap<usize, LookaheadItemSet<T>>;
+
+/// LR转移表
+pub type Transitions<T> = Vec<(usize, Symbol<T>, usize)>;
+
+/// action表
+pub type ActionTable = Vec<Vec<LRAction>>;
+
+/// goto表
+pub type GotoTable = Vec<Vec<Option<usize>>>;
 
 /// 通用LR项目，引用rule，管理pos
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
@@ -98,9 +111,9 @@ impl LRAction {
     
     pub fn unwrap(&self) -> usize {
         *match self {
-            LRAction::Reduce(x) => x,
-            LRAction::Shift(x) => x,
-            LRAction::Accept(x) => x,
+            LRAction::Reduce(x)
+            | LRAction::Shift(x)
+            | LRAction::Accept(x) => x,
             LRAction::Error => panic!("Action is Error")
         }
     }

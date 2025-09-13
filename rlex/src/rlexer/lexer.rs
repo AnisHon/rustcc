@@ -4,8 +4,8 @@ use crate::automata_builder::nfa_builder::NFABuilder;
 use crate::char_class::char_class_builder::CharClassBuilder;
 use crate::char_class::char_class_set::CharClassSet;
 use crate::common::re_err::ReResult;
-use crate::lex::lex::re2tokens;
-use crate::parser::parser::ReParser;
+use crate::lex::lex_core::re2tokens;
+use crate::parser::parser_core::ReParser;
 use crate::rlexer::lex_config::LexStruct;
 use common::lex::{DFA, NFA, NFASymbol, StateID, StateMeta};
 use std::collections::BTreeSet;
@@ -29,7 +29,7 @@ impl Lexer {
         }
     }
 
-    fn init(lex: &Vec<LexStruct>) -> ReResult<(DFA, CharClassSet)> {
+    fn init(lex: &[LexStruct]) -> ReResult<(DFA, CharClassSet)> {
 
         if lex.is_empty() {
             panic!("No regex specified");

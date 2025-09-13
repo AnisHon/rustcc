@@ -8,16 +8,13 @@
 //! - 'LRTableBuilder' 带Lookahead文法的文法矩阵构造工具
 //!
 
-use std::fs::File;
-use std::io::BufReader;
 use crate::common::grammar::{Assoc, EndSymbol, Grammar, ProdMeta, Symbol, SymbolID, SymbolMeta};
-use crate::common::lr_type::LRAction;
-use crate::file_parser::config_reader::{get_grammar, token_from_lexer, GrammarConfig, GrammarConfigParser};
+use crate::common::lr_type::{ActionTable, GotoTable, LRAction};
+use crate::file_parser::config_reader::{get_grammar, GrammarConfig, GrammarConfigParser};
 use crate::lr::lalr1::{AdvancedLALR1Builder, LALR1Builder};
 use crate::lr::lr1::LR1Builder;
 use indexmap::IndexMap;
-use crate::file_parser::util::item_set_to_string;
-use crate::lr::lr0::LR0Builder;
+use std::cmp::Ordering;
 
 pub enum TableType {
     LALR1,
@@ -55,8 +52,7 @@ impl LRTableBuilder {
         let  (grammar, token_meta, prod_map) = get_grammar(&config, lex_tokens);
         // 子式->id映射表
         let rule_id_map: IndexMap<_, _> = (0..grammar.get_size())
-            .map(|i| (0..grammar.get_rule(i).unwrap().len()).map(move |j| (i, j)))
-            .flatten()
+            .flat_map(|i| (0..grammar.get_rule(i).unwrap().len()).map(move |j| (i, j)))
             .enumerate()
             .map(|(i, j)| (j, i))
             .collect();
@@ -73,11 +69,10 @@ impl LRTableBuilder {
 
     /// 构建LR表格
     /// # Returns
-    /// 'Vec<Vec<LRAction>>': action table
-    /// 'Vec<Vec<Option<usize>>>': goto table
-    /// 'usize': init state
-    ///
-    pub fn build_lr_table(&self) -> (Vec<Vec<LRAction>>, Vec<Vec<Option<usize>>>, usize) {
+    /// `usize`: init state
+    /// `GotoTable`: goto table
+    /// `ActionTable`: action table
+    pub fn build_lr_table(&self) -> (ActionTable, GotoTable, usize) {
         let (item_set_map, transition_table, init_state) = match self.table_type {
             TableType::LALR1 => LALR1Builder::new(&self.grammar).build_table(),
             TableType::AdvancedLALR1 => AdvancedLALR1Builder::new(&self.grammar).build_table(),
@@ -161,16 +156,15 @@ impl LRTableBuilder {
         let new_assoc = self.get_assoc(&new, symbol_id);
 
         // 使用优先级解决冲突
-        if origin_priority < new_priority {
-            return new
-        } else if origin_priority > new_priority {
-            return origin
+        match origin_priority.cmp(&new_priority) {
+            Ordering::Less => return new,
+            Ordering::Greater => return origin,
+            Ordering::Equal => {}
         }
-        /*
-         优先级不能解决冲突
-         同优先级冲突
-         使用结合性解决冲突
-         */
+
+        // 优先级不能解决冲突
+        // 同优先级冲突
+        // 使用结合性解决冲突
         // 规约移入冲突，通过结合性判断
         match (origin_assoc, new_assoc) {
             (Assoc::Right, Assoc::Right) => {  // 都是右结合，移入优先
@@ -234,9 +228,8 @@ impl LRTableBuilder {
     fn conflict_warning(&self, origin: &LRAction, new: &LRAction, symbol_id: SymbolID) {
         let get_name = |action: &LRAction| {
             match action {
-                LRAction::Reduce(x) | LRAction::Accept(x) => {
-                    let rule_id = action.unwrap();
-                    let meta = &self.prod_map[rule_id];
+                LRAction::Reduce(rule_id) | LRAction::Accept(rule_id) => {
+                    let meta = &self.prod_map[*rule_id];
                     format!("{}({})", meta.name, meta.alter)
                 }
                 LRAction::Shift(_) => {

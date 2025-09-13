@@ -40,13 +40,9 @@ impl TableWriter {
 
     /// 转换
     fn resolve_action(&self) -> Vec<Option<String>> {
-        self.builder.prod_map.iter().map(|prod_meta|  {
-            let action = prod_meta.action.as_ref();
-            match action {
-                None => return None,
-                Some(x) => Some(self.convert_format_regex(x))
-            }
-        }).collect()
+        self.builder.prod_map.iter().map(|prod_meta|
+            prod_meta.action.as_ref().map(|x| self.convert_format_regex(x))
+        ).collect()
     }
 
     /// 解析属性文法，替换 $$

@@ -62,7 +62,7 @@ fn primary_token_split(regex: &str) -> ReResult<Vec<ReToken>> {
 /// 将十六进制数字字符串转换为char
 ///
 fn codepoint2char(hex: &str) -> Result<char, String> {
-    u32::from_str_radix(&hex, 16)
+    u32::from_str_radix(hex, 16)
         .ok()
         .and_then(char::from_u32)
         .ok_or(format!("Unicode error can't decode bytes {}", hex))
@@ -127,7 +127,7 @@ fn handle_escape(chars: &mut Enumerate<Chars>) -> Result<ReToken, String> {
 ///
 /// 构建char class
 ///
-fn build_char_class_token(tokens: &Vec<ReToken>) -> Result<ReToken, String> {
+fn build_char_class_token(tokens: &[ReToken]) -> Result<ReToken, String> {
     if tokens.len() <= 1 {
         return Err("Empty Bucket".to_string());
     }
@@ -189,7 +189,8 @@ fn char_class_token(tokens: Vec<ReToken>) -> ReResult<Vec<ReToken>> {
 
 fn is_digit(s: &str) -> bool {
     for x in s.chars() {
-        if !x.is_digit(10) {
+        // todo 使用is_ascii_radix
+        if !x.is_ascii_digit() {
             return false;
         }
     }
@@ -199,7 +200,7 @@ fn is_digit(s: &str) -> bool {
 ///
 /// 将多个token转换成一个range token，处理方式比较简单
 ///
-fn build_range_token(tokens: &Vec<ReToken>) -> Result<ReToken, String> {
+fn build_range_token(tokens: &[ReToken]) -> Result<ReToken, String> {
     let mut value = String::new();
     value.reserve(tokens.len());
 

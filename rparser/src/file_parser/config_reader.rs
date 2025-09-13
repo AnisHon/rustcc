@@ -241,7 +241,7 @@ pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<
         .map(|(idx, production)| (production.name.clone(), idx))
         .collect();
 
-    let (token_meta, token_map) = build_token_map(&config, lex_tokens);
+    let (token_meta, token_map) = build_token_map(config, lex_tokens);
 
     // production的meta信息
     let mut prod_map = Vec::new();
@@ -264,7 +264,7 @@ pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<
                     if non_terminal.contains_key(symbol) { // 非终结符
                         Symbol::NonTerminal(non_terminal[symbol]) // 查Rule ID
                     } else { // 终结符
-                        let tid = *token_map.get(symbol).expect(format!("No Such Token {}", symbol).as_str());
+                        let tid = *token_map.get(symbol).unwrap_or_else(|| panic!("No Such Token {}", symbol));
                         let meta = &token_meta[tid];
                         prod_meta.priority = meta.priority;   // 推导式以最后的终结符为准
                         prod_meta.assoc = meta.assoc; // 最后终结符的assoc
@@ -277,7 +277,7 @@ pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<
             // 选择覆盖还是使用终结符assoc
             prod_meta.assoc = match assoc {
                 Assoc::None => prod_meta.assoc, // 未确定
-                _ => assoc.clone()  // 已确定覆盖
+                _ => *assoc  // 已确定覆盖
             };
 
             prod_map.push(prod_meta);
@@ -307,7 +307,7 @@ fn build_token_map(config: &GrammarConfig, tokens: Vec<String>) -> (Vec<SymbolMe
             AssocType::NonAssoc(_) => Assoc::NonAssoc,
         };
         assoc.unwrap().iter().for_each(|x| {
-            let token_id = *token_map.get(x).expect(format!("No such token: {}", x).as_str());
+            let token_id = *token_map.get(x).unwrap_or_else(|| panic!("No such token: {}", x));
             let meta = &mut token_meta[token_id];
             meta.priority = idx;
             meta.assoc = is_right;

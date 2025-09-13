@@ -34,7 +34,7 @@ impl TypeQual {
 
     pub fn make(list: Option<Vec<TypeQual>>, token: Token) -> ParserNode {
         let span = Span::from_token(&token);
-        let mut list = list.unwrap_or_else(Vec::new);
+        let mut list = list.unwrap_or_default();
         let result = match token.as_type().unwrap() {
             TokenType::KeywordConst => TypeQual::Const(span),
             TokenType::KeywordVolatile => TypeQual::Volatile(span),
@@ -224,7 +224,7 @@ impl DeclaratorChunk {
         match self {
             DeclaratorChunk::Pointer { span, .. }
             | DeclaratorChunk::Array { span, .. }
-            | DeclaratorChunk::Function { span, .. } => span.clone()
+            | DeclaratorChunk::Function { span, .. } => *span
         }
     }
 
@@ -234,7 +234,7 @@ impl DeclaratorChunk {
     /// 注意返回的Chunk的数组
     pub fn make_pointer(token: Token, quals: Option<Vec<TypeQual>>, chunks: Option<Vec<DeclaratorChunk>>) -> ParserNode {
         let span = Span::from_token(&token);
-        let mut chunks = chunks.unwrap_or_else(Vec::new);
+        let mut chunks = chunks.unwrap_or_default();
         chunks.push(Self::Pointer { span, quals });
         chunks.into()
     }
@@ -263,7 +263,7 @@ impl DeclaratorChunk {
 
     pub fn make_old_function(mut declarator: Declarator, lparen: Token, ident_list: Option<Vec<Token>>, rparen: Token) -> ParserNode {
         let span = Span::from_tokens(&[lparen, rparen]);
-        let ident_list = ident_list.unwrap_or_else(Vec::new);
+        let ident_list = ident_list.unwrap_or_default();
         let params: Vec<_> = ident_list.into_iter().map(|x| {
             let span = Span::from_token(&x);
             let name = x.value.into_string().unwrap();
@@ -300,6 +300,7 @@ pub struct ParamList {
     pub params: Vec<ParamInfo>, // 参数列表
 }
 
+/// todo 这里两个大小差别很大，处理
 #[derive(Debug, Clone)]
 pub enum ParamInfo {
     Ident(String, Span),

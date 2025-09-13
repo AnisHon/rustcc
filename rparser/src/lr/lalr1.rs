@@ -8,16 +8,20 @@
 //! - 'AdvancedLALR1Builder': 合并算法LALR1构建器
 //!
 
-use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
-use crate::common::lr_type::{LRItem, LookaheadItemSet};
+use crate::common::grammar::{EndSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
+use crate::common::lr_type::{LRItem, LookaheadItemSet, LookaheadStateMap, Transitions};
 use crate::lr::lr0::{LR0Builder, LR0ItemSet};
 use crate::lr::lr1::LR1Builder;
-use crate::util::first_set::{build_first, FirstMap};
+use crate::util::first_set::{build_first, calc_suffix_first_set, FirstMap};
 use crate::util::set_utils::extend;
 use common::utils::id_util::IncIDFactory;
 use common::utils::unique_id_factory::UniqueIDFactory;
 use indexmap::IndexMap;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+
+type ItemStateMap = Vec<(usize, LRItem)>;
+type StateItemMap = IndexMap<(usize, LRItem), usize>;
+
 
 /// 使用LR0传播算法构建LALR(更快)
 ///
@@ -51,8 +55,14 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     }
 
 
+    ///
     /// 构建Table
-    pub fn build_table(self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
+    ///
+    /// # Returns
+    /// - `usize`: 初始状态
+    /// - `Transitions`: 转移表
+    /// - `LookaheadStateMap`: 项目集表
+    pub fn build_table(self) -> (LookaheadStateMap<T>, Transitions<T>, usize) {
         let (id_state_item_map, state_item_id_map) = self.item_state_map();
         let (graph, mut lookahead_item_set_map) = self.init_propagation(&state_item_id_map);
 
@@ -91,12 +101,17 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     }
 
 
-    /// 构建 id -> (state, LRItem) 的 Map
-    fn item_state_map(&self) -> (Vec<(usize, LRItem)>, IndexMap<(usize, LRItem), usize>) {
+    /// 构建 id -> (state, LRItem) 的 Map 还有 (usize, LRItem) -> id
+    /// (state, LRItem) 表示 (LR所在的state, LRItem)
+    ///
+    /// # Returns
+    /// - `ItemStateMap`: id -> (state, LRItem)
+    /// - `StateItemMap`: (usize, LRItem) -> id
+    fn item_state_map(&self) -> (ItemStateMap, StateItemMap) {
         let id_state_item_map: Vec<_> = self.id2item_map.iter()
-            .map(|(state, item_set)|
-                item_set.iter().cloned().map(|item| (state.clone(), item))
-            ).flatten()
+            .flat_map(|(state, item_set)|
+                item_set.iter().cloned().map(|item| (*state, item))
+            )
             .collect();
         let state_item_id_map: IndexMap<_, _> = id_state_item_map.iter()
             .cloned().enumerate()
@@ -112,7 +127,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     /// Vec<LookaheadItemSet<T>> LALR item set表
     fn init_propagation(&self, state_item_id_map: &IndexMap<(usize, LRItem), usize>) -> (Vec<BTreeSet<usize>>, IndexMap<usize, LookaheadItemSet<T>>) {
         let mut graph = Vec::new();
-        graph.resize_with(state_item_id_map.len(), || BTreeSet::new());
+        graph.resize_with(state_item_id_map.len(), BTreeSet::new);
 
         // 转换为LookaheadItemSet
         let mut id2lookahead_map: IndexMap<_, _> = self.id2item_map.iter().map(|(&idx, item_set)| {
@@ -191,7 +206,7 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     }
     /// 工具方法，获取rule，失败触发panic
     fn get_rule(&self, rule_id: RuleID) -> &RuleVec<T> {
-        self.grammar.get_rule(rule_id).expect(format!("rule id {} not found", rule_id).as_str())
+        self.grammar.get_rule(rule_id).unwrap_or_else(|| panic!("rule id {} not found", rule_id))
     }
 
 
@@ -201,44 +216,16 @@ impl<'a, T: SymbolBound> LALR1Builder<'a, T> {
     /// BTreeSet<EndSymbol<T>>: 自发lookahead
     /// bool: nullable
     fn calc_lookahead(&self, item: &LRItem) -> (BTreeSet<EndSymbol<T>>, bool) {
-        let mut spontaneous_lookahead: BTreeSet<EndSymbol<T>> = BTreeSet::new(); // 计算Lookahead是就是计算first
-
         let (rule_id, alter_idx) = item.rule;
         let expr = self.get_expr(rule_id, alter_idx).unwrap_expr();
 
-        let mut nullable = true;
-        for idx in (item.pos + 1)..expr.len() {
-            let rule_id = match &expr[idx] {
-                Symbol::Terminal(x) => { // 终结符不能推出空，非nullable，停止迭代
-                    spontaneous_lookahead.insert(EndSymbol::Symbol(x.clone()));
-                    nullable = false;
-                    break
-                },
-                Symbol::NonTerminal(x) => x
-            };
-
-            let first_set = &self.first_map[rule_id];
-            spontaneous_lookahead.extend(
-                first_set.iter()
-                    .filter(|&x| x.ne(&EpsilonSymbol::Epsilon))
-                    .map(|x| EndSymbol::Symbol(x.unwrap()))
-            );
-
-            if !first_set.contains(&EpsilonSymbol::Epsilon) { // 不能推出空退出
-                nullable = false;
-                break;
-            }
-        }
-
-        (spontaneous_lookahead, nullable)
+        calc_suffix_first_set(expr.iter().skip(item.pos + 1), &self.first_map)
     }
 
     /// 一次闭包，也就是将item传入后向后闭包一次
     fn once_closure(&self, item: &LRItem) -> Option<BTreeSet<LRItem>> {
-        let next_symbol = match item.next_symbol(self.grammar) {
-            Some(x) => x,
-            None => return None
-        };
+        let next_symbol = item.next_symbol(self.grammar)?;
+
         let rule_id = match next_symbol {
             Symbol::NonTerminal(x) => x,
             _ => return None
@@ -278,8 +265,14 @@ impl<T: SymbolBound> AdvancedLALR1Builder<T> {
         }
     }
 
-    /// 开始合并LR1
-    pub fn build_table(mut self) -> (IndexMap<usize, LookaheadItemSet<T>>, Vec<(usize, Symbol<T>, usize)>, usize) {
+    ///
+    /// 构建Table
+    ///
+    /// # Returns
+    /// - `usize`: 初始状态
+    /// - `Transitions`: 转移表
+    /// - `LookaheadStateMap`: 项目集表
+    pub fn build_table(mut self) -> (LookaheadStateMap<T>, Transitions<T>, usize) {
         let mut id_map = HashMap::new();
         let mut core_id_map = HashMap::new();
         let mut transitions = HashSet::new(); // 去重

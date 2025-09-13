@@ -5,7 +5,7 @@
 //! 计算first set
 //!
 
-use crate::common::grammar::{EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
+use crate::common::grammar::{EndSymbol, EpsilonSymbol, Grammar, Rule, RuleID, RuleVec, Symbol, SymbolBound};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use indexmap::IndexMap;
 
@@ -114,4 +114,41 @@ pub fn build_first<T: SymbolBound>(grammar: &Grammar<T>) -> FirstMap<T> {
     first_map
 }
 
+/// 计算从 pos+1 开始的符号串的 FIRST 集。
+/// 返回 (FIRST 集, 是否可空)
+pub fn calc_suffix_first_set<'a, T>(
+    expr: impl Iterator<Item = &'a Symbol<T>>,
+    first_map: &IndexMap<RuleID, BTreeSet<EpsilonSymbol<T>>>,
+) -> (BTreeSet<EndSymbol<T>>, bool)
+where
+    T: SymbolBound + 'a,
+{
+    let mut result = BTreeSet::new();
+    let mut nullable = true;
+
+    for symbol in expr {
+        match symbol {
+            Symbol::Terminal(x) => {
+                result.insert(EndSymbol::Symbol(x.clone()));
+                nullable = false;
+                break;
+            }
+            Symbol::NonTerminal(rule_id) => {
+                let first_set = &first_map[rule_id];
+                result.extend(
+                    first_set.iter()
+                        .filter(|&x| x.ne(&EpsilonSymbol::Epsilon))
+                        .map(|x| EndSymbol::Symbol(x.unwrap()))
+                );
+
+                if !first_set.contains(&EpsilonSymbol::Epsilon) {
+                    nullable = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    (result, nullable)
+}
 

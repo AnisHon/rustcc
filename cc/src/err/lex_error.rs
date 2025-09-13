@@ -5,10 +5,10 @@ pub type LexResult<T> = Result<T, LexError>;
 
 #[derive(Debug)]
 pub struct LexError {
-    pos: usize, 
-    line: usize,
-    msg: String,    // 错误信息    
-    content: String, // 错误位置
+    pub pos: usize,
+    pub line: usize,
+    pub msg: String,    // 错误信息
+    pub content: String, // 错误位置
     
 }
 

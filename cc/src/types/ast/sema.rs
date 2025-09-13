@@ -206,7 +206,7 @@ impl Expression {
 
     pub fn make_literal(constant: Constant) -> ParserNode {
         let span = constant.unwrap_span();
-        let kind = ExpressionKind::Literal(constant, span.clone());
+        let kind = ExpressionKind::Literal(constant, span);
         Expression { kind, ty: None, span }.into()
     }
 
@@ -287,8 +287,8 @@ impl Expression {
     }
 
     /// 第一个token是sizeof的值 -> sizeof expr
-    pub fn make_sizeof_expr(sizeof: Token, expr: Expression) -> ParserNode {
-        let span = expr.span.clone();
+    pub fn make_sizeof_expr(_sizeof: Token, expr: Expression) -> ParserNode {
+        let span = expr.span;
         let kind = ExpressionKind::SizeofExpr(Box::new(expr));
 
         Expression { kind, ty: None, span }.into()

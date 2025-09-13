@@ -29,9 +29,7 @@ impl DFABuilder {
         let transaction_table = self.build_translate_table();
         let state_table = self.build_status_table(&transaction_table);
         // let terminate_set = self.build_terminate_set(&state_table);
-        let dfa = self.build_dfa(transaction_table, state_table);
-
-        dfa
+        self.build_dfa(transaction_table, state_table)
     }
 
     fn id(&mut self) -> StateID {
@@ -45,8 +43,7 @@ impl DFABuilder {
         let mut stack: Vec<_> = state_ids.iter().copied().collect();
         let mut closure = BTreeSet::new(); // 元素少速度快，支持Hash
 
-        while !stack.is_empty() {
-            let state_id = stack.pop().unwrap();
+        while  let Some(state_id) = stack.pop() {
             closure.insert(state_id); // 放入
             let states = match self.nfa.find_next(state_id, NFASymbol::Epsilon) {
                 Some(next) => next,
@@ -97,8 +94,7 @@ impl DFABuilder {
         let mut table = Vec::new(); // 数量多，元素复杂，无需查询
         let mut visited = HashSet::new();
 
-        while !stack.is_empty() {
-            let states = stack.pop().unwrap();
+        while let Some(states) = stack.pop() {
             let symbols = self.get_symbols(&states);
 
             for sym in symbols {
@@ -120,7 +116,7 @@ impl DFABuilder {
 
     fn build_status_table(
         &mut self,
-        translate_table: &Vec<(BTreeSet<StateID>, ClassID, BTreeSet<StateID>)>,
+        translate_table: &[(BTreeSet<StateID>, ClassID, BTreeSet<StateID>)],
     ) -> IndexMap<BTreeSet<StateID>, StateID> {
         let mut table = IndexMap::new();
 

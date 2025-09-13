@@ -325,19 +325,19 @@ impl DeclarationSpecifiers {
     pub fn make_storage_class(item: SemanticValue, decl_spec_opt: SemanticValue) -> SemanticValue {
         let item = item.into_storage_class_specifier().unwrap();
         let decl_spec_opt = decl_spec_opt.into_declaration_specifiers_opt().unwrap()
-            .map(|x| Box::new(x));
+            .map(Box::new);
         SemanticValue::DeclarationSpecifiers(Self::StorageClass(item, decl_spec_opt))
     }
     pub fn make_type_specifier(item: SemanticValue, decl_spec_opt: SemanticValue) -> SemanticValue {
         let item = item.into_type_specifier().unwrap();
         let decl_spec_opt = decl_spec_opt.into_declaration_specifiers_opt().unwrap()
-            .map(|x| Box::new(x));
+            .map(Box::new);
         SemanticValue::DeclarationSpecifiers(Self::TypeSpecifier(item, decl_spec_opt))
     }
     pub fn make_type_qualifier(item: SemanticValue, decl_spec_opt: SemanticValue) -> SemanticValue {
         let item = item.into_type_qualifier().unwrap();
         let decl_spec_opt = decl_spec_opt.into_declaration_specifiers_opt().unwrap()
-            .map(|x| Box::new(x));
+            .map(Box::new);
         SemanticValue::DeclarationSpecifiers(Self::TypeQualifier(item, decl_spec_opt))
     }
 }
@@ -1485,13 +1485,13 @@ impl SpecifierQualifierList {
     pub fn make_type_specifier(type_specifier: SemanticValue, speci_qual_list_opt: SemanticValue) -> SemanticValue {
         let type_specifier = type_specifier.into_type_specifier().unwrap();
         let speci_qual_list_opt = speci_qual_list_opt.into_specifier_qualifier_list_opt()
-            .unwrap().map(|x| Box::new(x));
+            .unwrap().map(Box::new);
         SemanticValue::SpecifierQualifierList(Self::TypeSpecifier(type_specifier, speci_qual_list_opt))
     }
     pub fn make_type_qualifier(type_qualifier: SemanticValue, speci_qual_list_opt: SemanticValue) -> SemanticValue {
         let type_specifier = type_qualifier.into_type_qualifier().unwrap();
         let speci_qual_list_opt = speci_qual_list_opt.into_specifier_qualifier_list_opt()
-            .unwrap().map(|x| Box::new(x));
+            .unwrap().map(Box::new);
         SemanticValue::SpecifierQualifierList(Self::TypeQualifier(type_specifier, speci_qual_list_opt))
     }
 }

@@ -13,8 +13,8 @@ pub struct StateMeta {
     pub terminate: bool, // 其他
 }
 
-impl StateMeta {
-    pub fn default() -> StateMeta {
+impl Default for StateMeta {
+    fn default() -> StateMeta {
         StateMeta {
             id: StateID::MAX,
             priority: StateID::MAX,

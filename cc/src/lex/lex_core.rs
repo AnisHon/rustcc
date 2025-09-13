@@ -129,10 +129,8 @@ impl <R: Read> Lex<R> {
     fn next_char(&mut self) -> Option<char> {
         // 计算偏移值, pos - buff_begin_pos
         let buff_pos = self.get_buff_pos();
-        if buff_pos >= self.buff.len() {
-            if !self.read_line() {
-                return None;
-            }
+        if buff_pos >= self.buff.len() && !self.read_line() {
+            return None;
         }
 
         let char = self.buff[buff_pos];
@@ -182,10 +180,7 @@ impl <R: Read> Iterator for Lex<R> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let result = match self.next_token() {
-                None => return None,
-                Some(x) => x
-            };
+            let result = self.next_token()?;
 
             let mut token = match result { // 错误处理未实现
                 Ok(x) => x,

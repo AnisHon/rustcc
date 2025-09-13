@@ -1,3 +1,3 @@
 
 pub mod lex_yy;
-pub mod lex;
+pub mod lex_core;
