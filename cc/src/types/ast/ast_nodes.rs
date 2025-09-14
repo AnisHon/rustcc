@@ -1,7 +1,7 @@
 //!
 //! 定义了语义化AST节点
 //!
-use crate::types::span::Span;
+use crate::types::span::{Span, UnwrapSpan};
 use crate::types::symbol_table::Symbol;
 use enum_as_inner::EnumAsInner;
 use std::rc::Rc;
@@ -16,33 +16,45 @@ pub struct TranslationUnit {
 }
 
 
-
-
 // 外部声明：函数或变量
 #[derive(Debug, Clone)]
 pub enum ExternalDeclaration {
-    Function(FunctionDefinition, Span),
-    Variable(Declaration, Span),
+    Function(Box<FunctionDefinition>, Span),
+    Declaration(Box<DeclStmt>, Span),
 }
 
+impl UnwrapSpan for ExternalDeclaration {
+
+    fn unwrap_span(&self) -> Span {
+        match self {
+            ExternalDeclaration::Function(_, x) => *x,
+            ExternalDeclaration::Declaration(_, x) => *x
+        }
+    }
+}
 
 // 函数定义
 #[derive(Debug, Clone)]
 pub struct FunctionDefinition {
     pub name: String,
-    pub ret_ty: Type,
+    pub ret_ty: Box<Type>,
     pub params: Vec<Parameter>,
     pub is_variadic: bool,
-    pub body: Option<Block>, // None for extern declarations
+    pub body: Option<Box<Block>>, // None for extern declarations
     pub span: Span,
 }
 
+#[derive(Clone, Debug)]
+pub struct DeclStmt {
+    pub decls: Vec<Declaration>,
+    pub span: Span,
+}
 
 // 变量声明
 #[derive(Debug, Clone)]
 pub struct Declaration {
     pub name: String,
-    pub ty: Type,
+    pub ty: Box<Type>,
     pub storage: Option<StorageClass>,
     pub qualifiers: Qualifiers,
     pub init: Option<Initializer>,
@@ -63,6 +75,23 @@ pub enum Type {
     Union { name: Option<String>, fields: Vec<Field>, span: Span },
     Enum { name: Option<String>, values: Vec<(String, i64)>, span: Span },
     NamedType { name: String, decl_ref: Option<Rc<Symbol>>,span: Span, }
+}
+
+impl UnwrapSpan for Type {
+    fn unwrap_span(&self) -> Span {
+        match self {
+            Type::Void(x) => *x,
+            Type::Integer { span, .. } => *span,
+            Type::Floating { span, .. } => *span,
+            Type::Pointer(_, x) => *x,
+            Type::Array { span, .. } => *span,
+            Type::Function { span, .. } => *span,
+            Type::Struct { span, .. } => *span,
+            Type::Union { span, .. } => *span,
+            Type::Enum { span, .. } => *span,
+            Type::NamedType { span, .. } => *span,
+        }
+    }
 }
 
 impl Type {
@@ -173,11 +202,11 @@ pub struct Parameter {
 // 初始化器
 #[derive(Debug, Clone)]
 pub enum Initializer {
-    Scalar(Expression, Span),
+    Scalar(Box<Expression>, Span),
     List(Vec<Initializer>, Span),
 }
 
-// 语句块
+/// 语句块
 #[derive(Debug, Clone)]
 pub struct Block {
     pub items: Vec<BlockItem>,
@@ -186,25 +215,62 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum BlockItem {
-    Declaration(Declaration, Span),
-    Statement(Statement, Span),
+    Declaration(Box<DeclStmt>, Span),
+    Statement(Box<Statement>, Span),
 }
 
 // 语句
 /// todo 差别太大 IF For
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Labeled { label: String, stmt: Box<Statement>, span: Span },
-    Case { value: i64, stmt: Box<Statement>, span: Span }, // constant-evaluated
-    Default { stmt: Box<Statement>, span: Span },
-    Block(Block, Span),
+    Labeled {
+        label: String,
+        stmt: Box<Statement>,
+        span: Span
+    },
+    Case { // constant-evaluated
+        value: i64,
+        stmt: Box<Statement>,
+        span: Span
+    },
+    Default {
+        stmt: Box<Statement>,
+        span: Span
+    },
+    Block(Box<Block>, Span),
     Expression(Option<Expression>, Span),
-    If { cond: Expression, then_stmt: Box<Statement>, else_stmt: Option<Box<Statement>>, span: Span },
-    Switch { cond: Expression, body: Box<Statement>, span: Span },
-    While { cond: Expression, body: Box<Statement>, span: Span },
-    DoWhile { body: Box<Statement>, cond: Expression, span: Span },
-    For { init: Option<Expression>, cond: Option<Expression>, step: Option<Expression>, body: Box<Statement>, span: Span },
-    Goto { label: String, span: Span },
+    If {
+        cond: Box<Expression>,
+        then_stmt: Box<Statement>,
+        else_stmt: Option<Box<Statement>>,
+        span: Span
+    },
+    Switch {
+        cond: Box<Expression>,
+        body: Box<Statement>,
+        span: Span
+    },
+    While {
+        cond: Box<Expression>,
+        body: Box<Statement>,
+        span: Span
+    },
+    DoWhile {
+        body: Box<Statement>,
+        cond: Box<Expression>,
+        span: Span
+    },
+    For {
+        init: Option<Expression>,
+        cond: Option<Box<Expression>>,
+        step: Option<Box<Expression>>,
+        body: Box<Statement>,
+        span: Span
+    },
+    Goto {
+        label: String,
+        span: Span
+    },
     Continue(Span),
     Break(Span),
     Return(Option<Expression>, Span),
@@ -227,7 +293,8 @@ impl Statement {
             | Statement::Goto { span, .. }
             | Statement::Continue(span)
             | Statement::Break(span)
-            | Statement::Return(_, span) => *span
+            | Statement::Return(_, span) => *span,
+            // Statement::Decl (decl) => decl.span,
         }
     }
 
@@ -270,23 +337,58 @@ impl Expression {
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum ExpressionKind {
     Literal(Constant, Span),
-    Id { name: String, decl_ref: Option<Rc<Symbol>> }, // decl_ref 指向符号表索引
-    ArrayAccess { base: Box<Expression>, index: Box<Expression> },
-    Call { func: Box<Expression>, args: Vec<Expression> },
-    FieldAccess { base: Box<Expression>, field: String },
-    Arrow { base: Box<Expression>, field: String },
+    Id { // decl_ref 指向符号表索引
+        name: String,
+        decl_ref: Option<Rc<Symbol>>
+    },
+    ArrayAccess {
+        base: Box<Expression>,
+        index: Box<Expression>
+    },
+    Call {
+        func: Box<Expression>,
+        args: Vec<Expression>
+    },
+    FieldAccess {
+        base: Box<Expression>,
+        field: String
+    },
+    Arrow {
+        base: Box<Expression>,
+        field: String
+    },
     PostInc(Box<Expression>),
     PostDec(Box<Expression>),
     PreInc(Box<Expression>),
     PreDec(Box<Expression>),
-    Unary { op: UnaryOp, expr: Box<Expression> },
+    Unary {
+        op: UnaryOp,
+        expr: Box<Expression>
+    },
     SizeofExpr(Box<Expression>),
-    SizeofType(Type),
-    Cast { ty: Type, expr: Box<Expression> },
-    Binary { op: BinaryOp, lhs: Box<Expression>, rhs: Box<Expression> },
-    Conditional { cond: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression> },
-    Assign { lhs: Box<Expression>, op: AssignOp, rhs: Box<Expression> },
-    Comma { exprs: Vec<Expression> },
+    SizeofType(Box<Type>),
+    Cast {
+        ty: Box<Type>,
+        expr: Box<Expression>
+    },
+    Binary {
+        op: BinaryOp,
+        lhs: Box<Expression>,
+        rhs: Box<Expression>
+    },
+    Conditional {
+        cond: Box<Expression>,
+        then_expr: Box<Expression>,
+        else_expr: Box<Expression>
+    },
+    Assign {
+        lhs: Box<Expression>,
+        op: AssignOp,
+        rhs: Box<Expression>
+    },
+    Comma {
+        exprs: Vec<Expression>
+    },
 }
 
 #[derive(Debug, Clone)]

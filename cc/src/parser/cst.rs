@@ -1,5 +1,8 @@
+#![allow(clippy::all)]
+
 use enum_as_inner::EnumAsInner;
 use crate::types::token::Token;
+
 
 macro_rules! make_opt {
     ($field:ident, $variant:ident, $func_name:ident) => {

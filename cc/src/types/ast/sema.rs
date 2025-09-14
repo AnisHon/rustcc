@@ -3,10 +3,12 @@
 //! Sema函数会做语义检查，类型检查，错误处理 和 错误恢复
 //!
 
+use std::mem;
 use crate::lex::lex_yy::TokenType;
 use crate::types::ast::ast_nodes::*;
+use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclaratorChunk, TypeQual};
 use crate::types::ast::parser_node::ParserNode;
-use crate::types::span::Span;
+use crate::types::span::{Span, UnwrapSpan};
 use crate::types::token::{Token, TokenValue};
 
 impl TranslationUnit {
@@ -24,41 +26,10 @@ impl TranslationUnit {
     }
 }
 
-
-impl ExternalDeclaration {
-
-    pub fn make_func(func_def: FunctionDefinition) -> ParserNode {
-        let span = func_def.span;
-        Self::Function(func_def, span).into()
-    }
-
-    pub fn make_variable(decl: Declaration) -> ParserNode {
-        let span = decl.span;
-        Self::Variable(decl, span).into()
-    }
-
-    pub fn unwrap_span(&self) -> Span {
-        match self {
-            ExternalDeclaration::Function(_, x) => *x,
-            ExternalDeclaration::Variable(_, x) => *x
-        }
-    }
-}
-
 impl Type {
-    pub fn unwarp_span(&self) -> Span {
-        match self {
-            Type::Void(x) => *x,
-            Type::Integer { span, .. } => *span,
-            Type::Floating { span, .. } => *span,
-            Type::Pointer(_, x) => *x,
-            Type::Array { span, .. } => *span,
-            Type::Function { span, .. } => *span,
-            Type::Struct { span, .. } => *span,
-            Type::Union { span, .. } => *span,
-            Type::Enum { span, .. } => *span,
-            Type::NamedType { span, .. } => *span,
-        }
+
+    pub fn make_type(_chunk: Vec<DeclaratorChunk>) -> Self {
+        todo!() // todo 未实现
     }
 
     pub fn set_span(&mut self, set: Span) {
@@ -79,6 +50,7 @@ impl Type {
     }
 }
 
+
 impl Qualifiers {
 
     pub fn new(is_const: bool, is_volatile: bool) -> Self {
@@ -87,26 +59,30 @@ impl Qualifiers {
             is_volatile
         }
     }
-    pub fn make(decl: Option<Qualifiers>, qual: Token) -> ParserNode {
-        let result = match (decl, qual.as_type().unwrap()) {
-            (None, TokenType::KeywordConst) => Qualifiers::new(true, false),
-            (Some(mut decl), TokenType::KeywordConst) => {decl.set_const(); decl},
-            (None, TokenType::KeywordVolatile) => Qualifiers::new(false, true),
-            (Some(mut decl), TokenType::KeywordVolatile) => {decl.set_volatile(); decl},
-            _ => unreachable!(),
-        };
 
-        result.into()
+    pub fn set(&mut self, type_qual: TypeQual) {
+        match type_qual {
+            TypeQual::Const(_x) => {
+                if self.is_const {
+                    panic!("duplicate 'const'");
+                } else {
+                    self.is_const = true;
+                }
+            }
+            TypeQual::Volatile(_x) => {
+                if self.is_volatile {
+                    panic!("duplicate 'volatile'");
+                } else {
+                    self.is_volatile = true;
+                }
+            }
+        }
     }
+}
 
-    pub fn set_const(&mut self) {
-        // todo 检查
-        self.is_const = true;
-    }
-
-    pub fn set_volatile(&mut self) {
-        // todo 检查
-        self.is_volatile = true;
+impl Default for Qualifiers {
+    fn default() -> Self {
+        Self::new(false, false)
     }
 }
 
@@ -142,12 +118,12 @@ impl Statement {
             Some(x) => span.merge(&x.unwrap_span())
         };
 
-        Statement::If { cond, then_stmt: Box::new(then_stmt), else_stmt: else_stmt.map(Box::new), span }.into()
+        Statement::If { cond: Box::new(cond), then_stmt: Box::new(then_stmt), else_stmt: else_stmt.map(Box::new), span }.into()
     }
 
     pub fn make_switch(switch_token: Token, cond: Expression, body: Statement) -> ParserNode {
         let span = Span::from_token(&switch_token).merge(&body.unwrap_span());
-        Statement::Switch { cond, body: Box::new(body), span }.into()
+        Statement::Switch { cond: Box::new(cond), body: Box::new(body), span }.into()
     }
     pub fn make_while(while_token: Token, cond: Expression, body: Statement, rparen: Option<Token>) -> ParserNode {
         let span = Span::from_token(&while_token).merge(&body.unwrap_span());
@@ -156,8 +132,8 @@ impl Statement {
             Some(x) => Span::from_token(&x).merge(&span)
         };
         let result = match while_token.as_type().unwrap() {
-            TokenType::KeywordWhile => Statement::While { cond, body: Box::new(body), span },
-            TokenType::KeywordDo => Statement::DoWhile { cond, body: Box::new(body), span },
+            TokenType::KeywordWhile => Statement::While { cond: Box::new(cond), body: Box::new(body), span },
+            TokenType::KeywordDo => Statement::DoWhile { cond: Box::new(cond), body: Box::new(body), span },
             _ => unreachable!()
         };
         result.into()
@@ -165,7 +141,7 @@ impl Statement {
 
     pub fn make_for(for_token: Token, init_opt: Option<Expression>, cond_opt: Option<Expression>, step_opt: Option<Expression>, body: Statement) -> ParserNode {
         let span = Span::from_token(&for_token).merge(&body.unwrap_span());
-        Statement::For { init: init_opt, cond: cond_opt, step: step_opt, body: Box::new(body), span }.into()
+        Statement::For { init: init_opt, cond: cond_opt.map(Box::new), step: step_opt.map(Box::new), body: Box::new(body), span }.into()
     }
 
     /// 第一个token是goto
@@ -297,7 +273,7 @@ impl Expression {
     /// 第一个token是sizeof的值 -> sizeof(type) <- 第二个是第二个括号
     pub fn make_sizeof_type(sizeof: Token, typ: Type, rparen: Token) -> ParserNode {
         let span = Span::from_token(&sizeof).merge(&Span::from_token(&rparen));
-        let kind = ExpressionKind::SizeofType(typ);
+        let kind = ExpressionKind::SizeofType(Box::new(typ));
 
         Expression { kind, ty: None, span }.into()
     }
@@ -306,7 +282,7 @@ impl Expression {
     /// 第一个token 是类型转换的第一个括号-> (X)X
     pub fn make_cast(token: Token, typ: Type, expr: Expression) -> ParserNode {
         let span = Span::from_token(&token).merge(&expr.span);
-        let kind = ExpressionKind::Cast { ty: typ, expr: Box::new(expr) };
+        let kind = ExpressionKind::Cast { ty: Box::new(typ), expr: Box::new(expr) };
 
         Expression { kind, ty: None, span }.into()
     }
@@ -431,5 +407,47 @@ impl Constant {
             Constant::Char(_, _) => Type::Integer {signed: true, size: IntegerSize::Char, span},
             Constant::String(x, _) => Type::string_type(x.len() as u64, span),
         }
+    }
+}
+
+
+
+impl Declaration {
+    pub fn make_decl(decl_spec: DeclSpec, declarator: Declarator, init: Option<Initializer>) -> ParserNode {
+        let span = declarator.span.merge(&declarator.span);
+        let mut qualifiers = Qualifiers::default();
+
+        for qual in decl_spec.type_quals {
+            qualifiers.set(qual);
+        }
+
+        let mut storage: Option<StorageClass> = None;
+
+        for x in decl_spec.storage_class {
+            if storage.is_none() {
+                storage = Some(x);
+            } else {
+                let origin = storage.as_mut().unwrap();
+                let new = &x;
+                if mem::discriminant(origin) == mem::discriminant(new) { // 如果是同一类就是duplicate
+                    panic!("duplicate '{:?}' specifier", x)
+                } else {
+                    panic!("'{:?}' specifier conflicts with '{:?}'", origin, new)
+                }
+
+            }
+        }
+
+
+
+        Self {
+            name: declarator.name.unwrap(), //
+            ty: Box::new(Type::make_type(declarator.chunks)),
+            storage,
+            qualifiers,
+            init,
+            span
+        }.into()
+
     }
 }

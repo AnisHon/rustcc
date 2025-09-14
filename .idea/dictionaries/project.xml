@@ -6,11 +6,13 @@
       <w>decls</w>
       <w>endfor</w>
       <w>exprs</w>
+      <w>lbrace</w>
       <w>lbracket</w>
       <w>lparen</w>
       <w>noassoc</w>
       <w>nonassoc</w>
       <w>prec</w>
+      <w>rbrace</w>
       <w>rbracket</w>
       <w>rlexer</w>
       <w>rparen</w>

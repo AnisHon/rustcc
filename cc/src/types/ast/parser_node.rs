@@ -6,9 +6,10 @@
 //! 配套定义了From Into(包括Option<T>)，在Parser阶段调用Into自动解开
 //!
 
-
 use crate::types::ast::ast_nodes::*;
-use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclaratorChunk, StructOrUnionSpec, TypeQual, TypeSpec};
+use crate::types::ast::decl_info::{CompleteDecl, DeclSpec, Declarator, DeclaratorChunk, ParamList, TypeQual, TypeSpec};
+use crate::types::ast::struct_info::{EnumSpec, Enumerator, StructDeclarator, StructMember, StructOrUnionSpec};
+use crate::types::span::{SepList, Span};
 use crate::types::token::Token;
 
 
@@ -75,14 +76,23 @@ pub enum ParserNode {
     AssignOpNode(AssignOp),
     DeclSpecNode(DeclSpec),
     DeclaratorNode(Declarator),
+    CompleteDeclNode(CompleteDecl),
     DeclChunkNode(DeclaratorChunk),
     DeclChunkList(Vec<DeclaratorChunk>),
     TypeSpecNode(TypeSpec),
     TypeQualNode(TypeQual),
     TypeQualListNode(Vec<TypeQual>),
     StructOrUnionSpecNode(StructOrUnionSpec),
+    StructMemberNode(StructMember),
+    StructMemberListNode(Vec<StructMember>),
+    StructDeclaratorNode(StructDeclarator),
+    StructDeclaratorListNode(SepList<StructDeclarator>),
+    EnumSpecNode(EnumSpec),
+    EnumListNode(SepList<Enumerator>),
+    EnumeratorNode(Enumerator),
     TokenNode(Token),
-    TokenListNode(Vec<Token>),
+    TokenListNode(SepList<Token>),
+    ParamListNode(ParamList),
     None,
 }
 
@@ -114,19 +124,33 @@ impl_from_variants!(ParserNode {
     UnaryOpNode(UnaryOp),
     BinaryOpNode(BinaryOp),
     AssignOpNode(AssignOp),
+    DeclSpecNode(DeclSpec),
     DeclaratorNode(Declarator),
+    CompleteDeclNode(CompleteDecl),
     DeclChunkNode(DeclaratorChunk),
     DeclChunkList(Vec<DeclaratorChunk>),
     TypeSpecNode(TypeSpec),
     TypeQualNode(TypeQual),
     TypeQualListNode(Vec<TypeQual>),
     StructOrUnionSpecNode(StructOrUnionSpec),
+    StructMemberNode(StructMember),
+    StructMemberListNode(Vec<StructMember>),
+    StructDeclaratorNode(StructDeclarator),
+    StructDeclaratorListNode(SepList<StructDeclarator>),
+    EnumSpecNode(EnumSpec),
+    EnumListNode(SepList<Enumerator>),
+    EnumeratorNode(Enumerator),
     TokenNode(Token),
-    TokenListNode(Vec<Token>),
+    ParamListNode(ParamList),
+    TokenListNode(SepList<Token>),
 });
 
-pub fn make_ident_list(ident_list: Option<Vec<Token>>, ident: Token) -> ParserNode {
+pub fn make_ident_list(ident_list: Option<SepList<Token>>, comma: Option<Token>, ident: Token) -> ParserNode {
     let mut ident_list = ident_list.unwrap_or_default();
-    ident_list.push(ident);
+    ident_list.push_item(ident);
+
+    if let Some(x) = comma {
+        ident_list.push_sep(Span::from_token(&x));
+    }
     ident_list.into()
 }

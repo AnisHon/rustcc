@@ -55,7 +55,7 @@ impl CharClassSet {
         let ranges: Vec<_> = ranges
             .iter()
             .map(|(l, r, tags)| {
-                let mut tags: Vec<usize> = tags.into_iter().copied().collect();
+                let mut tags: Vec<usize> = tags.iter().copied().collect();
                 tags.sort_unstable();
                 (l, r, tags)
             })

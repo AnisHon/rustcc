@@ -260,7 +260,7 @@ pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<
                 crate::common::grammar::Rule::Epsilon
             } else {
                 // 非空，遍历所有symbol
-                let symbol_vec: SymbolVec<_> = symbols.into_iter().map(|symbol|{
+                let symbol_vec: SymbolVec<_> = symbols.iter().map(|symbol|{
                     if non_terminal.contains_key(symbol) { // 非终结符
                         Symbol::NonTerminal(non_terminal[symbol]) // 查Rule ID
                     } else { // 终结符
