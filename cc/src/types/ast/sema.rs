@@ -3,10 +3,12 @@
 //! Sema函数会做语义检查，类型检查，错误处理 和 错误恢复
 //!
 
+use std::mem;
 use crate::lex::lex_yy::TokenType;
 use crate::types::ast::ast_nodes::*;
+use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclaratorChunk, TypeQual};
 use crate::types::ast::parser_node::ParserNode;
-use crate::types::span::Span;
+use crate::types::span::{Span, UnwrapSpan};
 use crate::types::token::{Token, TokenValue};
 
 impl TranslationUnit {
@@ -32,33 +34,23 @@ impl ExternalDeclaration {
         Self::Function(func_def, span).into()
     }
 
-    pub fn make_variable(decl: Declaration) -> ParserNode {
-        let span = decl.span;
-        Self::Variable(decl, span).into()
+    pub fn make_variable(decl_stmt: DeclStmt) -> ParserNode {
+        let span = decl_stmt.span;
+        Self::Declaration(decl_stmt, span).into()
     }
 
     pub fn unwrap_span(&self) -> Span {
         match self {
             ExternalDeclaration::Function(_, x) => *x,
-            ExternalDeclaration::Variable(_, x) => *x
+            ExternalDeclaration::Declaration(_, x) => *x
         }
     }
 }
 
 impl Type {
-    pub fn unwarp_span(&self) -> Span {
-        match self {
-            Type::Void(x) => *x,
-            Type::Integer { span, .. } => *span,
-            Type::Floating { span, .. } => *span,
-            Type::Pointer(_, x) => *x,
-            Type::Array { span, .. } => *span,
-            Type::Function { span, .. } => *span,
-            Type::Struct { span, .. } => *span,
-            Type::Union { span, .. } => *span,
-            Type::Enum { span, .. } => *span,
-            Type::NamedType { span, .. } => *span,
-        }
+
+    pub fn make_type(chunk: Vec<DeclaratorChunk>) -> Self {
+        todo!() // todo 未实现
     }
 
     pub fn set_span(&mut self, set: Span) {
@@ -79,6 +71,24 @@ impl Type {
     }
 }
 
+impl UnwrapSpan for Type {
+    fn unwrap_span(&self) -> Span {
+        match self {
+            Type::Void(x) => *x,
+            Type::Integer { span, .. } => *span,
+            Type::Floating { span, .. } => *span,
+            Type::Pointer(_, x) => *x,
+            Type::Array { span, .. } => *span,
+            Type::Function { span, .. } => *span,
+            Type::Struct { span, .. } => *span,
+            Type::Union { span, .. } => *span,
+            Type::Enum { span, .. } => *span,
+            Type::NamedType { span, .. } => *span,
+        }
+    }
+}
+
+
 impl Qualifiers {
 
     pub fn new(is_const: bool, is_volatile: bool) -> Self {
@@ -87,26 +97,30 @@ impl Qualifiers {
             is_volatile
         }
     }
-    pub fn make(decl: Option<Qualifiers>, qual: Token) -> ParserNode {
-        let result = match (decl, qual.as_type().unwrap()) {
-            (None, TokenType::KeywordConst) => Qualifiers::new(true, false),
-            (Some(mut decl), TokenType::KeywordConst) => {decl.set_const(); decl},
-            (None, TokenType::KeywordVolatile) => Qualifiers::new(false, true),
-            (Some(mut decl), TokenType::KeywordVolatile) => {decl.set_volatile(); decl},
-            _ => unreachable!(),
-        };
 
-        result.into()
+    pub fn set(&mut self, type_qual: TypeQual) {
+        match type_qual {
+            TypeQual::Const(_x) => {
+                if self.is_const {
+                    panic!("duplicate 'const'");
+                } else {
+                    self.is_const = true;
+                }
+            }
+            TypeQual::Volatile(_x) => {
+                if self.is_volatile {
+                    panic!("duplicate 'volatile'");
+                } else {
+                    self.is_volatile = true;
+                }
+            }
+        }
     }
+}
 
-    pub fn set_const(&mut self) {
-        // todo 检查
-        self.is_const = true;
-    }
-
-    pub fn set_volatile(&mut self) {
-        // todo 检查
-        self.is_volatile = true;
+impl Default for Qualifiers {
+    fn default() -> Self {
+        Self::new(false, false)
     }
 }
 
@@ -431,5 +445,47 @@ impl Constant {
             Constant::Char(_, _) => Type::Integer {signed: true, size: IntegerSize::Char, span},
             Constant::String(x, _) => Type::string_type(x.len() as u64, span),
         }
+    }
+}
+
+
+
+impl Declaration {
+    pub fn make_decl(decl_spec: DeclSpec, declarator: Declarator, init: Option<Initializer>) -> ParserNode {
+        let span = declarator.span.merge(&declarator.span);
+        let mut qualifiers = Qualifiers::default();
+
+        for qual in decl_spec.type_quals {
+            qualifiers.set(qual);
+        }
+
+        let mut storage: Option<StorageClass> = None;
+
+        for x in decl_spec.storage_class {
+            if storage.is_none() {
+                storage = Some(x);
+            } else {
+                let origin = storage.as_mut().unwrap();
+                let new = &x;
+                if mem::discriminant(origin) == mem::discriminant(new) { // 如果是同一类就是duplicate
+                    panic!("duplicate '{:?}' specifier", x)
+                } else {
+                    panic!("'{:?}' specifier conflicts with '{:?}'", origin, new)
+                }
+
+            }
+        }
+
+
+
+        Self {
+            name: declarator.name.unwrap(), //
+            ty: Type::make_type(declarator.chunks),
+            storage,
+            qualifiers,
+            init,
+            span
+        }.into()
+
     }
 }

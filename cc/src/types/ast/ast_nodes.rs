@@ -16,13 +16,11 @@ pub struct TranslationUnit {
 }
 
 
-
-
 // 外部声明：函数或变量
 #[derive(Debug, Clone)]
 pub enum ExternalDeclaration {
     Function(FunctionDefinition, Span),
-    Variable(Declaration, Span),
+    Declaration(DeclStmt, Span),
 }
 
 
@@ -37,6 +35,11 @@ pub struct FunctionDefinition {
     pub span: Span,
 }
 
+#[derive(Clone, Debug)]
+pub struct DeclStmt {
+    pub decls: Vec<Declaration>,
+    pub span: Span,
+}
 
 // 变量声明
 #[derive(Debug, Clone)]
@@ -186,7 +189,7 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum BlockItem {
-    Declaration(Declaration, Span),
+    Declaration(DeclStmt, Span),
     Statement(Statement, Span),
 }
 
@@ -227,7 +230,8 @@ impl Statement {
             | Statement::Goto { span, .. }
             | Statement::Continue(span)
             | Statement::Break(span)
-            | Statement::Return(_, span) => *span
+            | Statement::Return(_, span) => *span,
+            // Statement::Decl (decl) => decl.span,
         }
     }
 

@@ -1,21 +1,92 @@
 //!
-//! temp_nodes 是中间节点的类型定义（或者说是未解析节点定义），辅助sema构造
+//! 声明相关中间节点的类型定义（或者说是未解析节点定义），辅助sema构造
+//!
+//! # Members
+//! - `DeclSpec`:
+//! - `TypeQual`:
+//! - `DeclaratorInfo`:
+//! - `DeclaratorChunk`:
+//! - `ArraySizeModifier`:
+//! - `ParamList`:
+//! - `ParamInfo`:
 //!
 
 use crate::lex::lex_yy::TokenType;
-use crate::types::span::Span;
+use crate::types::span::{Delim, SepList, Span, UnwrapSpan};
 use crate::types::ast::ast_nodes;
-use crate::types::ast::ast_nodes::ExpressionKind;
+use crate::types::ast::ast_nodes::{ExpressionKind, StorageClass};
 use crate::types::ast::parser_node::ParserNode;
+use crate::types::ast::struct_info::{EnumSpec, StructOrUnionSpec};
 use crate::types::token::Token;
 
+
 #[derive(Debug, Clone)]
-pub struct DeclSpec {
-    pub storage_class: Option<Token>,
-    pub type_quals: Vec<Token>,
-    pub type_specs: Vec<TypeSpec>,
-    pub decl: Declarator,
-    pub span: Span,
+pub enum TypeSpec {
+    Void(Span),
+    Char(Span),
+    Short(Span),
+    Int(Span),
+    Long(Span),
+    Signed(Span),
+    Unsigned(Span),
+    Float(Span),
+    Double(Span),
+    StructOrUnion(StructOrUnionSpec, Span),
+    Enum(EnumSpec, Span),
+    TypeName(String, Span)
+}
+
+impl TypeSpec {
+    pub fn make_simple(token: Token) -> ParserNode {
+        let span = Span::from_token(&token);
+        let result = match token.as_type().unwrap() {
+            TokenType::KeywordVoid => TypeSpec::Void(span),
+            TokenType::KeywordChar => TypeSpec::Char(span),
+            TokenType::KeywordShort => TypeSpec::Short(span),
+            TokenType::KeywordInt => TypeSpec::Int(span),
+            TokenType::KeywordLong => TypeSpec::Long(span),
+            TokenType::KeywordSigned => TypeSpec::Signed(span),
+            TokenType::KeywordUnsigned => TypeSpec::Unsigned(span),
+            TokenType::KeywordFloat => TypeSpec::Float(span),
+            TokenType::KeywordDouble => TypeSpec::Double(span),
+            TokenType::TypeName => {
+                let typename = token.value.into_string().unwrap();
+                TypeSpec::TypeName(typename, span)
+            },
+            _ => unreachable!()
+        };
+
+        result.into()
+    }
+
+    pub fn make_struct_or_union(struct_or_union_spec: StructOrUnionSpec) -> ParserNode {
+        let span = struct_or_union_spec.span;
+        TypeSpec::StructOrUnion(struct_or_union_spec, span).into()
+    }
+
+    pub fn make_enum(enum_spec: EnumSpec) -> ParserNode {
+        let span = enum_spec.span;
+        TypeSpec::Enum(enum_spec, span).into()
+    }
+}
+
+impl UnwrapSpan for TypeSpec {
+    fn unwrap_span(&self) -> Span {
+        match self {
+            TypeSpec::Void(x)
+            | TypeSpec::Char(x)
+            | TypeSpec::Short(x)
+            | TypeSpec::Int(x)
+            | TypeSpec::Long(x)
+            | TypeSpec::Signed(x)
+            | TypeSpec::Unsigned(x)
+            | TypeSpec::Float(x)
+            | TypeSpec::Double(x)
+            | TypeSpec::StructOrUnion(_, x)
+            | TypeSpec::Enum(_, x)
+            | TypeSpec::TypeName(_, x) => *x
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -47,165 +118,191 @@ impl TypeQual {
 }
 
 #[derive(Debug, Clone)]
-pub enum TypeSpec {
-    Void(Span),
-    Char(Span),
-    Short(Span),
-    Int(Span),
-    Long(Span),
-    Signed(Span),
-    Unsigned(Span),
-    Float(Span),
-    Double(Span),
-    StructOrUnion(StructOrUnionSpec),
-    Enum(EnumSpec),
-    TypeName(String, Span)
-}
-
-impl TypeSpec {
-    pub fn make_simple(token: Token) -> ParserNode {
-        let span = Span::from_token(&token);
-        let result = match token.as_type().unwrap() {
-            TokenType::KeywordVoid => TypeSpec::Void(span),
-            TokenType::KeywordChar => TypeSpec::Char(span),
-            TokenType::KeywordShort => TypeSpec::Short(span),
-            TokenType::KeywordInt => TypeSpec::Int(span),
-            TokenType::KeywordLong => TypeSpec::Long(span),
-            TokenType::KeywordSigned => TypeSpec::Signed(span),
-            TokenType::KeywordUnsigned => TypeSpec::Unsigned(span),
-            TokenType::KeywordFloat => TypeSpec::Float(span),
-            TokenType::KeywordDouble => TypeSpec::Double(span),
-            TokenType::TypeName => {
-                let typename = token.value.into_string().unwrap();
-                TypeSpec::TypeName(typename, span)
-            },
-            _ => unreachable!()
-        };
-
-        result.into()
-    }
-
-    pub fn make_struct_or_union(struct_or_union_spec: StructOrUnionSpec) -> ParserNode {
-        TypeSpec::StructOrUnion(struct_or_union_spec).into()
-    }
-
-    pub fn make_enum(enum_spec: EnumSpec) -> ParserNode {
-        TypeSpec::Enum(enum_spec).into()
-    }
-}
-
-/// 结构体
-#[derive(Debug, Clone)]
-pub struct StructOrUnionSpec {
-    pub kind: StructKind, // struct 或 union
-    pub name: Option<String>, // 可能是匿名 struct
-    pub members: Option<Vec<StructMember>>, // 如果有 { ... } 就填，否则 None
+pub struct DeclSpec {
+    pub storage_class: Vec<StorageClass>,
+    pub type_quals: Vec<TypeQual>,
+    pub type_specs: Vec<TypeSpec>,
     pub span: Span,
 }
 
-impl StructOrUnionSpec {
-    pub fn make(kind: Token, name: Option<Token>, members: Option<Vec<StructMember>>, rparen: Token) -> ParserNode {
-        let kind_span = Span::from_token(&rparen);
-        let span = kind_span.merge(&Span::from_token(&rparen));
-        let name = name.map(|x| x.value.into_string().unwrap());
-        let kind = match kind.as_type().unwrap() {
-            TokenType::KeywordStruct => StructKind::Struct(kind_span),
-            TokenType::KeywordUnion => StructKind::Union(kind_span),
-            _ => unreachable!()
-        };
-        
+impl DeclSpec {
+    fn new(span: Span) -> Self {
         Self {
-            kind,
-            name,
-            members,
-            span,
-        }.into()
+            storage_class: Vec::new(),
+            type_quals: Vec::new(),
+            type_specs: Vec::new(),
+            span
+        }
+    }
+
+    pub fn make_storage(spec: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
+        let span = Span::from_token(&spec);
+        let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
+        let spec = match spec.as_type().unwrap() {
+            TokenType::KeywordTypedef => StorageClass::Typedef(span),
+            TokenType::KeywordExtern => StorageClass::Extern(span),
+            TokenType::KeywordStatic => StorageClass::Static(span),
+            TokenType::KeywordAuto => StorageClass::Auto(span),
+            TokenType::KeywordRegister => StorageClass::Register(span),
+            _ => unreachable!()
+        };
+
+
+        decl_spec.span.merge_self(&span);
+        decl_spec.storage_class.push(spec);
+        decl_spec.into()
+    }
+
+    pub fn make_qual(qual: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
+        let span = Span::from_token(&qual);
+        let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
+
+        let qual = match qual.as_type().unwrap() {
+            TokenType::KeywordConst => TypeQual::Const(span),
+            TokenType::KeywordVolatile => TypeQual::Volatile(span),
+            _ => unreachable!()
+        };
+
+        decl_spec.span.merge_self(&span);
+        decl_spec.type_quals.push(qual);
+        decl_spec.into()
+    }
+
+    pub fn make_spec(spec: TypeSpec, decl_spec: Option<DeclSpec>) -> ParserNode {
+        let span = spec.unwrap_span();
+        let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
+
+        decl_spec.span.merge_self(&span);
+        decl_spec.type_specs.push(spec);
+        decl_spec.into()
+
+    }
+
+
+}
+
+impl UnwrapSpan for DeclSpec {
+    fn unwrap_span(&self) -> Span {
+        self.span
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum StructKind {
-    Struct(Span),
-    Union(Span),
-}
-
-#[derive(Debug, Clone)]
-pub struct StructMember {
-    pub decl_spec: DeclSpec,
-    pub declarators: Vec<DeclSpec>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone)]
-pub struct EnumSpec {
-    pub name: Option<String>,
-    pub enumerators: Option<Vec<Enumerator>>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone)]
-pub struct Enumerator {
-    pub name: String,
-    pub value: Option<ast_nodes::Expression>, // 可以有初始化值
-    pub span: Span,
-}
-
+///
+/// Declarator是类型声明的前部分:
+///     指针部分 + 名称部分 + 函数/数组/嵌套的Declarator
+/// 同样作为direct_declarator abstract_declarator的中间结构，因为direct_declarator涉及到ID和递归的declarator
+///
+/// 一般这个机构如果传递给Sema阶段应该是有名字的
+///
 #[derive(Debug, Clone)]
 pub struct Declarator {
-    pub name: String,
+    pub name: Option<String>,
     pub chunks: Vec<DeclaratorChunk>,
     pub span: Span,
 }
 
 impl Declarator {
+    pub fn new(span: Span) -> Self {
+        Self {
+            name: None,
+            chunks: Vec::new(),
+            span
+        }
+    }
+
     pub fn make(token: Token) -> ParserNode {
-        assert_eq!(token.as_type(), Some(TokenType::Id));
+        assert!(token.is(TokenType::Id));
+
         let span = Span::from_token(&token);
         let name = token.value.into_string().unwrap();
         Self {
-            name,
+            name: Some(name),
             chunks: Vec::new(),
             span,
         }.into()
     }
 
-    pub fn add_pointer(ptr: Option<Vec<DeclaratorChunk>>, declarator: Declarator) -> ParserNode {
-        let chunks = match ptr {
-            None => declarator.chunks,
-            Some(mut x) => {
-                x.extend(declarator.chunks.into_iter());
-                x
+    pub fn make_pointer(ptr: Option<Vec<DeclaratorChunk>>, declarator: Option<Declarator>) -> Declarator {
+        assert!(ptr.is_some() || declarator.is_some());
+
+        let span = match (&ptr, &declarator) {
+            (Some(ptr), Some(declarator)) => {
+                let first = ptr.first().unwrap().unwrap_span(); // 既然有列表应该是一定有元素的
+                first.merge(&declarator.span)
             }
+            (Some(ptr), None) => {
+                let first = ptr.first().unwrap().unwrap_span();
+                let last = ptr.last().unwrap().unwrap_span();
+                first.merge(&last)
+            }
+            (None, Some(declarator)) => declarator.span,
+            (None, None) => unreachable!()
         };
 
-        let span = if !chunks.is_empty() {
-            let a = chunks.first().unwrap().unwrap_span();
-            let b = chunks.last().unwrap().unwrap_span();
-            a.merge(&b)
-        } else {
-            declarator.span
+        let declarator = match (ptr, declarator) {
+            (Some(ptr), Some(mut declarator)) => {
+                declarator.chunks.extend(ptr.into_iter());
+                declarator
+            }
+            (Some(ptr), None) => {
+                Declarator {
+                    name: None,
+                    chunks: ptr,
+                    span
+                }
+            }
+            (None, Some(declarator)) => {
+                declarator
+            }
+            (None, None) => unreachable!()
         };
-
-        Self {
-            name: declarator.name,
-            chunks,
-            span
-        }.into()
+        declarator.into()
     }
 
     /// 拓展一下span
     pub fn add_span(lparen: Token, mut declarator: Declarator, rparen: Token) -> ParserNode {
-        let span = Span::from_tokens(&[lparen, rparen]);
+        let span = Span::from_tokens(vec![&lparen, &rparen]);
         declarator.span.merge_self(&span);
         declarator.into()
     }
 }
 
+/// 组合类型就是Spec + Declarator + 初始化的一个完整的初始化组合定义 
+#[derive(Debug, Clone)]
+pub struct CompleteDecl {
+    pub spec: DeclSpec,
+    pub declarator: Declarator,
+    pub init: Option<ast_nodes::Initializer>,     // 可选初始化
+    pub span: Span,                     // 覆盖整个 declaration
+}
+
+impl CompleteDecl {
+    pub fn make(spec: DeclSpec, declarator: Declarator, init: Option<ast_nodes::Initializer>) -> ParserNode {
+        let span = spec.span.merge(&declarator.span);
+        Self {
+            spec,
+            declarator,
+            init,
+            span
+        }.into()
+    }
+    
+    
+}
+
+///
+/// Declarator的部分声明，涵盖：
+/// - `pointer`: 对应`Pointer`，quals就是type_qualifier_list
+/// - `direct_declarator`的部分
+///     - `Array`
+///     - `Function`
+///
+///
 #[derive(Debug, Clone)]
 pub enum DeclaratorChunk {
     Pointer{
         quals: Option<Vec<TypeQual>>,
-        span: Span, // 只是*符号的span位置
+        span: Span,
     },
     Array {
         size: Option<ast_nodes::Expression>, // 大小
@@ -213,7 +310,7 @@ pub enum DeclaratorChunk {
         span: Span,
     },
     Function {
-        param_list: Option<ParamList>,
+        param_list: Delim<Option<ParamList>>,
         span: Span
     },
 }
@@ -239,8 +336,10 @@ impl DeclaratorChunk {
         chunks.into()
     }
 
-    pub fn make_array(mut declarator: Declarator, lbracket: Token, size: Option<ast_nodes::Expression>, rbracket: Token) -> ParserNode {
-        let span = Span::from_tokens(&[lbracket, rbracket]);
+    pub fn make_array(declarator: Option<Declarator>, lbracket: Token, size: Option<ast_nodes::Expression>, rbracket: Token) -> ParserNode {
+        let span = Span::from_tokens(vec![&lbracket, &rbracket]);
+        let mut declarator = declarator.unwrap_or_else(|| Declarator::new(span));
+
 
         let asm = match &size {
             Some(x) => match x.kind {
@@ -254,36 +353,46 @@ impl DeclaratorChunk {
         declarator.into()
     }
 
-    pub fn make_function(mut declarator: Declarator, lparen: Token, param_list: Option<ParamList>, rparen: Token) -> ParserNode {
-        let span = Span::from_tokens(&[lparen, rparen]);
+    /// ANSI 函数声明
+    pub fn make_function(declarator: Option<Declarator>, lparen: Token, param_list: Option<ParamList>, rparen: Token) -> ParserNode {
+        let mut declarator = declarator.unwrap_or_else(|| Declarator::new(Span::from_tokens(vec![&lparen, &rparen])));
+        let span = declarator.span.merge(&Span::from_token(&rparen));
 
-        declarator.chunks.push(Self::Function { param_list, span });
+        declarator.chunks.push(Self::Function {
+            param_list: Delim::new(&lparen, param_list , &rparen),
+            span
+        });
         declarator.into()
     }
 
-    pub fn make_old_function(mut declarator: Declarator, lparen: Token, ident_list: Option<Vec<Token>>, rparen: Token) -> ParserNode {
-        let span = Span::from_tokens(&[lparen, rparen]);
+    /// K&R 函数声明
+    pub fn make_old_function(mut declarator: Declarator, lparen: Token, ident_list: Option<SepList<Token>>, rparen: Token) -> ParserNode {
+        let span = declarator.span.merge(&Span::from_token(&rparen));
+
         let ident_list = ident_list.unwrap_or_default();
-        let params: Vec<_> = ident_list.into_iter().map(|x| {
+        let params: Vec<_> = ident_list.list.into_iter().map(|x| {
             let span = Span::from_token(&x);
             let name = x.value.into_string().unwrap();
             ParamInfo::Ident(name, span)
         }).collect();
 
+
         let param_list = ParamList {
             is_variadic: false,
             has_prototype: false,
-            params,
+            params: SepList { list: params, sep: ident_list.sep },
+            span,
         };
 
         declarator.chunks.push(
             Self::Function {
-                param_list:Some(param_list),
+                param_list: Delim::new(&lparen, Some(param_list), &rparen),
                 span
             }
         );
         declarator.into()
     }
+
 }
 
 #[derive(Debug, Clone)]
@@ -297,15 +406,55 @@ pub enum ArraySizeModifier {
 pub struct ParamList {
     pub is_variadic: bool,      // 是否是可变参数
     pub has_prototype: bool,    // 是否有原型，就是类型
-    pub params: Vec<ParamInfo>, // 参数列表
+    pub params: SepList<ParamInfo>, // 参数列表
+    pub span: Span
+}
+
+impl ParamList {
+    pub fn set_variadic(mut param_list: ParamList, comma: Token) -> ParserNode {
+        let span = Span::from_token(&comma);
+        param_list.is_variadic = true;
+        param_list.params.sep.push(span);
+        param_list.into()
+    }
+
+    pub fn make_list(param_info: ParamInfo) -> ParserNode {
+        let span = param_info.unwrap_span();
+        Self {
+            is_variadic: false,
+            has_prototype: true,
+            params: SepList::new(param_info),
+            span,
+        }.into()
+    }
+
+    pub fn append_list(mut param_list: ParamList, comma: Token, param_info: ParamInfo) -> ParserNode {
+        let span = Span::from_token(&comma);
+
+        param_list.span.merge_self(&param_info.unwrap_span()); // 增大span
+        param_list.params.push_item(param_info);
+        param_list.params.push_sep(span);
+
+        param_list.into()
+    }
 }
 
 /// todo 这里两个大小差别很大，处理
 #[derive(Debug, Clone)]
 pub enum ParamInfo {
     Ident(String, Span),
-    Decl(ast_nodes::Declaration),
+    Decl(CompleteDecl, Span),
 }
+
+impl UnwrapSpan for ParamInfo {
+    fn unwrap_span(&self) -> Span {
+        match self {
+            ParamInfo::Ident(_, x)
+            | ParamInfo::Decl(_, x) => *x
+        }
+    }
+}
+
 
 
 
