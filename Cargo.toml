@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = [ "cc","common", "rlex", "rparser", ]
+members = [ "backend", "cc","common", "rlex", "rparser", ]
 resolver = "2"  # 统一依赖解析
 
 
