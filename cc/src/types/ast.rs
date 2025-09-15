@@ -4,4 +4,4 @@ pub mod visitor;
 pub mod sema;
 pub mod decl_info;
 pub mod parser_node;
-mod struct_info;
+pub mod struct_info;

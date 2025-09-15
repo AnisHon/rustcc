@@ -57,7 +57,7 @@ pub struct Declaration {
     pub ty: Box<Type>,
     pub storage: Option<StorageClass>,
     pub qualifiers: Qualifiers,
-    pub init: Option<Initializer>,
+    pub init: Option<Box<Initializer>>,
     pub span: Span,
 }
 
@@ -186,7 +186,7 @@ pub struct Qualifiers {
 #[derive(PartialEq)]
 pub struct Field {
     pub name: String,
-    pub ty: Type,
+    pub ty: Box<Type>,
     pub bit_width: Option<u32>, // for bitfields
     pub span: Span,
 }
@@ -195,7 +195,7 @@ pub struct Field {
 #[derive(Debug, Clone)]
 pub struct Parameter {
     pub name: Option<String>,
-    pub ty: Type,
+    pub ty: Option<Box<Type>>,
     pub span: Span,
 }
 
@@ -238,7 +238,7 @@ pub enum Statement {
         span: Span
     },
     Block(Box<Block>, Span),
-    Expression(Option<Expression>, Span),
+    Expression(Option<Box<Expression>>, Span),
     If {
         cond: Box<Expression>,
         then_stmt: Box<Statement>,
@@ -261,7 +261,7 @@ pub enum Statement {
         span: Span
     },
     For {
-        init: Option<Expression>,
+        init: Option<Box<Expression>>,
         cond: Option<Box<Expression>>,
         step: Option<Box<Expression>>,
         body: Box<Statement>,
@@ -273,7 +273,7 @@ pub enum Statement {
     },
     Continue(Span),
     Break(Span),
-    Return(Option<Expression>, Span),
+    Return(Option<Box<Expression>>, Span),
 }
 
 impl Statement {
@@ -304,15 +304,15 @@ impl Statement {
 // 表达式
 #[derive(Debug, Clone)]
 pub struct Expression {
-    pub kind: ExpressionKind,
-    pub ty: Option<Type>, // 类型交给后期多次遍历时填充，
+    pub kind: Box<ExpressionKind>,
+    pub ty: Option<Box<Type>>, // 类型交给后期多次遍历时填充，
     pub span: Span,
 }
 
 impl Expression {
 
     pub fn is_lvalue(&self) -> bool {
-        match &self.kind {
+        match self.kind.as_ref() {
             ExpressionKind::Id { .. } => true,                    // 变量
             ExpressionKind::ArrayAccess { .. } => true,             // a[i]
             ExpressionKind::FieldAccess { .. } => true,            // s.f 或 s->f
@@ -331,8 +331,6 @@ impl Expression {
     }
 
 }
-
-
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum ExpressionKind {

@@ -31,8 +31,8 @@ pub enum TypeSpec {
     Unsigned(Span),
     Float(Span),
     Double(Span),
-    StructOrUnion(StructOrUnionSpec, Span),
-    Enum(EnumSpec, Span),
+    StructOrUnion(Box<StructOrUnionSpec>, Span),
+    Enum(Box<EnumSpec>, Span),
     TypeName(String, Span)
 }
 
@@ -61,12 +61,12 @@ impl TypeSpec {
 
     pub fn make_struct_or_union(struct_or_union_spec: StructOrUnionSpec) -> ParserNode {
         let span = struct_or_union_spec.span;
-        TypeSpec::StructOrUnion(struct_or_union_spec, span).into()
+        TypeSpec::StructOrUnion(Box::new(struct_or_union_spec), span).into()
     }
 
     pub fn make_enum(enum_spec: EnumSpec) -> ParserNode {
         let span = enum_spec.span;
-        TypeSpec::Enum(enum_spec, span).into()
+        TypeSpec::Enum(Box::new(enum_spec), span).into()
     }
 }
 
@@ -135,9 +135,9 @@ impl DeclSpec {
         }
     }
 
-    pub fn make_storage(spec: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn make_storage(spec: Token, decl_spec: Option<Box<DeclSpec>>) -> ParserNode {
         let span = Span::from_token(&spec);
-        let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
+        let mut decl_spec = decl_spec.unwrap_or_else(|| Box::from(Self::new(span)));
         let spec = match spec.as_type().unwrap() {
             TokenType::KeywordTypedef => StorageClass::Typedef(span),
             TokenType::KeywordExtern => StorageClass::Extern(span),
@@ -153,9 +153,9 @@ impl DeclSpec {
         decl_spec.into()
     }
 
-    pub fn make_qual(qual: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn make_qual(qual: Token, decl_spec: Option<Box<DeclSpec>>) -> ParserNode {
         let span = Span::from_token(&qual);
-        let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
+        let mut decl_spec = decl_spec.unwrap_or_else(|| Box::new(Self::new(span)));
 
         let qual = match qual.as_type().unwrap() {
             TokenType::KeywordConst => TypeQual::Const(span),
@@ -168,9 +168,9 @@ impl DeclSpec {
         decl_spec.into()
     }
 
-    pub fn make_spec(spec: TypeSpec, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn make_spec(spec: TypeSpec, decl_spec: Option<Box<DeclSpec>>) -> ParserNode {
         let span = spec.unwrap_span();
-        let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
+        let mut decl_spec = decl_spec.unwrap_or_else(|| Box::new(Self::new(span)));
 
         decl_spec.span.merge_self(&span);
         decl_spec.type_specs.push(spec);
@@ -309,7 +309,7 @@ pub enum DeclaratorChunk {
         span: Span,
     },
     Function {
-        param_list: Delim<Option<ParamList>>,
+        param_list: Delim<Option<Box<ParamList>>>,
         span: Span
     },
 }
@@ -341,7 +341,7 @@ impl DeclaratorChunk {
 
 
         let asm = match &size {
-            Some(x) => match x.kind {
+            Some(x) => match *x.kind {
                 ExpressionKind::Literal(_, _) => ArraySizeModifier::Normal,
                 _ => panic!("VLA 未实现")
             }
@@ -358,7 +358,7 @@ impl DeclaratorChunk {
         let span = declarator.span.merge(&Span::from_token(&rparen));
 
         declarator.chunks.push(Self::Function {
-            param_list: Delim::new(&lparen, param_list , &rparen),
+            param_list: Delim::new(&lparen, param_list.map(Box::new) , &rparen),
             span
         });
         declarator.into()
@@ -379,13 +379,13 @@ impl DeclaratorChunk {
         let param_list = ParamList {
             is_variadic: false,
             has_prototype: false,
-            params: SepList { list: params, sep: ident_list.sep },
+            params: Box::new(SepList { list: params, sep: ident_list.sep }),
             span,
         };
 
         declarator.chunks.push(
             Self::Function {
-                param_list: Delim::new(&lparen, Some(param_list), &rparen),
+                param_list: Delim::new(&lparen, Some(Box::new(param_list)), &rparen),
                 span
             }
         );
@@ -405,7 +405,7 @@ pub enum ArraySizeModifier {
 pub struct ParamList {
     pub is_variadic: bool,      // 是否是可变参数
     pub has_prototype: bool,    // 是否有原型，就是类型
-    pub params: SepList<ParamInfo>, // 参数列表
+    pub params: Box<SepList<ParamInfo>>, // 参数列表
     pub span: Span
 }
 
@@ -422,7 +422,7 @@ impl ParamList {
         Self {
             is_variadic: false,
             has_prototype: true,
-            params: SepList::new(param_info),
+            params: Box::new(SepList::new(param_info)),
             span,
         }.into()
     }

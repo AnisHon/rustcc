@@ -35,12 +35,13 @@ impl StructOrUnionSpec {
             _ => unreachable!()
         };
 
-        Self {
+        let result = Self {
             kind,
             name: Some(name),
             members: None,
             span,
-        }.into()
+        };
+        Box::new(result).into()
     }
     pub fn make_decl(kind: Token, name: Option<Token>, lparen: Token, members: Vec<StructMember>, rparen: Token) -> ParserNode {
         let kind_span = Span::from_token(&kind);
@@ -54,12 +55,13 @@ impl StructOrUnionSpec {
             _ => unreachable!()
         };
 
-        Self {
+        let result = Self {
             kind,
             name,
             members: Some(Delim::new(&lparen, members, &rparen)),
             span,
-        }.into()
+        };
+        Box::new(result).into()
     }
 
 }
@@ -68,7 +70,7 @@ impl StructOrUnionSpec {
 
 #[derive(Debug, Clone)]
 pub struct StructMember {
-    pub decl_spec: DeclSpec,
+    pub decl_spec: Box<DeclSpec>,
     pub declarators: SepList<StructDeclarator>,
     pub span: Span,
 }
@@ -83,8 +85,8 @@ impl StructMember {
 
 #[derive(Debug, Clone)]
 pub struct StructDeclarator {
-    pub declarator: Option<Declarator>,
-    pub bit_field: Option<Expression>,
+    pub declarator: Option<Box<Declarator>>,
+    pub bit_field: Option<Box<Expression>>,
     pub span: Span,
 }
 
@@ -100,8 +102,8 @@ impl StructDeclarator {
         };
 
         Self {
-            declarator,
-            bit_field,
+            declarator: declarator.map(Box::new),
+            bit_field: bit_field.map(Box::new),
             span
         }.into()
     }
@@ -129,21 +131,23 @@ impl EnumSpec {
 
         let name = name.map(|x| x.value.into_string().unwrap());
         let enums = Delim::new(&lbrace, enums, &rbrace);
-        Self {
+        let enum_spec = Self {
             name,
             enums: Some(enums),
             span,
-        }.into()
+        };
+        Box::new(enum_spec).into()
     }
 
     pub fn make_simple(keyword_enum: Token, name: Token) -> ParserNode {
         let span = Span::from_tokens(vec![&keyword_enum, &name]);
         let name = name.value.into_string().unwrap();
-        Self {
+        let enum_spec = Self {
             name: Some(name),
             enums: None,
             span,
-        }.into()
+        };
+        Box::new(enum_spec).into()
     }
 
 }
@@ -151,7 +155,7 @@ impl EnumSpec {
 #[derive(Debug, Clone)]
 pub struct Enumerator {
     pub name: String,
-    pub value: Option<Expression>, // 可以有初始化值
+    pub value: Option<Box<Expression>>, // 可以有初始化值
     pub span: Span,
 }
 
@@ -177,7 +181,7 @@ impl Enumerator {
         
         Self {
             name,
-            value,
+            value: value.map(Box::new),
             span,
         }.into()
     }
