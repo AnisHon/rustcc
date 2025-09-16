@@ -7,8 +7,7 @@ edition = "2024"
 common.workspace = true
 pest.workspace = true
 pest_derive.workspace = true
-tera.workspace = true
-heck.workspace = true
+#tera.workspace = true
 bitvec.workspace = true
 indexmap.workspace = true
-clap = { version = "4.5.47", features = ["derive"] }
+askama.workspace = true

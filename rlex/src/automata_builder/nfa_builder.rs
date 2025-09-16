@@ -7,13 +7,17 @@ use std::collections::BTreeSet;
 
 struct PartialNFA(NFA, usize);
 
-pub struct NFABuilder {
-    char_class_set: CharClassSet,
+/// NFA构造器
+/// # Members 
+/// - `char_class_set`: NFA构造是过程，并不需要保持，因此使用借用而不拿到所有权
+/// - `id_factory`: ID生成器
+pub struct NFABuilder<'a> {
+    char_class_set: &'a CharClassSet,
     id_factory: IncrementalStateIDFactory, // ID自增
 }
 
-impl NFABuilder {
-    pub fn new(char_class_set: CharClassSet) -> Self {
+impl<'a> NFABuilder<'a> {
+    pub fn new(char_class_set: &'a CharClassSet) -> Self {
         Self {
             char_class_set,
             id_factory: IncrementalStateIDFactory::new(0),

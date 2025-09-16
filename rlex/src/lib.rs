@@ -4,3 +4,4 @@ pub mod common;
 pub mod lex;
 pub mod parser;
 pub mod rlexer;
+pub mod utils;

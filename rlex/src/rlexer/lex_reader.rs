@@ -2,6 +2,7 @@ use crate::rlexer::lex_config::LexStruct;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader};
+use crate::utils::regex_util::escape_regex_meta;
 
 pub struct LexReader {
     buff: BufReader<File>,
@@ -38,9 +39,6 @@ impl LexReader {
                 vec[1].to_string()
             };
             
-            
-            
-
             if regex.starts_with('"') && regex.ends_with('"') {
                 regex = escape_regex_meta(&regex[1..regex.len() - 1]);
             }
@@ -51,18 +49,4 @@ impl LexReader {
         Ok(lex)
     }
 }
-fn escape_regex_meta(s: &str) -> String {
-    // 正则元字符集合
-    const META_CHARS: &str = r".^$*+?()[]{}|\\";
 
-    let mut escaped = String::with_capacity(s.len());
-
-    for c in s.chars() {
-        if META_CHARS.contains(c) {
-            escaped.push('\\');
-        }
-        escaped.push(c);
-    }
-
-    escaped
-}

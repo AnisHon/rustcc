@@ -27,8 +27,8 @@ type CompressedMatrix<T> = (Vec<Option<usize>>, Vec<T>, Vec<Option<usize>>, Vec<
 /// };
 /// ```
 ///
-pub fn compress_matrix<T>(matrix: &[Vec<T>], zero_value: T) -> CompressedMatrix<T>
-where T: Eq + Copy + Hash
+pub fn compress_matrix<T>(matrix: &[Vec<T>]) -> CompressedMatrix<T>
+where T: Eq + Copy + Hash + Default
 {
     let rows = matrix.len();
     let stride = matrix[0].len();
@@ -39,7 +39,7 @@ where T: Eq + Copy + Hash
     let mut id_row: Vec<Option<usize>> = vec![None; rows];
     let mut row_id: Vec<usize> = vec![0; rows];
     let mut base: Vec<Option<usize>> = vec![None; rows];
-    let mut next: Vec<T> = vec![zero_value; stride];
+    let mut next: Vec<T> = vec![T::default(); stride];
     let mut check: Vec<Option<usize>> = vec![None; stride];
 
     let mut dup_map: IndexMap<Vec<T>, usize> = IndexMap::new();
@@ -58,7 +58,7 @@ where T: Eq + Copy + Hash
             let row = id_row[id].unwrap();
             (
                 id,
-                matrix[row].iter().enumerate().filter_map(|(idx, &x)| match x.ne(&zero_value) {
+                matrix[row].iter().enumerate().filter_map(|(idx, &x)| match x.ne(&T::default()) {
                     true => Some(idx),
                     false => None
                 }).collect()
@@ -83,7 +83,7 @@ where T: Eq + Copy + Hash
         let max_size = offset + max_row + 1;
 
         if max_size > next.len() {
-            next.resize(max_size, zero_value);
+            next.resize(max_size, T::default());
             check.resize(max_size, None);
         }
 

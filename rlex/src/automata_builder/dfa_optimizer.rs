@@ -11,7 +11,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 /// states: 原DFA的所有状态
 /// symbol_tables: DFA state -> {symbols}的映射
 /// partition_key: 初始划分的key回调
-/// priority_status: 冲突情况下的确定优先级回调
+/// priority_status: 优先级处理器，当冲突情况下用于确认优先级的回调
 /// id_factory: 自增ID Factory
 ///
 pub struct DFAOptimizer {

@@ -12,17 +12,17 @@ use crate::lex::ReToken;
 #[derive(Debug)]
 pub enum CSTNode {
     // 原子具体节点
-    Literal(Rc<ReToken>),           // 普通字段
-    Dot(Rc<ReToken>),               // .
-    MetaChar(Rc<ReToken>),          // \w \s \d
-    CharClass(Rc<ReToken>),    // [] [^]
+    Literal(ReToken),           // 普通字段
+    Dot(ReToken),               // .
+    MetaChar(ReToken),          // \w \s \d
+    CharClass(ReToken),    // [] [^]
     Group(Box<CSTNode>),        // 捕获组
 
     // 量词具体节点
     Star(Box<CSTNode>),           // X*
     Question(Box<CSTNode>),       // X?
     Plus(Box<CSTNode>),
-    Range(Box<CSTNode>, Rc<ReToken>), // {} 子节点, 当前Token
+    Range(Box<CSTNode>, ReToken), // {} 子节点, 当前Token
 
     // 二元节点
     Sequence(Vec<CSTNode>),              // abc

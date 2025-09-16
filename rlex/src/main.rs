@@ -19,9 +19,9 @@ fn main() {
 
     let lex = Lexer::new(lex);
 
-    // let char_class_set = lex.get_char_class_set();
     let dfa = lex.get_dfa();
 
+    // let char_class_set = lex.get_char_class_set();
     // let mut state = dfa.get_init_state();
     // for chr in "// 123".chars() {
     //     println!("{:?}", state);
@@ -32,10 +32,9 @@ fn main() {
     //         Some(x) => x,
     //     };
     // }
-    // [20, 21, 22, 23, 30, 31, 32, 33, 34, 35, 36, 37, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67]
     // println!("{:?}", dfa.get_symbols(state));
     // println!("{:?}", dfa.get_meta(state));
-    //
+    // 
     // println!("{:?}", dfa.get_meta(state));
 
     println!("size: {} x {}", dfa.size(), dfa.get_stride());

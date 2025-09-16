@@ -1,12 +1,29 @@
 use crate::rlexer::lexer::Lexer;
-use common::lex::StateID;
+use askama::Template;
 use common::utils::compress::compress_matrix;
-use heck::ToUpperCamelCase;
-use std::fmt::Display;
 use std::fs;
-use tera::{Context, Tera};
+use common::utils::str_util::{default_cvt, option_cvt, vec_to_code};
 
-const TEMPLATE: &str = include_str!("../../resources/lex.rs.tera");
+#[derive(Template)]
+#[template(path = "lex.rs.askama")]
+struct LexTemplate {
+    init_state: usize,
+    base: String,
+    base_sz: usize,
+    next: String,
+    next_sz: usize,
+    check: String,
+    check_sz: usize,
+    row_id: String,
+    row_id_sz: usize,
+    ranges: String,
+    ranges_sz: usize,
+    class_map: String,
+    class_map_sz: usize,
+    ascii_map: String,
+    ascii_map_sz: usize
+}
+
 pub struct LexWriter {
     path: String,
     lexer: Lexer,
@@ -17,80 +34,58 @@ impl LexWriter {
         Self { path: path.to_string(), lexer }
     }
 
-    /// Tera真不好用，远不如Thymeleaf JSP
-    /// 自己转字符串
-    fn optional_to_string<T>(vec: Vec<Option<T>>) -> String
-    where T: Display
-    {
-        let mut value = "[".to_string();
-        for x in vec {
-            let to_string = match x {
-                None => "None",
-                Some(x) => &format!("Some({})", x)
-            };
-            value.push_str(to_string);
-            value.push(',')
-        }
-        value.push(']');
-        value
-    }
-
     pub fn write(self) {
-        let mut tera = Tera::default();
-        tera.add_raw_template("lex_yy.tera", TEMPLATE).unwrap();
-
         let dfa = self.lexer.get_dfa();
+
         let char_class = self.lexer.get_char_class_set();
-        let lex = self.lexer.get_lex();
-        let enum_name: Vec<_> = lex
-            .iter()
-            .map(|lex_struct| lex_struct.name.clone().to_lowercase().to_upper_camel_case())
-            .collect();
-        let state_map: Vec<_> = (0..dfa.size())
-            .map(|idx| {
-                let meta = dfa.get_meta(idx);
-                if meta.terminate {
-                    Some(enum_name[meta.id].clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
 
-        let (base, next, check, row_id) = compress_matrix(self.lexer.get_dfa().get_raw_matrix(), None);
-        let next: Vec<StateID> = next.into_iter().map(|x| x.unwrap_or(0)).collect();
-        // let (base, next, check) = self.compress_dfa();
-        let base = Self::optional_to_string(base);
-        let check = Self::optional_to_string(check);
+        let ranges = char_class.get_raw_ranges();
+        let class_map = char_class.get_raw_class_map();
+        let ascii_map = char_class.get_raw_ascii_mapping();
 
-        // 准备上下文
-        let mut context = Context::new();
-        context.insert("init_state", &dfa.get_init_state());
-        context.insert("state_map_size", &state_map.len());
-        context.insert("state_map", &state_map);
-        context.insert("enums", &enum_name);
-        context.insert("base", &base);
-        context.insert("next", &next);
-        context.insert("next_size", &next.len());
-        context.insert("check", &check);
-        context.insert("row_id", &row_id);
-        context.insert("char_class", char_class.get_raw_ranges());
-        context.insert("char_class_size", &char_class.size());
-        context.insert("char_class_map", char_class.get_raw_class_map());
-        context.insert(
-            "ascii_map",
-            &char_class
-                .get_raw_ascii_mapping()
-                .iter()
-                .collect::<Vec<_>>(),
+        let (ranges, ranges_sz) = vec_to_code(
+            ranges.into_iter(),
+            |(l, r)| format!("({}, {})", l, r)
         );
+        let (class_map, class_map_sz) = vec_to_code(class_map.into_iter(), default_cvt);
+        let (ascii_map, ascii_map_sz) = vec_to_code(ascii_map.into_iter(), default_cvt);
 
-        // 渲染模板
-        let rendered = tera.render("lex_yy.tera", &context).unwrap();
+
+        // 压缩矩阵
+        let (base, next, check, row_id) =
+            compress_matrix(dfa.get_raw_matrix());
+        // next没有Option语义
+        let next = next.iter().map(|x| x.unwrap_or_default());
+
+
+        // 转换成代码
+        let (base, base_sz) = vec_to_code(base.into_iter(), option_cvt);
+        let (next, next_sz) = vec_to_code(next.into_iter(), default_cvt);
+        let (check, check_sz) = vec_to_code(check.into_iter(), option_cvt);
+        let (row_id, row_id_sz) = vec_to_code(row_id.into_iter(), default_cvt);
+
+        let template = LexTemplate {
+            init_state: dfa.get_init_state(),
+            base,
+            base_sz,
+            next,
+            next_sz,
+            check,
+            check_sz,
+            row_id,
+            row_id_sz,
+            ranges,
+            ranges_sz,
+            class_map,
+            class_map_sz,
+            ascii_map,
+            ascii_map_sz,
+        };
+
+        let rendered = template.render().unwrap();
+
         fs::write(self.path, rendered).unwrap();
         // println!("{}", rendered);
-
-
     }
 
 }

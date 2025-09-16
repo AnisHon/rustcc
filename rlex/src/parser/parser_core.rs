@@ -1,21 +1,29 @@
+use std::iter::Peekable;
 use crate::common::re_err::{ReError, ReResult};
 use crate::lex::{ReToken, ReTokenType};
 use crate::parser::ast::{ASTClassNode, ASTNode, ASTRangeNode};
 use crate::parser::cst::CSTNode;
-use std::rc::Rc;
+use std::vec::IntoIter;
 
+///
+/// Re手写递归下降解析器
+/// 
+/// # Members
+/// - `tokens`: Peekable迭代器，符合递归下降语义
+/// - `cst`: 结果CST 
+/// - `ast`: 结果AST 
+/// - `last_pos`: 最后的位置，用于友好的错误提示 
+/// 
 pub struct ReParser {
-    tokens: Vec<Rc<ReToken>>,
-    cursor: usize,
-    cst: Option<CSTNode>,
-    ast: Option<ASTNode>,
-}
+    tokens: Peekable<IntoIter<ReToken>>,
+    last_pos: usize,
+}  
 
 ///
 /// 正则手写递归下降，负责将Token转换为CST和AST
 /// 通过peek consume之类cursor功能
 ///
-/// ### 文法
+/// # Grammars
 /// ```text
 /// Expression  -> Alternation
 /// Alternation -> Sequence (| Sequence)*
@@ -29,100 +37,42 @@ pub struct ReParser {
 ///
 ///
 impl ReParser {
-    pub fn new(tokens: Vec<ReToken>) -> ReResult<ReParser> {
-        let tokens = tokens
-            .into_iter()
-            .map(Rc::new) // 套一层RC有时所有权真的挺烦的
-            .collect();
-
-        let mut parser = ReParser {
-            tokens,
-            cursor: 0,
-            cst: None,
-            ast: None,
-        };
-        parser.parse_expression()?;
-        parser.ast = Some(to_ast(parser.cst.as_ref().unwrap())?);
-        Ok(parser)
-    }
-
-    ///
-    /// 获取解析结果CST
-    ///
-    pub fn get_cst(&self) -> &CSTNode {
-        self.cst.as_ref().unwrap()
-    }
-
-    ///
-    /// 获取解析结果AST
-    ///
-    pub fn get_ast(&self) -> &ASTNode {
-        self.ast.as_ref().unwrap()
-    }
-
-    /// 判断是Token否结束
-    fn is_over(&self) -> bool {
-        self.cursor >= self.tokens.len()
-    }
-
-    /// 移动cursor到下一个
-    fn next(&mut self) {
-        self.cursor += 1;
-    }
-
-    /// 查看当前cursor
-    fn peek(&self) -> Option<Rc<ReToken>> {
-        if self.is_over() {
-            return None;
+    pub fn new(tokens: Vec<ReToken>) -> ReParser {
+        assert!(!tokens.is_empty());
+        let last_pos = tokens.last().unwrap().pos; 
+        let peekable = tokens.into_iter().peekable();
+        
+        ReParser {
+            tokens: peekable,
+            last_pos,
         }
-        let token = &self.tokens[self.cursor];
-        Some(Rc::clone(token))
     }
-
-    /// 消费 相当于peek + next
-    fn consume(&mut self) -> Option<Rc<ReToken>> {
-        if self.is_over() {
-            return None;
-        }
-        let cursor = self.cursor;
-        self.next();
-
-        Some(Rc::clone(&self.tokens[cursor]))
+    
+    pub fn parse(mut self) -> ReResult<CSTNode> {
+        self.parse_expression()
     }
-
-    /// cursor上一个字符位置
-    fn last(&self) -> ReResult<Rc<ReToken>> {
-        if self.cursor == 0 {
-            return Err(ReError::new("Expect Regex, Got Noting", 0));
-        }
-        Ok(Rc::clone(&self.tokens[self.cursor - 1]))
-    }
-
+    
+    
     /// Expr -> Alternation
-    fn parse_expression(&mut self) -> ReResult<()> {
-        self.cst = Some(CSTNode::Expr(Box::new(self.parse_alternation()?)));
-        Ok(())
+    fn parse_expression(&mut self) -> ReResult<CSTNode> {
+        Ok(CSTNode::Expr(Box::new(self.parse_alternation()?)))
     }
 
     /// Alternation -> Sequence (| Sequence)*
     fn parse_alternation(&mut self) -> ReResult<CSTNode> {
         let first = self.parse_sequence()?; // 一定存在的第一个Sequence
         let mut nodes = vec![first];
-        let mut flag = false; // 用于标识 '|' 是否闭合
+        let mut illegal_alter = false; // 用于标识 '|' 是否闭合
 
-        while !self.is_over() {
-            let next_token = match self.peek() {
-                Some(x) => x,
-                None => return Ok(CSTNode::Alternation(nodes)),
-            };
+        while let Some(next_token) = self.tokens.peek() {
 
             match next_token.typ {
                 ReTokenType::Pipe => {
-                    flag = true;
-                    self.next();
+                    illegal_alter = true;
+                    self.tokens.next(); // 消耗 |
                     continue;
                 }
-                ReTokenType::RParen if !flag => return Ok(CSTNode::Alternation(nodes)), // follow遇到 )
+                ReTokenType::RParen if !illegal_alter => return Ok(CSTNode::Alternation(nodes)), // follow遇到 )
 
                 ReTokenType::Star
                 | ReTokenType::Question
@@ -133,7 +83,7 @@ impl ReParser {
                 | ReTokenType::CharClass
                 | ReTokenType::Dot => {
                     // first遇到这些，继续解析
-                    flag = false;
+                    illegal_alter = false;
                     nodes.push(self.parse_sequence()?);
                 }
                 _ => {
@@ -146,9 +96,9 @@ impl ReParser {
             }
         }
 
-        if flag {
+        if illegal_alter {
             // | 未闭合
-            return Err(ReError::new("Expect Alternation", self.last()?.pos));
+            return Err(ReError::new("Expect Alternation", self.last_pos));
         }
 
         Ok(CSTNode::Alternation(nodes))
@@ -158,11 +108,7 @@ impl ReParser {
     fn parse_sequence(&mut self) -> ReResult<CSTNode> {
         let first = self.parse_quantified()?; // 一定存在的第一个Quantified
         let mut nodes = vec![first];
-        while !self.is_over() {
-            let next_token = match self.peek() {
-                Some(x) => x,
-                None => return Ok(CSTNode::Sequence(nodes)),
-            };
+        while let Some(next_token) = self.tokens.peek() {
 
             match next_token.typ {
                 ReTokenType::Pipe | ReTokenType::RParen => {
@@ -202,16 +148,29 @@ impl ReParser {
     fn parse_quantified(&mut self) -> ReResult<CSTNode> {
         let left = self.parse_atomic()?; // 一定存在的第一个Atomic
 
-        let next_token = match self.peek() {
+        let next_token = match self.tokens.peek() {
             Some(x) => x,
             None => return Ok(CSTNode::Quantified(Box::new(left))),
         };
 
         let node = match next_token.typ {
-            ReTokenType::Star => CSTNode::Star(Box::new(left)), // 如果当前是 运算符直接组合
-            ReTokenType::Question => CSTNode::Question(Box::new(left)),
-            ReTokenType::Plus => CSTNode::Plus(Box::new(left)),
-            ReTokenType::Range => CSTNode::Range(Box::new(left), next_token),
+            ReTokenType::Star => {
+                self.tokens.next(); // 消耗 *
+                CSTNode::Star(Box::new(left))
+            }, // 如果当前是 运算符直接组合
+            ReTokenType::Question => {
+                self.tokens.next(); // 消耗 ?
+                CSTNode::Question(Box::new(left))
+            },
+            ReTokenType::Plus => {
+                self.tokens.next(); // 消耗 +
+                CSTNode::Plus(Box::new(left))
+            },
+            ReTokenType::Range => {
+                // 消耗 {..}
+                let next_token = self.tokens.next().unwrap();
+                CSTNode::Range(Box::new(left), next_token)
+            },
             ReTokenType::LParen
             | ReTokenType::RParen
             | ReTokenType::Literal
@@ -224,7 +183,7 @@ impl ReParser {
             | ReTokenType::NonSpaceClass
             | ReTokenType::Dot => {
                 // 如果当前是 | ( Literal [ 则结束
-                return Ok(CSTNode::Quantified(Box::new(left)));
+                left
             }
             _ => {
                 // 错误处理
@@ -238,15 +197,14 @@ impl ReParser {
             }
         };
 
-        self.next(); // 消耗
+
 
         Ok(CSTNode::Quantified(Box::new(node)))
     }
 
     fn parse_atomic(&mut self) -> ReResult<CSTNode> {
-        let token = self
-            .consume()
-            .ok_or(ReError::new("Expect Atomic, Got Noting", self.last()?.pos))?;
+        let token = self.tokens.next()
+            .unwrap();
 
         let node = match token.typ {
             ReTokenType::LParen => self.parse_group()?, // 推导parse_group，已经消费掉第一个(，parse_group负责消费末尾的 )
@@ -278,9 +236,8 @@ impl ReParser {
     ///
     fn parse_group(&mut self) -> ReResult<CSTNode> {
         let node = self.parse_alternation()?;
-        let right = self
-            .consume()
-            .ok_or(ReError::new("Brace Not Close", self.last()?.pos))?;
+        let right = self.tokens.next()
+            .ok_or(ReError::new("Brace Not Close", self.last_pos))?;
         if !matches!(right.typ, ReTokenType::RParen) {
             return Err(ReError::new("Brace Not Close", right.pos));
         }
@@ -448,6 +405,6 @@ fn to_ast_recursive(node: &CSTNode) -> ReResult<ASTNode> {
 /// 将 CST 转换为 AST，丢弃CST的无实意语义层次，拆解单层 Alternation 和 Sequence，
 /// 去除Token，简化为字符，ASTClassNode，ASTRangeNode
 ///
-fn to_ast(ast: &CSTNode) -> ReResult<ASTNode> {
+pub fn to_ast(ast: &CSTNode) -> ReResult<ASTNode> {
     to_ast_recursive(ast)
 }

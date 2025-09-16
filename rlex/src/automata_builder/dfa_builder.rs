@@ -4,6 +4,16 @@ use common::utils::unique_id_factory::UniqueIDFactory;
 use indexmap::IndexMap;
 use std::collections::{BTreeSet, HashSet};
 
+///
+/// DFA构造器
+/// 
+/// # Members
+/// 
+/// `nfa`: NFA
+/// `stride`: DFA矩阵宽度，一般都是CharClassSet的大小
+/// `id_factory`: ID生成器
+/// `priority_status`: 冲突处理器，当终结节点发生冲突时调用
+/// 
 pub struct DFABuilder {
     nfa: NFA,
     stride: usize,

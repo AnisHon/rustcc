@@ -1,12 +1,43 @@
-WHITESPACE  = _{ " " | "\t" | "\n" | "\r" }
-// NEWLINE     = _{ "\r\n" | "\n" }
+// 空白字符（不包含注释）
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 
-COMMENT     = _{ "//" ~ (!NEWLINE ~ ANY)* }
+// 注释（单独定义，避免递归问题）
+COMMENT = {
+    "/*" ~ (!"*/" ~ ANY)* ~ "*/"
+  | "//" ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI)
+}
+NEWLINE = { "\n" | "\r\n" }
 
-option_line = { "%option" ~ WHITESPACE+ ~ ASCII_ALPHANUMERIC+ ~ NEWLINE }
-rule_line   = { regex ~ WHITESPACE* ~ "{" ~ action ~ "}" }
+// 文件结构
+file = { SOI ~ decl_code? ~ decls* ~ rules ~ user_code? ~ EOI }
 
-regex       = { (!"{" ~ ANY)+ }
-action      = { (!"}" ~ ANY)* }
+// 声明代码块（%{%} 包裹的内容）
+decl_code = { "%{" ~ (!"%}" ~ ANY)* ~ "%}" }
 
-l_file      = { SOI ~ (option_line | rule_line | COMMENT | NEWLINE)* ~ EOI }
+// 选项声明（%option 后跟标识符列表）
+decls = { "%option" ~ ident ~ (WHITESPACE ~ ident)* }
+
+// 规则块（%% 包裹的规则）
+rules = { "%%" ~ rule_decl* ~ "%%" }
+
+// 单条规则（模式 + 可选动作）
+rule_decl = { pattern ~ action? }
+
+// 模式（分为带引号和不带引号两种）
+pattern = { quoted_pattern | unquoted_pattern }
+
+// 带引号的模式（"..." 包裹的内容）
+quoted_pattern = { "\"" ~ (!"\"" ~ (ESCAPED_CHAR | ANY))* ~ "\"" }
+ESCAPED_CHAR = { "\\" ~ ("\"" | "\\" | "n" | "r" | "t") }
+
+// 不带引号的模式（限制为非动作和非 %% 的内容）
+unquoted_pattern = { (!("{" | "%%" | "\"") ~ ANY)+ }
+
+// 动作（{...} 包裹的代码）
+action = { "{" ~ (!"}" ~ ANY)* ~ "}" }
+
+// 用户代码（文件末尾的可选代码）
+user_code = { (!EOI ~ ANY)* }
+
+// 标识符（首字符为字母或下划线，后续为字母、数字或下划线）
+ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
