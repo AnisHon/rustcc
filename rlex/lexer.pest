@@ -1,0 +1,12 @@
+WHITESPACE  = _{ " " | "\t" | "\n" | "\r" }
+// NEWLINE     = _{ "\r\n" | "\n" }
+
+COMMENT     = _{ "//" ~ (!NEWLINE ~ ANY)* }
+
+option_line = { "%option" ~ WHITESPACE+ ~ ASCII_ALPHANUMERIC+ ~ NEWLINE }
+rule_line   = { regex ~ WHITESPACE* ~ "{" ~ action ~ "}" }
+
+regex       = { (!"{" ~ ANY)+ }
+action      = { (!"}" ~ ANY)* }
+
+l_file      = { SOI ~ (option_line | rule_line | COMMENT | NEWLINE)* ~ EOI }
