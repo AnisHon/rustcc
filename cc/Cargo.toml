@@ -5,7 +5,9 @@ edition = "2024"
 
 [dependencies]
 indexmap.workspace = true
+macros.workspace = true
 enum-as-inner = "0.6.1"
 num-derive = "0.4.2"
 num-traits = "0.2.19"
 strum = "0.27.2"
+

@@ -5,30 +5,37 @@ use crate::types::span::{Span, UnwrapSpan};
 use crate::types::symbol_table::Symbol;
 use enum_as_inner::EnumAsInner;
 use std::rc::Rc;
+use crate::lex::lex_yy::TokenType;
+use crate::types::token::{Token, TokenValue};
 
-
-
-// 顶层翻译单元
+/// 顶层翻译单元
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {
     pub ext_decls: Vec<ExternalDeclaration>,
-    pub span: Span,
+}
+
+impl UnwrapSpan for TranslationUnit {
+    fn unwrap_span(&self) -> Span {
+        let first = self.ext_decls.first().unwrap().unwrap_span();
+        let last = self.ext_decls.last().unwrap().unwrap_span();
+        first.merge(&last)
+    }
 }
 
 
-// 外部声明：函数或变量
+/// 外部声明：函数或变量
 #[derive(Debug, Clone)]
 pub enum ExternalDeclaration {
-    Function(Box<FunctionDefinition>, Span),
-    Declaration(Box<DeclStmt>, Span),
+    Function(FunctionDefinition),
+    Declaration(DeclStmt),
 }
 
 impl UnwrapSpan for ExternalDeclaration {
 
     fn unwrap_span(&self) -> Span {
         match self {
-            ExternalDeclaration::Function(_, x) => *x,
-            ExternalDeclaration::Declaration(_, x) => *x
+            ExternalDeclaration::Function(x) => x.span,
+            ExternalDeclaration::Declaration(x) => x.span
         }
     }
 }
@@ -54,87 +61,72 @@ pub struct DeclStmt {
 #[derive(Debug, Clone)]
 pub struct Declaration {
     pub name: String,
-    pub ty: Box<Type>,
+    pub ty: Type,
     pub storage: Option<StorageClass>,
     pub qualifiers: Qualifiers,
-    pub init: Option<Box<Initializer>>,
+    pub init: Option<Initializer>,
     pub span: Span,
 }
 
-
-// 类型系统
-#[derive(Debug, Clone, PartialEq)]
-pub enum Type {
-    Void(Span),
-    Integer { signed: bool, size: IntegerSize, span: Span},
-    Floating { size: FloatSize, span: Span},
-    Pointer(Box<Type>, Span),
-    Array { elem_ty: Box<Type>, size: Option<u64>, span: Span}, // size is constant-evaluated
-    Function { ret_ty: Box<Type>, params: Vec<Type>, is_variadic: bool, span: Span },
-    Struct { name: Option<String>, fields: Vec<Field>, span: Span },
-    Union { name: Option<String>, fields: Vec<Field>, span: Span },
-    Enum { name: Option<String>, values: Vec<(String, i64)>, span: Span },
-    NamedType { name: String, decl_ref: Option<Rc<Symbol>>,span: Span, }
-}
-
-impl UnwrapSpan for Type {
-    fn unwrap_span(&self) -> Span {
-        match self {
-            Type::Void(x) => *x,
-            Type::Integer { span, .. } => *span,
-            Type::Floating { span, .. } => *span,
-            Type::Pointer(_, x) => *x,
-            Type::Array { span, .. } => *span,
-            Type::Function { span, .. } => *span,
-            Type::Struct { span, .. } => *span,
-            Type::Union { span, .. } => *span,
-            Type::Enum { span, .. } => *span,
-            Type::NamedType { span, .. } => *span,
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct Type {
+    pub kind: TypeKind,
+    pub span: Span,
 }
 
 impl Type {
-    pub fn string_type(len: u64, span: Span) -> Type {
-        Type::Array { elem_ty: Box::new(Type::Integer { signed: false, size: IntegerSize::Char, span }), size: Some(len), span }
+    pub fn new(kind: TypeKind, span: Span) -> Type {
+        Type { kind, span }
     }
+}
+// 类型系统
+#[derive(Debug, Clone)]
+pub enum TypeKind {
+    Void,
+    Integer { signed: bool, size: IntegerSize},
+    Floating { size: FloatSize},
+    Pointer(Box<Type>),
+    Array { elem_ty: Box<Type>, size: Option<u64>}, // size is constant-evaluated
+    Function { ret_ty: Box<Type>, params: Vec<Type>, is_variadic: bool },
+    Struct { name: Option<String>, fields: Vec<Field> },
+    Union { name: Option<String>, fields: Vec<Field> },
+    Enum { name: Option<String>, values: Vec<(String, i64)> },
+    NamedType { name: String, decl_ref: Option<Rc<Symbol>> }
+}
 
-    /// 返回类型等级（越大精度越高）
-    pub fn rank(&self) -> u8 {
-        match self {
-            Type::Integer { size, .. } => match size {
-                IntegerSize::Char => 1,
-                IntegerSize::Short => 2,
-                IntegerSize::Int => 3,
-                IntegerSize::Long => 4,
-            },
-            Type::Floating { size, .. } => match size {
-                FloatSize::Float => 6,
-                FloatSize::Double => 7,
-            },
-            Type::Pointer(_, _) => 9, // 指针类型等级最高，用于 +,- 可合法
-            _ => 0,
+impl Type {
+    pub fn string_type(len: u64, span: Span) -> Self {
+        let int_kind = TypeKind::Integer { signed: false, size: IntegerSize::Char };
+        let int_ty = Self {
+            kind: int_kind,
+            span,
+        };
+
+        let kind = TypeKind::Array { elem_ty: Box::new(int_ty), size: Some(len) };
+        Self {
+            kind,
+            span,
         }
     }
 
     pub fn is_integer(&self) -> bool {
-        matches!(self, Type::Integer { .. })
+        matches!(self.kind, TypeKind::Integer { .. })
     }
 
     pub fn is_floating(&self) -> bool {
-        matches!(self, Type::Floating { .. })
+        matches!(self.kind, TypeKind::Floating { .. })
     }
 
     pub fn is_pointer(&self) -> bool {
-        matches!(self, Type::Pointer(_, _))
+        matches!(self.kind, TypeKind::Pointer(_))
     }
 
     pub fn is_array(&self) -> bool {
-        matches!(self, Type::Array { .. })
+        matches!(self.kind, TypeKind::Array { .. })
     }
 
     pub fn is_function(&self) -> bool {
-        matches!(self, Type::Function { .. })
+        matches!(self.kind, TypeKind::Function { .. })
     }
 
     pub fn is_arithmetic(&self) -> bool {
@@ -142,7 +134,7 @@ impl Type {
     }
 
     pub fn is_named_type(&self) -> bool {
-        matches!(self, Type::NamedType { .. })
+        matches!(self.kind, TypeKind::NamedType { .. })
     }
 }
 
@@ -183,10 +175,9 @@ pub struct Qualifiers {
 
 // 结构体/联合体字段
 #[derive(Debug, Clone)]
-#[derive(PartialEq)]
 pub struct Field {
     pub name: String,
-    pub ty: Box<Type>,
+    pub ty: Type,
     pub bit_width: Option<u32>, // for bitfields
     pub span: Span,
 }
@@ -195,124 +186,105 @@ pub struct Field {
 #[derive(Debug, Clone)]
 pub struct Parameter {
     pub name: Option<String>,
-    pub ty: Option<Box<Type>>,
+    pub ty: Option<Type>,
     pub span: Span,
 }
 
 // 初始化器
 #[derive(Debug, Clone)]
 pub enum Initializer {
-    Scalar(Box<Expression>, Span),
-    List(Vec<Initializer>, Span),
+    Scalar(Box<Expression>),
+    List(Vec<Initializer>),
 }
 
 /// 语句块
 #[derive(Debug, Clone)]
 pub struct Block {
     pub items: Vec<BlockItem>,
-    pub span: Span,
 }
+
 
 #[derive(Debug, Clone)]
 pub enum BlockItem {
-    Declaration(Box<DeclStmt>, Span),
-    Statement(Box<Statement>, Span),
+    Declaration(DeclStmt),
+    Statement(Statement),
+}
+
+#[derive(Debug, Clone)]
+pub struct Statement {
+    pub kind: StatementKind,
+    pub span: Span
+}
+
+impl Statement {
+    pub fn new(kind: StatementKind, span: Span) -> Self {
+        Self { kind, span }
+    }
 }
 
 // 语句
 /// todo 差别太大 IF For
 #[derive(Debug, Clone)]
-pub enum Statement {
+pub enum StatementKind {
     Labeled {
         label: String,
         stmt: Box<Statement>,
-        span: Span
     },
     Case { // constant-evaluated
         value: i64,
         stmt: Box<Statement>,
-        span: Span
     },
     Default {
         stmt: Box<Statement>,
-        span: Span
     },
-    Block(Box<Block>, Span),
-    Expression(Option<Box<Expression>>, Span),
+    Block(Box<Block>),
+    Expression(Option<Box<Expression>>),
     If {
         cond: Box<Expression>,
         then_stmt: Box<Statement>,
         else_stmt: Option<Box<Statement>>,
-        span: Span
     },
     Switch {
         cond: Box<Expression>,
         body: Box<Statement>,
-        span: Span
     },
     While {
         cond: Box<Expression>,
         body: Box<Statement>,
-        span: Span
     },
     DoWhile {
         body: Box<Statement>,
         cond: Box<Expression>,
-        span: Span
     },
     For {
         init: Option<Box<Expression>>,
         cond: Option<Box<Expression>>,
         step: Option<Box<Expression>>,
         body: Box<Statement>,
-        span: Span
     },
     Goto {
         label: String,
-        span: Span
     },
-    Continue(Span),
-    Break(Span),
-    Return(Option<Box<Expression>>, Span),
+    Continue,
+    Break,
+    Return(Option<Box<Expression>>),
 }
-
-impl Statement {
-
-    pub fn unwrap_span(&self) -> Span {
-        match self {
-            Statement::Labeled { span, .. }
-            | Statement::Case { span, .. }
-            | Statement::Default { span, .. }
-            | Statement::Block(_, span)
-            | Statement::Expression(_, span)
-            | Statement::If { span, .. }
-            | Statement::Switch { span, .. }
-            | Statement::While { span, .. }
-            | Statement::DoWhile { span, .. }
-            | Statement::For { span, .. }
-            | Statement::Goto { span, .. }
-            | Statement::Continue(span)
-            | Statement::Break(span)
-            | Statement::Return(_, span) => *span,
-            // Statement::Decl (decl) => decl.span,
-        }
-    }
-
-
-}
-
 // 表达式
 #[derive(Debug, Clone)]
 pub struct Expression {
-    pub kind: Box<ExpressionKind>,
-    pub ty: Option<Box<Type>>, // 类型交给后期多次遍历时填充，
+    pub kind: ExpressionKind,
+    pub ty: Option<Type>, // 类型交给后期多次遍历时填充，
     pub span: Span,
 }
 
 impl Expression {
 
+    pub fn new(kind: ExpressionKind, ty: Option<Type>, span: Span) -> Expression {
+        Expression { kind, ty, span }
+    }
+
     pub fn is_lvalue(&self) -> bool {
-        match self.kind.as_ref() {
+        match &self.kind {
             ExpressionKind::Id { .. } => true,                    // 变量
             ExpressionKind::ArrayAccess { .. } => true,             // a[i]
             ExpressionKind::FieldAccess { .. } => true,            // s.f 或 s->f
@@ -390,106 +362,191 @@ pub enum ExpressionKind {
 }
 
 #[derive(Debug, Clone)]
-pub enum Constant {
-    Int(i64, Span),
-    Float(f64, Span),
-    Char(u8, Span),
-    String(String, Span), // 合并后的字符串字面量
+pub struct Constant {
+    pub kind: ConstantKind,
+    pub span: Span,
 }
 
+impl Constant {
+    pub fn new(kind: ConstantKind, span: Span) -> Constant {
+        Constant { kind, span }
+    }
+
+    pub fn get_type(&self) -> Type {
+        let span = self.span;
+        let kind = match &self.kind {
+            ConstantKind::Int(_) => TypeKind::Integer { signed: true, size: IntegerSize::Int },
+            ConstantKind::Float(_) => TypeKind::Floating { size: FloatSize::Float },
+            ConstantKind::Char(_) => TypeKind::Integer { signed: true, size: IntegerSize::Char },
+            ConstantKind::String(x) => {
+                let int_kind = TypeKind::Integer { signed: false, size: IntegerSize::Char };
+                let int_ty = Type::new(int_kind, span);
+                TypeKind::Array { elem_ty: Box::new(int_ty), size: Some(x.len() as u64) }
+            },
+        };
+
+        Type::new(kind, span)
+    }
+}
+
+impl TryFrom<Token> for Constant {
+    type Error = &'static str;
+
+    fn try_from(value: Token) -> Result<Self, Self::Error> {
+        let span = Span::from_token(&value);
+        let kind: ConstantKind = value.try_into()?;
+        Ok(Self::new(kind, span))
+    }
+}
 
 #[derive(Debug, Clone)]
-pub enum UnaryOp {
-    AddressOf(Span),
-    Deref(Span),
-    Plus(Span),
-    Minus(Span),
-    BitNot(Span),
-    LogicalNot(Span),
+pub enum ConstantKind {
+    Int(i64),
+    Float(f64),
+    Char(u8),
+    String(String), // 合并后的字符串字面量
+}
+
+impl TryFrom<Token> for ConstantKind {
+    type Error = &'static str;
+    fn try_from(value: Token) -> Result<Self, Self::Error> {
+        match value.value {
+            TokenValue::Number { value, .. } => Ok(Self::Int(value as i64)),
+            TokenValue::Float(x) => Ok(Self::Float(x)),
+            TokenValue::String(x) => Ok(Self::String(x)),
+            TokenValue::Char(x) => Ok(Self::Char(x)),
+            TokenValue::Other => Err("Failed to convert Token to ConstantKind")
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum UnaryOpKind {
+    AddressOf,
+    Deref,
+    Plus,
+    Minus,
+    BitNot,
+    LogicalNot,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnaryOp {
+    pub kind: UnaryOpKind,
+    pub span: Span,
 }
 
 impl UnaryOp {
-    pub fn unwrap_span(&self) -> Span {
-        match self {
-            UnaryOp::AddressOf(x) => *x,
-            UnaryOp::Deref(x) => *x,
-            UnaryOp::Plus(x) => *x,
-            UnaryOp::Minus(x) => *x,
-            UnaryOp::BitNot(x) => *x,
-            UnaryOp::LogicalNot(x) => *x,
+    pub fn new(kind: UnaryOpKind, span: Span) -> UnaryOp {
+        Self {
+            kind,
+            span
         }
     }
 
     pub fn is_lvalue(&self) -> bool {
-        match self {
-            UnaryOp::AddressOf(_) => false,
-            UnaryOp::Deref(_) => true,
-            UnaryOp::Plus(_) => false,
-            UnaryOp::Minus(_) => false,
-            UnaryOp::BitNot(_) => true,
-            UnaryOp::LogicalNot(_) => false
+        match self.kind {
+            UnaryOpKind::AddressOf => false,
+            UnaryOpKind::Deref => true,
+            UnaryOpKind::Plus => false,
+            UnaryOpKind::Minus => false,
+            UnaryOpKind::BitNot => true,
+            UnaryOpKind::LogicalNot => false
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum BinaryOp {
-    Add(Span),
-    Sub(Span),
-    Mul(Span),
-    Div(Span),
-    Mod(Span),
-    Shl(Span),
-    Shr(Span),
-    Lt(Span),
-    Gt(Span),
-    Le(Span),
-    Ge(Span),
-    Eq(Span),
-    Ne(Span),
-    BitAnd(Span),
-    BitXor(Span),
-    BitOr(Span),
-    LogicalAnd(Span),
-    LogicalOr(Span),
+pub enum BinaryOpKind {
+    Add, Sub, Mul, Div, Mod,
+    Shl, Shr,
+    Lt, Gt, Le, Ge, Eq, Ne,
+    BitAnd, BitXor, BitOr,
+    LogicalAnd, LogicalOr,
+}
+
+impl TryFrom<Token> for BinaryOpKind {
+    type Error = &'static str; // todo 后期可以用this error
+
+    fn try_from(value: Token) -> Result<Self, Self::Error> {
+        match value.as_type().unwrap() {
+            TokenType::OpPlus => Ok(BinaryOpKind::Add),
+            TokenType::OpMinus => Ok(BinaryOpKind::Sub),
+            TokenType::OpTimes => Ok(BinaryOpKind::Mul),
+            TokenType::OpDivide => Ok(BinaryOpKind::Div),
+            TokenType::OpMod => Ok(BinaryOpKind::Mod),
+            TokenType::OpLShift => Ok(BinaryOpKind::Shl),
+            TokenType::OpRShift => Ok(BinaryOpKind::Shr),
+            TokenType::OpLt => Ok(BinaryOpKind::Lt),
+            TokenType::OpGt => Ok(BinaryOpKind::Gt),
+            TokenType::OpLe => Ok(BinaryOpKind::Le),
+            TokenType::OpGe => Ok(BinaryOpKind::Ge),
+            TokenType::OpEq => Ok(BinaryOpKind::Eq),
+            TokenType::OpNe => Ok(BinaryOpKind::Ne),
+            TokenType::OpBitand =>Ok(BinaryOpKind::BitAnd),
+            TokenType::OpXor => Ok(BinaryOpKind::BitXor),
+            TokenType::OpBitor => Ok(BinaryOpKind::BitOr),
+            TokenType::OpAnd => Ok(BinaryOpKind::LogicalAnd),
+            TokenType::OpOr => Ok(BinaryOpKind::LogicalOr),
+            _ => Err("Failed to convert binary operator"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BinaryOp {
+    pub kind: BinaryOpKind,
+    pub span: Span
 }
 
 impl BinaryOp {
-    pub fn unwrap_span(&self) -> Span {
-        match self {
-            BinaryOp::Add(s) => *s,
-            BinaryOp::Sub(s) => *s,
-            BinaryOp::Mul(s) => *s,
-            BinaryOp::Div(s) => *s,
-            BinaryOp::Mod(s) => *s,
-            BinaryOp::Shl(s) => *s,
-            BinaryOp::Shr(s) => *s,
-            BinaryOp::Lt(s) => *s,
-            BinaryOp::Gt(s) => *s,
-            BinaryOp::Le(s) => *s,
-            BinaryOp::Ge(s) => *s,
-            BinaryOp::Eq(s) => *s,
-            BinaryOp::Ne(s) => *s,
-            BinaryOp::BitAnd(s) => *s,
-            BinaryOp::BitXor(s) => *s,
-            BinaryOp::BitOr(s) => *s,
-            BinaryOp::LogicalAnd(s) => *s,
-            BinaryOp::LogicalOr(s) => *s,
+    pub fn new(kind: BinaryOpKind, span: Span) -> BinaryOp {
+        Self { kind, span }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum AssignOpKind {
+    Assign,
+    MulAssign,
+    DivAssign,
+    ModAssign,
+    AddAssign,
+    SubAssign,
+    ShlAssign,
+    ShrAssign,
+    AndAssign,
+    XorAssign,
+    OrAssign,
+}
+
+impl TryFrom<Token> for AssignOpKind {
+    type Error = &'static str;
+    fn try_from(value: Token) -> Result<Self, Self::Error> {
+       match value.as_type().unwrap() {
+            TokenType::OpAssign => Ok(AssignOpKind::Assign),
+            TokenType::OpMulAssign => Ok(AssignOpKind::MulAssign),
+            TokenType::OpDivAssign => Ok(AssignOpKind::DivAssign),
+            TokenType::OpModAssign => Ok(AssignOpKind::ModAssign),
+            TokenType::OpAddAssign => Ok(AssignOpKind::AddAssign),
+            TokenType::OpSubAssign => Ok(AssignOpKind::SubAssign),
+            TokenType::OpLShiftAssign => Ok(AssignOpKind::ShlAssign),
+            TokenType::OpRShiftAssign => Ok(AssignOpKind::ShrAssign),
+            TokenType::OpAndAssign => Ok(AssignOpKind::AndAssign),
+            TokenType::OpOrAssign => Ok(AssignOpKind::OrAssign),
+            _ => Err("Failed to convert assignment operator"),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum AssignOp {
-    Assign(Span),
-    MulAssign(Span),
-    DivAssign(Span),
-    ModAssign(Span),
-    AddAssign(Span),
-    SubAssign(Span),
-    ShlAssign(Span),
-    ShrAssign(Span),
-    AndAssign(Span),
-    XorAssign(Span),
-    OrAssign(Span),
+pub struct AssignOp {
+    pub kind: AssignOpKind,
+    pub span: Span,
+}
+
+impl AssignOp {
+    pub fn new(kind: AssignOpKind, span: Span) -> AssignOp {
+        Self { kind, span }
+    }
 }

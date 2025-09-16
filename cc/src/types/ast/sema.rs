@@ -3,25 +3,21 @@
 //! Sema函数会做语义检查，类型检查，错误处理 和 错误恢复
 //!
 
-use std::mem;
 use crate::lex::lex_yy::TokenType;
 use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclaratorChunk, TypeQual};
 use crate::types::ast::parser_node::ParserNode;
 use crate::types::span::{Span, UnwrapSpan};
-use crate::types::token::{Token, TokenValue};
+use crate::types::token::Token;
+use std::mem;
 
 impl TranslationUnit {
     pub fn make_translation_unit(ext_decl: ExternalDeclaration) -> ParserNode {
-        let span = ext_decl.unwrap_span();
-        TranslationUnit {
-            ext_decls: vec![ext_decl],
-            span
-        }.into()
+        TranslationUnit { ext_decls: vec![ext_decl], }.into()
     }
 
     pub fn insert_ext_decl(mut translation_unit: TranslationUnit, ext_decl: ExternalDeclaration) {
-        translation_unit.span.merge_self(&ext_decl.unwrap_span());
+        translation_unit.unwrap_span().merge_self(&ext_decl.unwrap_span());
         translation_unit.ext_decls.push(ext_decl);
     }
 }
@@ -30,23 +26,6 @@ impl Type {
 
     pub fn make_type(_chunk: Vec<DeclaratorChunk>) -> Self {
         todo!() // todo 未实现
-    }
-
-    pub fn set_span(&mut self, set: Span) {
-        match self {
-            Type::Void(span)
-            | Type::Integer { span, .. }
-            | Type::Floating { span, .. }
-            | Type::Pointer(_, span)
-            | Type::Array { span, .. }
-            | Type::Function { span, .. }
-            | Type::Struct { span, .. }
-            | Type::Union { span, .. }
-            | Type::Enum { span, .. }
-            | Type::NamedType { span, .. } => {
-                *span = set;
-            }
-        }
     }
 }
 
@@ -90,58 +69,63 @@ impl Default for Qualifiers {
 impl Statement {
     /// constexpr应该会被归并成为一个常量表达式，最终被计算
     pub fn make_case(constexpr: Expression, stmt: Statement) -> ParserNode {
-        let (constant, span) = match *constexpr.kind {
+        let (constant, span) = match constexpr.kind {
             ExpressionKind::Literal(constant, span) => (constant, span),
             _ => unreachable!()
         };
 
-        let value = match constant {
-            Constant::Int(x, _) => x,
-            Constant::Char(x, _) => x as i64,
+        let value = match constant.kind {
+            ConstantKind::Int(x) => x,
+            ConstantKind::Char(x) => x as i64,
             _ => panic!("Clangd: Integer constant expression must have integer type, not '{:?}'", constexpr.ty)
         };
 
-        Statement::Case {value, stmt: Box::new(stmt), span}.into()
+        let kind = StatementKind::Case { value, stmt: Box::new(stmt) };
+        Statement::new(kind, span).into()
     }
 
-    pub fn make_expression(expr: Option<Expression>, semi: Token) -> ParserNode {
+    pub fn make_expression(expr: Option<Box<Expression>>, semi: Token) -> ParserNode {
         let span = Span::from_token(&semi);
         let span = expr.as_ref().map(|x| span.merge(&x.span)).unwrap_or(span);
 
-        Statement::Expression(expr.map(Box::new), span).into()
+        let kind = StatementKind::Expression(expr);
+        Statement::new(kind, span).into()
     }
 
     pub fn make_if(if_token: Token, cond: Expression, then_stmt: Statement, else_stmt: Option<Statement>) -> ParserNode {
         let span = Span::from_token(&if_token);
         let span = match &else_stmt {
             None => span,
-            Some(x) => span.merge(&x.unwrap_span())
+            Some(x) => span.merge(&x.span)
         };
 
-        Statement::If { cond: Box::new(cond), then_stmt: Box::new(then_stmt), else_stmt: else_stmt.map(Box::new), span }.into()
+        let kind = StatementKind::If { cond: Box::new(cond), then_stmt: Box::new(then_stmt), else_stmt: else_stmt.map(Box::new) };
+        Statement::new(kind, span).into()
     }
 
     pub fn make_switch(switch_token: Token, cond: Expression, body: Statement) -> ParserNode {
-        let span = Span::from_token(&switch_token).merge(&body.unwrap_span());
-        Statement::Switch { cond: Box::new(cond), body: Box::new(body), span }.into()
+        let span = Span::from_token(&switch_token).merge(&body.span);
+        let kind = StatementKind::Switch { cond: Box::new(cond), body: Box::new(body) };
+        Statement::new(kind, span).into()
     }
     pub fn make_while(while_token: Token, cond: Expression, body: Statement, rparen: Option<Token>) -> ParserNode {
-        let span = Span::from_token(&while_token).merge(&body.unwrap_span());
+        let span = Span::from_token(&while_token).merge(&body.span);
         let span = match rparen {
             None => span,
             Some(x) => Span::from_token(&x).merge(&span)
         };
-        let result = match while_token.as_type().unwrap() {
-            TokenType::KeywordWhile => Statement::While { cond: Box::new(cond), body: Box::new(body), span },
-            TokenType::KeywordDo => Statement::DoWhile { cond: Box::new(cond), body: Box::new(body), span },
+        let kind = match while_token.as_type().unwrap() {
+            TokenType::KeywordWhile => StatementKind::While { cond: Box::new(cond), body: Box::new(body) },
+            TokenType::KeywordDo => StatementKind::DoWhile { cond: Box::new(cond), body: Box::new(body) },
             _ => unreachable!()
         };
-        result.into()
+        Statement::new(kind, span).into()
     }
 
     pub fn make_for(for_token: Token, init_opt: Option<Expression>, cond_opt: Option<Expression>, step_opt: Option<Expression>, body: Statement) -> ParserNode {
-        let span = Span::from_token(&for_token).merge(&body.unwrap_span());
-        Statement::For { init: init_opt.map(Box::new), cond: cond_opt.map(Box::new), step: step_opt.map(Box::new), body: Box::new(body), span }.into()
+        let span = Span::from_token(&for_token).merge(&body.span);
+        let kind = StatementKind::For { init: init_opt.map(Box::new), cond: cond_opt.map(Box::new), step: step_opt.map(Box::new), body: Box::new(body) };
+        Statement::new(kind, span).into()
     }
 
     /// 第一个token是goto
@@ -151,19 +135,20 @@ impl Statement {
 
         let span = goto_span.merge(&label_span);
         let label = label.value.into_string().unwrap();
-        Statement::Goto { label, span }.into()
+        let kind = StatementKind::Goto { label };
+        Statement::new(kind, span).into()
     }
 
 
     pub fn make_continue_break(token: Token) -> ParserNode {
         let span = Span::from_token(&token);
-        let result = match token.as_type().unwrap() {
-            TokenType::KeywordContinue => Statement::Continue(span),
-            TokenType::KeywordBreak => Statement::Break(span),
+        let kind = match token.as_type().unwrap() {
+            TokenType::KeywordContinue => StatementKind::Continue,
+            TokenType::KeywordBreak => StatementKind::Break,
             _ => unreachable!()
         };
 
-        result.into()
+        Statement::new(kind, span).into()
     }
 
     /// 第一个token是return
@@ -174,28 +159,31 @@ impl Statement {
             Some(expr) => ret_span.merge(&expr.span)
         };
 
-        Statement::Return(expr.map(Box::new), span).into()
+        let kind = StatementKind::Return(expr.map(Box::new));
+        Statement::new(kind, span).into()
     }
 }
 
 impl Expression {
 
     pub fn make_literal(constant: Constant) -> ParserNode {
-        let span = constant.unwrap_span();
+        let span = constant.span;
         let kind = ExpressionKind::Literal(constant, span);
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
     pub fn make_id(token: Token) -> ParserNode {
+        let span = Span::from_token(&token);
         let name = token.value.into_string().unwrap();
-        ExpressionKind::Id {name, decl_ref: None}.into()
+        let kind = ExpressionKind::Id { name, decl_ref: None };
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
     /// 最后的token是 arr[...] <-这个字符，用来精确确定位置
     pub fn make_array_access(base: Expression, index: Expression, token: Token) -> ParserNode {
         let span = base.span.merge(&Span::from_token(&token));
         let kind = ExpressionKind::ArrayAccess { base: Box::new(base), index: Box::new(index) };
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
     /// 最后的token是 foo(...) <-这个字符，用来精确确定位置
@@ -203,7 +191,7 @@ impl Expression {
         let span = func.span.merge(&Span::from_token(&token));
         let kind = ExpressionKind::Call {func: Box::new(func), args};
 
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
     pub fn make_field_access(base: Expression, field: Token) -> ParserNode {
@@ -211,7 +199,7 @@ impl Expression {
         let field = field.value.into_string().unwrap();
         let kind = ExpressionKind::FieldAccess { base: Box::new(base), field };
 
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
     pub fn make_arrow(base: Expression, field: Token) -> ParserNode {
@@ -219,7 +207,7 @@ impl Expression {
         let field = field.value.into_string().unwrap();
         let kind = ExpressionKind::Arrow { base: Box::new(base), field };
 
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
 
     }
 
@@ -242,24 +230,29 @@ impl Expression {
         };
 
         let kind = kind(Box::new(expr));
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression { kind, ty: None, span }).into()
     }
 
     pub fn make_unary(token: Token, expr: Expression) -> ParserNode {
         let token_span = Span::from_token(&token);
         let span = token_span.merge(&expr.span);
-        let op = match token.as_type().unwrap() {
-            TokenType::OpBitand => UnaryOp::AddressOf(token_span),
-            TokenType::OpTimes => UnaryOp::Deref(token_span),
-            TokenType::OpPlus => UnaryOp::Plus(token_span),
-            TokenType::OpMinus => UnaryOp::Minus(token_span),
-            TokenType::OpBitNot => UnaryOp::BitNot(token_span),
-            TokenType::OpNot => UnaryOp::LogicalNot(token_span),
+
+        let kind = match token.as_type().unwrap() {
+            TokenType::OpBitand => UnaryOpKind::AddressOf,
+            TokenType::OpTimes => UnaryOpKind::Deref,
+            TokenType::OpPlus => UnaryOpKind::Plus,
+            TokenType::OpMinus => UnaryOpKind::Minus,
+            TokenType::OpBitNot => UnaryOpKind::BitNot,
+            TokenType::OpNot => UnaryOpKind::LogicalNot,
             _ => unreachable!()
         };
-        let kind = ExpressionKind::Unary {op, expr: Box::new(expr)};
 
-        Expression { kind: Box::new(kind) , ty: None, span }.into()
+        let op = UnaryOp::new(kind, token_span);
+
+
+        let expr_kind = ExpressionKind::Unary {op, expr: Box::new(expr)};
+
+        Box::new(Expression::new(expr_kind, None, span)).into()
     }
 
     /// 第一个token是sizeof的值 -> sizeof expr
@@ -267,7 +260,7 @@ impl Expression {
         let span = expr.span;
         let kind = ExpressionKind::SizeofExpr(Box::new(expr));
 
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
     /// 第一个token是sizeof的值 -> sizeof(type) <- 第二个是第二个括号
@@ -275,7 +268,7 @@ impl Expression {
         let span = Span::from_token(&sizeof).merge(&Span::from_token(&rparen));
         let kind = ExpressionKind::SizeofType(Box::new(typ));
 
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
 
@@ -284,7 +277,7 @@ impl Expression {
         let span = Span::from_token(&token).merge(&expr.span);
         let kind = ExpressionKind::Cast { ty: Box::new(typ), expr: Box::new(expr) };
 
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
     pub fn make_binary(lhs: Expression, token: Token, rhs: Expression) -> ParserNode {
@@ -292,66 +285,38 @@ impl Expression {
         let span_token = Span::from_token(&token);
 
 
-        let op = match token.as_type().unwrap() {
-            TokenType::OpPlus => BinaryOp::Add(span_token),
-            TokenType::OpMinus => BinaryOp::Sub(span_token),
-            TokenType::OpTimes => BinaryOp::Mul(span_token),
-            TokenType::OpDivide => BinaryOp::Div(span_token),
-            TokenType::OpMod => BinaryOp::Mod(span_token),
-            TokenType::OpLShift => BinaryOp::Shl(span_token),
-            TokenType::OpRShift => BinaryOp::Shr(span_token),
-            TokenType::OpLt => BinaryOp::Lt(span_token),
-            TokenType::OpGt => BinaryOp::Gt(span_token),
-            TokenType::OpLe => BinaryOp::Le(span_token),
-            TokenType::OpGe => BinaryOp::Ge(span_token),
-            TokenType::OpEq => BinaryOp::Eq(span_token),
-            TokenType::OpNe => BinaryOp::Ne(span_token),
-            TokenType::OpBitand => BinaryOp::BitAnd(span_token),
-            TokenType::OpXor => BinaryOp::BitXor(span_token),
-            TokenType::OpBitor => BinaryOp::BitOr(span_token),
-            TokenType::OpAnd => BinaryOp::LogicalAnd(span_token),
-            TokenType::OpOr => BinaryOp::LogicalOr(span_token),
-            _ => unreachable!()
-        };
+        let op_kind: BinaryOpKind = token.try_into().unwrap();
+        let op = BinaryOp::new(op_kind, span_token);
+
         let kind = ExpressionKind::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
 
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
 
-    pub fn make_conditional(cond: Expression, then_expr: Expression, else_expr: Expression) -> ParserNode {
+    pub fn make_conditional(cond: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>) -> ParserNode {
         let span = cond.span.merge(&else_expr.span);
         let kind = ExpressionKind::Conditional {
-            cond: Box::new(cond),
-            then_expr: Box::new(then_expr),
-            else_expr: Box::new(else_expr)
+            cond,
+            then_expr,
+            else_expr
         };
 
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        Box::new(Expression::new(kind, None, span)).into()
     }
 
-    pub fn make_assign(lhs: Expression, token: Token, rhs: Expression) -> ParserNode {
+    pub fn make_assign(lhs: Box<Expression>, token: Token, rhs: Box<Expression>) -> ParserNode {
         if lhs.is_rvalue() {
             panic!("Cannot assign to rvalue");
         }
         let span_token = Span::from_token(&token);
 
-        let op = match token.as_type().unwrap() {
-            TokenType::OpAssign => AssignOp::Assign(span_token),
-            TokenType::OpMulAssign => AssignOp::MulAssign(span_token),
-            TokenType::OpDivAssign => AssignOp::DivAssign(span_token),
-            TokenType::OpModAssign => AssignOp::ModAssign(span_token),
-            TokenType::OpAddAssign => AssignOp::AddAssign(span_token),
-            TokenType::OpSubAssign => AssignOp::SubAssign(span_token),
-            TokenType::OpLShiftAssign => AssignOp::ShlAssign(span_token),
-            TokenType::OpRShiftAssign => AssignOp::ShrAssign(span_token),
-            TokenType::OpAndAssign => AssignOp::AndAssign(span_token),
-            TokenType::OpOrAssign => AssignOp::OrAssign(span_token),
-            _ => unreachable!(),
-        };
+        let op_kind: AssignOpKind = token.try_into().unwrap();
         let span = lhs.span.merge(&rhs.span);
-        let kind = ExpressionKind::Assign { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
-        Expression { kind: Box::new(kind), ty: None, span }.into()
+        let op = AssignOp::new(op_kind, span_token);
+
+        let kind = ExpressionKind::Assign { lhs, op, rhs };
+        Box::new(Expression { kind, ty: None, span }).into()
     }
 
     pub fn make_comma(mut exprs: Vec<Expression>, expr: Expression) -> ParserNode {
@@ -364,50 +329,22 @@ impl Expression {
 
 impl Constant {
     pub fn make(token: Token) -> ParserNode {
-        let span = Span::from_token(&token);
-
-        let constant = match token.value {
-            TokenValue::Number { value, .. } => Self::Int(value as i64, span),
-            TokenValue::Float(value) => Self::Float(value, span),
-            TokenValue::String(value) => Self::String(value, span),
-            TokenValue::Char(value) => Self::Char(value, span),
-            TokenValue::Other => unreachable!(),
-        };
-
-        constant.into()
+        Constant::try_from(token).unwrap().into()
     }
 
     pub fn insert_str(mut constant: Constant, token: Token) -> ParserNode {
         let token_str = token.value.as_string().unwrap();
         let token_span = Span::from_token(&token);
-        let (str, span) = match &mut constant {
-            Constant::String(str, span) => (str, span),
+        let string = match &mut constant.kind {
+            ConstantKind::String(str) => str,
             _ => unreachable!(),
         };
 
-        span.merge_self(&token_span);
-        str.push_str(token_str);
+        constant.span.merge_self(&token_span);
+        string.push_str(token_str);
         constant.into()
     }
 
-    pub fn unwrap_span(&self) -> Span {
-        match self {
-            Constant::Int(_, x) => *x,
-            Constant::Float(_, x) => *x,
-            Constant::Char(_, x) => *x,
-            Constant::String(_, x) => *x,
-        }
-    }
-
-    pub fn get_type(&self) -> Type {
-        let span = self.unwrap_span();
-        match self {
-            Constant::Int(_, _) => Type::Integer {signed: true, size: IntegerSize::Int, span},
-            Constant::Float(_, _) => Type::Floating {size: FloatSize::Float, span},
-            Constant::Char(_, _) => Type::Integer {signed: true, size: IntegerSize::Char, span},
-            Constant::String(x, _) => Type::string_type(x.len() as u64, span),
-        }
-    }
 }
 
 
@@ -441,10 +378,10 @@ impl Declaration {
 
         let decl = Self {
             name: declarator.name.unwrap(), //
-            ty: Box::new(Type::make_type(declarator.chunks)),
+            ty: Type::make_type(declarator.chunks),
             storage,
             qualifiers,
-            init: init.map(Box::new),
+            init,
             span
         };
         Box::new(decl).into()
