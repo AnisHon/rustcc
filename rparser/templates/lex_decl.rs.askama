@@ -1,0 +1,4 @@
+{%- for item in decls -%}
+
+const {{ item.0 }}: usize = {{ item.1 }};
+{% endfor -%}

@@ -5,7 +5,7 @@ use std::fs;
 use common::utils::str_util::{default_cvt, option_cvt, vec_to_code};
 
 #[derive(Template)]
-#[template(path = "lex.rs.askama")]
+#[template(path = "lex.rs.askama", ext = "txt", escape = "none")]
 struct LexTemplate {
     init_state: usize,
     base: String,

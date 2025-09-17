@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Display};
 
 /// 默认的四个空格的锁进
 const IDENT_STR: &str = "    ";
@@ -37,7 +37,7 @@ pub fn vec_to_code<T>(vec: impl Iterator<Item=T>, cvt: fn(T) -> String) -> (Stri
         sz += 1;
         let count = push_count(&mut code, code_patten);
         code.push_str(", "); // 分割符
-        line_width += (count + 2);
+        line_width += count + 2;
 
         if line_width > MAX_WIDTH {
             code.push('\n');
@@ -56,6 +56,10 @@ pub fn option_cvt<T: Display>(value: Option<T>) -> String {
         None => "None".to_string(),
         Some(x) => format!("Some({})", x),
     }
+}
+
+pub fn string_cvt(value: String) -> String {
+    format!("\"{}\"", value)
 }
 
 /// 使用Display转换

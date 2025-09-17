@@ -1,0 +1,109 @@
+{{ user_code }}
+
+pub const INIT_STATE: usize = {{ init_state }};
+pub const END_SYMBOL: usize = {{ end_symbol }};
+
+/// 数组解构
+macro_rules! destruct_vec {
+    ($vec:expr, $($var:ident),*) => {
+        let [$($var),*] = $vec.try_into().expect("destruct failed");
+    };
+}
+
+
+#[derive(Debug, Clone)]
+pub enum LRAction {
+    Reduce(usize),      // 规约 推导式ID
+    Shift(usize),       // 移入 状态ID
+    Accept(usize),      // 结束规约 推导式ID
+    Error               // 出错Error
+}
+
+
+/// action matrix -> base next check
+static ACTION_BASE: [Option<usize>; {{ action_base_sz }}] = {{ action_base }};
+
+static ACTION_NEXT: [LRAction; {{ action_next_sz }}] = {{ action_next }};
+
+static ACTION_CHECK: [Option<usize>; {{ action_check_sz }}] = {{ action_check }};
+
+static ACTION_ROW_ID: [usize; {{ action_row_id_sz }}] = {{ action_row_id }};
+
+
+/// goto matrix -> base next check
+static GOTO_BASE: [Option<usize>; {{ goto_base_sz }}] = {{ goto_base }};
+
+static GOTO_NEXT: [Option<usize>; {{ goto_next_sz }}] = {{ goto_next }};
+
+static GOTO_CHECK: [Option<usize>; {{ goto_check_sz }}] = {{ goto_check }};
+
+static GOTO_ROW_ID: [usize; {{ goto_row_id_sz }}] = {{ goto_row_id }};
+
+
+/// prod_id -> length for reduce
+pub static EXPR_LENS: [usize; {{ expr_lens_sz }}] = {{ expr_lens }};
+
+/// prod_id -> expr name(non-terminal name)
+pub static EXPR_NAMES: [&str; {{ expr_names_sz }}] = {{ expr_names }};
+
+/// prod_id -> rule id(non-terminal name)
+static EXPR_IDS: [usize; {{ expr_ids_sz }}] = {{ expr_ids }};
+
+/// token_id -> token content (terminal name)
+pub static TOKEN_CONTENTS: [&str; {{ token_contents_sz }}] = {{ token_contents }};
+
+/// action_table[state][token]
+pub fn get_action(state: usize, token: usize) -> LRAction {
+    let row_id = ACTION_ROW_ID[state];
+    let base = ACTION_BASE[row_id];
+    if base.is_none() {
+        return LRAction::Error
+    }
+
+    let idx = base.unwrap() + token;
+
+    let check = ACTION_CHECK[idx]?;
+
+    if check == row_id {
+        ACTION_NEXT[idx].clone()
+    } else {
+        LRAction::Error
+    }
+}
+
+/// action_table[state][EXPR_IDS[prod_id]]
+pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
+    let row_id = GOTO_ROW_ID[state];
+    let rule_id = EXPR_IDS[prod_id];
+    let base = GOTO_BASE[row_id]?;
+
+    let idx = base.unwrap() + rule_id;
+
+    let check = GOTO_CHECK[idx]?;
+
+    if check == row_id {
+        GOTO_NEXT[idx]
+    } else {
+        None
+    }
+}
+
+/// action_code[state](params)
+pub fn exec_action(rule: usize, arguments: Vec<{{ typename }}>) -> {{ typename }} {
+    let {{ value_name }}: {{ typename }};
+    match rule {
+        {%- for item in action_codes -%}
+            {%- match item -%}
+               {%- when Some(code) %}
+        {{ loop.index0 }} => {
+            destruct_vec!(arguments, {{ arguments[loop.index0] }});
+            {{ code }}
+        }
+               {%- when none -%}
+            {%- endmatch -%}
+        {%- endfor -%}
+        _ => { {{ value_name }} = {{ typename }}::default()
+        }
+    };
+    {{ value_name }}
+}

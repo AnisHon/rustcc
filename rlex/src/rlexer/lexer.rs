@@ -109,7 +109,7 @@ impl Lexer {
 
     /// 节点的key，将None映射为 usize::max
     fn partition_key(meta: &StateMeta) -> usize {
-        meta.id.unwrap_or(usize::MAX) 
+        meta.id.unwrap_or(usize::MAX)
     }
 
 

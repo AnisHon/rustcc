@@ -1,7 +1,7 @@
-use pest::iterators::{Pair, Pairs};
+use crate::utils::regex_util::escape_regex_meta;
+use pest::iterators::Pairs;
 use pest::Parser;
 use pest_derive::Parser;
-use crate::utils::regex_util::escape_regex_meta;
 
 // 词法分析器 结构
 #[derive(Debug)]

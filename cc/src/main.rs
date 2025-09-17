@@ -1,10 +1,6 @@
-use std::io::Cursor;
 use cc::compiler::c_compiler::CCompiler;
 use cc::types::ast::ast_nodes::*;
-use cc::types::ast::decl_info::*;
-use cc::types::ast::parser_node::ParserNode;
-use cc::types::ast::struct_info::*;
-use cc::types::span::SepList;
+use std::io::Cursor;
 
 fn main() {
     let code = include_str!("../resources/test.c");

@@ -16,6 +16,10 @@ use pest::Parser;
 use pest_derive::Parser;
 use std::collections::HashMap;
 use std::io::BufRead;
+use indexmap::IndexMap;
+use unescape::unescape;
+use common::utils::id_util::IncIDFactory;
+use common::utils::unique_id_factory::UniqueIDFactory;
 
 #[derive(Parser)]
 #[grammar = "parser_pest.pest"]
@@ -233,7 +237,7 @@ impl GrammarConfigParser {
 /// - 'Vec<SymbolMeta>': symbol_id -> Symbol Meta
 /// - 'Vec<ProdMeta>': production_id -> Production Meta
 ///
-pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<usize>, Vec<SymbolMeta>, Vec<ProdMeta>) {
+pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>, Vec<ProdMeta>) {
 
     let mut grammar = Grammar::new(0);
 
@@ -241,7 +245,7 @@ pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<
         .map(|(idx, production)| (production.name.clone(), idx))
         .collect();
 
-    let (token_meta, token_map) = build_token_map(config, lex_tokens);
+    let (token_meta, token_map) = build_token_map(config);
 
     // production的meta信息
     let mut prod_map = Vec::new();
@@ -290,31 +294,45 @@ pub fn get_grammar(config: &GrammarConfig, lex_tokens: Vec<String>) -> (Grammar<
     (grammar, token_meta, prod_map)
 }
 
-fn build_token_map(config: &GrammarConfig, tokens: Vec<String>) -> (Vec<SymbolMeta>, HashMap<String, usize>) {
+fn build_token_map(config: &GrammarConfig) -> (Vec<SymbolMeta>, HashMap<String, usize>) {
+    let mut id_factory = IncIDFactory::new(258); // 从258之后开始编码，256~257保留
+    let mut token_meta: Vec<Option<SymbolMeta>> = Vec::new();
 
-    let mut token_meta: Vec<_> = tokens.into_iter().enumerate()
-        .map(|(idx, token)| SymbolMeta::new(idx, token))
-        .collect();
-
-    let token_map: HashMap<_, _> = token_meta.iter()
-        .map(|x| (x.content.clone(), x.id))
-        .collect();
+    let mut token_map: IndexMap<String, usize> = IndexMap::new();
 
     for (idx, assoc) in config.assoc.iter().enumerate() {
-        let is_right = match assoc {
+        let assoc_type = match assoc {
             AssocType::Right(_) => Assoc::Right,
             AssocType::Left(_) => Assoc::Left,
             AssocType::NonAssoc(_) => Assoc::NonAssoc,
         };
         assoc.unwrap().iter().for_each(|x| {
-            let token_id = *token_map.get(x).unwrap_or_else(|| panic!("No such token: {}", x));
-            let meta = &mut token_meta[token_id];
+            let token_id = *token_map
+                .entry(x.clone()).or_insert_with(|| get_symbol_id(x, &mut id_factory));
+            let mut meta = SymbolMeta::new(token_id, x.clone());
             meta.priority = idx;
-            meta.assoc = is_right;
+            meta.assoc = assoc_type;
+            token_meta[token_id] = Some(meta);
         });
     }
-
     (token_meta, token_map)
+}
+
+fn is_single_symbol(symbol: &str) -> bool {
+    symbol.starts_with("'") && symbol.ends_with("'")
+}
+
+/// 获取symbol的id，如果是但字符串则返回ASCII码，否则生成ID
+fn get_symbol_id(symbol: &str, id_factory: &mut IncIDFactory) -> usize {
+    let single = symbol.starts_with("'") && symbol.ends_with("'");
+
+    if single {
+        let symbol = unescape(&symbol[1usize..symbol.len() - 1]).unwrap();
+        assert_eq!(symbol.len(), 1, "unsupported symbol '{}'", symbol);
+        symbol.chars().next().unwrap() as usize
+    } else {
+        id_factory.next_id()
+    }
 }
 
 /// 读取lexer文件中的token，相互对应

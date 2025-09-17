@@ -63,15 +63,16 @@ pub enum Assoc {
 /// 推导式符号额外信息，
 #[derive(Clone, Debug)]
 pub struct SymbolMeta {
-    pub id: SymbolID,   // ID
-    pub content: String,   // 终结符内容
-    pub assoc: Assoc,  // 是否右结合
-    pub priority: usize // 优先级
+    pub id: SymbolID,       // ID
+    pub content: String,    // 终结符内容
+    pub is_single: bool,    // 是否是单字符，简单symbol
+    pub assoc: Assoc,       // 是否右结合
+    pub priority: usize     // 优先级
 }
 
 impl SymbolMeta {
     pub fn new(id: SymbolID, content: String) -> Self {
-        Self { id, content, assoc: Assoc::NonAssoc, priority: 0 }
+        Self { id, content, is_single: false, assoc: Assoc::NonAssoc, priority: 0 }
     }
 }
 
