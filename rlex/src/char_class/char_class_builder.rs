@@ -13,7 +13,7 @@ impl CharClassBuilder {
         Self { total_set }
     }
 
-    pub fn build_char_class_set(&self, ast_vec: Vec<&ASTNode>) -> CharClassSet {
+    pub fn build_char_class_set(&self, ast_vec: &[ASTNode]) -> CharClassSet {
         let mut ranges = get_ranges(ast_vec);
         ranges.insert(self.total_set); // 添加一个 unicode 全集
 
@@ -84,9 +84,9 @@ fn build_range(ranges: IndexSet<(u32, u32)>) -> Vec<(u32, u32, BTreeSet<usize>)>
 }
 
 /// 迭代遍历节点获取所有出现的字符
-fn get_ranges(ast: Vec<&ASTNode>) -> IndexSet<(u32, u32)> {
+fn get_ranges(ast: &[ASTNode]) -> IndexSet<(u32, u32)> {
     let mut ranges: IndexSet<(u32, u32)> = IndexSet::new();
-    let mut queue = VecDeque::from_iter(ast);
+    let mut queue = VecDeque::from_iter(ast.iter());
 
     while !queue.is_empty() {
         let top = queue.pop_front().unwrap();

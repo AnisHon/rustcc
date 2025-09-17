@@ -10,3 +10,4 @@ pest_derive.workspace = true
 indexmap.workspace = true
 tera.workspace = true
 regex.workspace = true
+askama.workspace = true

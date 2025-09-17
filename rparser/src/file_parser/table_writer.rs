@@ -8,10 +8,45 @@
 use crate::common::lr_type::LRAction;
 use crate::file_parser::table_builder::LRTableBuilder;
 use common::utils::compress::compress_matrix;
-use common::utils::str_util::option_to_code_str;
+use common::utils::str_util::{default_cvt, option_cvt, vec_to_code};
 use regex::Regex;
 use std::fs;
 use tera::{Context, Tera};
+
+pub struct ParserTemplate {
+    user_code: String,
+    value_stack_name: &'static str,
+    value_name: &'static str,
+    typename: String,
+    init_state: usize,
+    end_symbol: usize,
+    action_base: String,
+    action_base_sz: usize,
+    action_next: String,
+    action_next_sz: usize,
+    action_check: String,
+    action_check_sz: usize,
+    action_row_id: String,
+    action_row_id_sz: usize,
+    goto_base: String,
+    goto_base_sz: usize,
+    goto_next: String,
+    goto_next_sz: usize,
+    goto_check: String,
+    goto_check_sz: usize,
+    goto_row_id: String,
+    goto_row_id_sz: usize,
+    expr_lens: String,
+    expr_lens_sz: usize,
+    expr_names: String,
+    expr_names_sz: usize,
+    expr_ids: String,
+    expr_ids_sz: usize,
+    token_contents: String,
+    token_contents_sz: usize,
+    action_codes: Vec<Option<String>>,
+   
+}
 
 const TEMPLATE: &str = include_str!("../../resources/parser.rs.tera");
 const VALUE_STACK_NAME: &str = "value_stack";
@@ -72,30 +107,41 @@ impl TableWriter {
 
         // 结束符号在所有token之后
         let end_symbol = self.builder.token_meta.len();
+        
         // 表达式长度
         let expr_lens: Vec<_> = self.builder.prod_map.iter().map(|meta| meta.len).collect();
+        let (expr_lens, expr_lens_sz) = vec_to_code(expr_lens.into_iter(), default_cvt);
+
         // 表达式名字
         let expr_names: Vec<String> = self.builder.prod_map.iter().map(|x| x.name.clone()).collect();
+        let (expr_names, expr_names_sz) = vec_to_code(expr_names.into_iter(), default_cvt);
+        
         // 每个推导式对应的规则ID
         let expr_ids: Vec<_> = self.builder.prod_map.iter().map(|x| x.id).collect();
-
+        let (expr_ids, expr_ids_sz) = vec_to_code(expr_ids.into_iter(), default_cvt);
+        
         // 符号内容（符号名字）
         let token_contents: Vec<String> = self.builder.token_meta.iter().map(|x| x.content.clone()).collect();
+        let (token_contents, token_contents_sz) = vec_to_code(token_contents.into_iter(), default_cvt);
 
         // 属性文法代码（解析后）
         let action_codes = self.resolve_action();
 
         // 压缩矩阵
-        let (action_base, action_next, action_check, action_row_id) = compress_matrix(&action_table, LRAction::Error);
-        let (goto_base, goto_next, goto_check, goto_row_id) = compress_matrix(&goto_table, None);
+        let (action_base, action_next, action_check, action_row_id) = compress_matrix(&action_table);
+        let (goto_base, goto_next, goto_check, goto_row_id) = compress_matrix(&goto_table);
 
         // 处理成代码字符串数组
-        let action_base = option_to_code_str(action_base);
-        let action_next = action_to_code_str(action_next);
-        let action_check = option_to_code_str(action_check);
-        let goto_base = option_to_code_str(goto_base);
-        let goto_next = option_to_code_str(goto_next);
-        let goto_check = option_to_code_str(goto_check);
+        let (action_base, action_base_sz) = vec_to_code(action_base.into_iter(), option_cvt);
+        let (action_next, action_next_sz) = vec_to_code(action_next.into_iter(), action_to_code);
+        let (action_check, action_check_sz) = vec_to_code(action_check.into_iter(), option_cvt);
+        let (action_row_id, action_row_id_sz) = vec_to_code(action_row_id.into_iter(), default_cvt);
+        
+        let (goto_base, goto_base_sz) = vec_to_code(goto_base.into_iter(), option_cvt);
+        let (goto_next, goto_next_sz) = vec_to_code(goto_next.into_iter(), option_cvt);
+        let (goto_check, goto_check_sz) = vec_to_code(goto_check.into_iter(), option_cvt);
+        let (goto_row_id, goto_row_id_sz) = vec_to_code(goto_row_id.into_iter(), default_cvt);
+
 
         // 用户代码
         let user_code = self.builder.config.user_code;
@@ -124,7 +170,39 @@ impl TableWriter {
         context.insert("end_symbol", &end_symbol);
         context.insert("typename", &typename);
 
-        
+        ParserTemplate {
+            action_base,
+            action_base_sz,
+            action_next,
+            action_next_sz,
+            action_check,
+            action_check_sz,
+            action_row_id,
+            action_row_id_sz,
+            goto_base,
+            goto_base_sz,
+            goto_next,
+            goto_next_sz,
+            goto_check, 
+            goto_check_sz, 
+            goto_row_id, 
+            goto_row_id_sz, 
+            expr_lens, 
+            expr_lens_sz, 
+            expr_names, 
+            expr_names_sz, 
+            expr_ids,
+            expr_ids_sz,
+            token_contents,
+            token_contents_sz,
+            action_codes,
+            value_stack_name: VALUE_STACK_NAME,
+            value_name: VALUE_NAME,
+            user_code,
+            init_state,
+            end_symbol,
+            typename
+        };
         
 
         // 渲染模板
@@ -135,13 +213,13 @@ impl TableWriter {
 
 
 }
-fn action_to_code_str(vec: Vec<LRAction>) -> Vec<String> {
-    vec.into_iter().map(|action| match action {
+fn action_to_code(action: LRAction) -> String {
+    match action {
         LRAction::Reduce(x) => format!("Reduce({})", x),
         LRAction::Shift(x) => format!("Shift({})", x),
         LRAction::Accept(x) => format!("Accept({})", x),
         LRAction::Error => "Error".to_string()
-    }).collect()
+    }
 }
 
 
