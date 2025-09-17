@@ -1,32 +1,34 @@
-WHITESPACE = _{ " " | "\t" | "\r" | "\n" | COMMENT }
-
-COMMENT = _{
-    "/*" ~ (!"*/" ~ ANY)* ~ "*/"
-  | "//" ~ (!("\n" | "\r") ~ ANY)*
-}
+WHITESPACE    = _{ " " | "\t" | "\r" | "\n" | COMMENT }
+COMMENT       = _{ block_comment | line_comment }
+block_comment =  { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+line_comment  =  { "//" ~ (!("\n" | "\r") ~ ANY)* ~ ("\n" | "\r" | EOI) }
 
 file = { SOI ~ decls ~ "%%" ~ rules ~ "%%" ~ user_code? ~ EOI }
 
-// file       = { decls ~ "%%" ~ rules ~ "%%" ~ user_code? }
-
-decls      = { (decl)* }
+decls      = { decl* }
 decl       = { token_decl | assoc_decl | type_decl }
 token_decl = { "%token" ~ ident+ }
-assoc_decl = { ("%left" | "%right" | "%nonassoc") ~ ident+ }
-type_decl  = { "%type" ~ ident+}
+assoc_type = { "left" | "right" | "nonassoc" }
+assoc_decl = { ("%" ~ assoc_type) ~ symbol+ }
+type_decl  = { "%type" ~ ident }
 
-rules      = { (rule_decl)+ }
-rule_decl  = { ident ~ ":" ~ production_with_prec ~ ("|" ~ production_with_prec)* ~ ";" }
-
+rules                = { rule_decl* }
+// 允许 0 或多个规则
+rule_decl            = { ident ~ ":" ~ production_with_prec ~ ("|" ~ production_with_prec)* ~ ";" }
 production_with_prec = { production ~ prec_directive? }
-prec_directive = { "%prec" ~ prec_type }
-prec_type = { "left" | "right" | "nonassoc" }
+prec_directive       = { "%prec" ~ prec_type }
+prec_type            = { assoc_type }
 
-production = { (symbol | action)* }
-symbol     = { ident | STRING }
-action     = { "{" ~ (!"}" ~ ANY)* ~ "}" }
+production       =  { (symbol | action)* }
+symbol           =  { quoted_symbol | unquoted_symbol }
+quoted_symbol   =  { "\'" ~ (!"\'" ~ (ESCAPED_CHAR | ASCII_PRINTABLE))* ~ "\'" }
+ESCAPED_CHAR     =  { "\\" ~ ("\'" | "\\" | "n" | "r" | "t") }
+unquoted_symbol = @{ (!("\'" | ":" | "|" | ";" | "{" | "}") ~ ASCII_ALPHANUMERIC | "_")+ }
+ASCII_PRINTABLE  =  { ASCII_ALPHANUMERIC | "!" | "#" | "$" | "%" | "&" | "(" | ")" | "*" | "+" | "," | "-" | "." | "/" | ":" | ";" | "<" | "=" | ">" | "?" | "@" | "[" | "\\" | "]" | "^" | "_" | "`" | "{" | "|" | "}" | "~" }
 
-user_code  = { (!EOI ~ ANY)* }
+action         = { "{" ~ action_content ~ "}" }
+action_content = { (!"}" ~ (action | ASCII))* }
 
-ident      = @{ (ASCII_ALPHANUMERIC | "_")+ }
-STRING     = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+user_code = { (!EOI ~ ASCII)* }
+
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }

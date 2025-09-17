@@ -1,22 +1,24 @@
 {{ user_code }}
 
-pub const INIT_STATE: usize = {{ init_state }};
-pub const END_SYMBOL: usize = {{ end_symbol }};
 
-/// 数组解构
+
+/// vector deconstruct into vars
 macro_rules! destruct_vec {
     ($vec:expr, $($var:ident),*) => {
         let [$($var),*] = $vec.try_into().expect("destruct failed");
     };
 }
 
+pub const INIT_STATE: usize = {{ init_state }};
+pub const END_SYMBOL: usize = {{ end_symbol }};
 
+/// LR Table Cell Type
 #[derive(Debug, Clone)]
 pub enum LRAction {
-    Reduce(usize),      // 规约 推导式ID
-    Shift(usize),       // 移入 状态ID
-    Accept(usize),      // 结束规约 推导式ID
-    Error               // 出错Error
+    Reduce(usize),
+    Shift(usize),
+    Accept(usize),
+    Error
 }
 
 

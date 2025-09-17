@@ -41,15 +41,15 @@ pub struct LRTableBuilder {
     table_type: TableType,
     pub config: GrammarConfig,
     pub prod_map: Vec<ProdMeta>,
-    pub token_meta: Vec<SymbolMeta>,
+    pub token_meta: Vec<Option<SymbolMeta>>,
     rule_id_map: IndexMap<(usize, usize), usize>,
     pub grammar: Grammar<usize>,
 }
 
 impl LRTableBuilder {
-    pub fn new(table_type: TableType, input: String, lex_tokens: Vec<String>) -> Self {
+    pub fn new(table_type: TableType, input: String) -> Self {
         let config = GrammarConfigParser::new(input).parse();
-        let  (grammar, token_meta, prod_map) = get_grammar(&config, lex_tokens);
+        let  (grammar, token_meta, prod_map) = get_grammar(&config);
         // 子式->id映射表
         let rule_id_map: IndexMap<_, _> = (0..grammar.get_size())
             .flat_map(|i| (0..grammar.get_rule(i).unwrap().len()).map(move |j| (i, j)))
@@ -65,6 +65,10 @@ impl LRTableBuilder {
             token_meta,
             grammar
         }
+    }
+    
+    pub fn get_token_meta(&self, id: usize) -> &SymbolMeta {
+        self.token_meta[id].as_ref().unwrap()
     }
 
     /// 构建LR表格
@@ -207,7 +211,7 @@ impl LRTableBuilder {
     /// Reduce Action或者Shift Symbol的优先级
     fn get_priority(&self, action: &LRAction, symbol_id: SymbolID) -> usize {
         if action.is_shift() {
-            self.token_meta[symbol_id].priority
+            self.get_token_meta(symbol_id).priority
         } else {
             let rule_id = action.unwrap();
             self.prod_map[rule_id].priority
@@ -217,7 +221,7 @@ impl LRTableBuilder {
     /// Reduce Action或者Shift Symbol的优先级
     fn get_assoc(&self, action: &LRAction, symbol_id: SymbolID) -> Assoc {
         if action.is_shift() {
-            self.token_meta[symbol_id].assoc
+            self.get_token_meta(symbol_id).assoc
         } else {
             let rule_id = action.unwrap();
             self.prod_map[rule_id].assoc
@@ -233,7 +237,7 @@ impl LRTableBuilder {
                     format!("{}({})", meta.name, meta.alter)
                 }
                 LRAction::Shift(_) => {
-                    self.token_meta[symbol_id].content.clone()
+                    self.get_token_meta(symbol_id).content.clone()
                 }
                 LRAction::Error => unreachable!()
             }
@@ -244,7 +248,7 @@ impl LRTableBuilder {
         let error_msg = match (origin.is_shift(), new.is_shift()) {
             (false, false) => format!(
                 "REDUCE-REDUCE symbol:{} -> {} {} ",
-                self.token_meta[symbol_id].content,
+                self.get_token_meta(symbol_id).content,
                 origin_name, new_name,
             ),
             (false, true) | (true, false) => format!(

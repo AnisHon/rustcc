@@ -11,15 +11,20 @@
 //!
 
 use crate::common::grammar::{Assoc, Grammar, ProdMeta, RuleVec, Symbol, SymbolMeta, SymbolVec};
+use common::utils::id_util::IncIDFactory;
+use common::utils::unique_id_factory::UniqueIDFactory;
+use indexmap::IndexSet;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 use std::collections::HashMap;
-use std::io::BufRead;
-use indexmap::IndexMap;
 use unescape::unescape;
-use common::utils::id_util::IncIDFactory;
-use common::utils::unique_id_factory::UniqueIDFactory;
+
+/// 从258之后开始编码，256~257保留
+pub const SYMBOL_ID_BEGIN: usize = 258;
+
+/// EOF结束符号ID
+pub const END_SYMBOL_ID: usize = 0;
 
 #[derive(Parser)]
 #[grammar = "parser_pest.pest"]
@@ -28,7 +33,7 @@ struct BisonParser;
 /// 文法结构，相当于文法配置的AST
 ///
 /// # Members
-/// - 'tokens': token声明
+/// - 'tokens': %token声明
 /// - 'assoc': 结核性声明
 /// - 'productions': 文法推导式
 /// - 'user_code': 用户代码区域
@@ -72,7 +77,28 @@ impl AssocType {
 #[derive(Debug)]
 pub struct Production {
     pub name: String,
-    pub rules: Vec<(Vec<String>, Option<String>, Assoc)>, // 推导式 action代码 结核性
+    pub rules: Vec<(Vec<ConfigSymbol>, Option<String>, Assoc)>, // 推导式 action代码 推导式的结核性
+}
+
+#[derive(Debug)]
+pub struct ConfigSymbol {
+    pub content: String,
+    pub kind: SymbolKind
+}
+
+impl ConfigSymbol {
+    pub fn is_single(&self) -> bool {
+        match self.kind {
+            SymbolKind::Single => true,
+            SymbolKind::Multi => false,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum SymbolKind {
+    Single, // 无需声明
+    Multi, // 需要声明
 }
 
 
@@ -87,16 +113,14 @@ pub struct Production {
 /// 
 pub struct GrammarConfigParser {
     input: String,
-    tokens: Vec<String>,
-    assoc: Vec<AssocType>,
-    productions: Vec<Production>,
-    user_code: String,
-    typename: String
 }
+
+/// %token %left/right/noassoc %type
+struct Decls(Vec<String>, Vec<AssocType>, String);
 
 impl GrammarConfigParser {
     pub fn new(input: String) -> Self {
-        Self { input, tokens: Vec::new(), assoc: Vec::new(), productions: Vec::new(), user_code: String::new(), typename: String::new() }
+        Self { input }
     }
 
     /// 解析文法
@@ -105,82 +129,140 @@ impl GrammarConfigParser {
         let pairs = BisonParser::parse(Rule::file, input.as_str()).unwrap();
 
 
+        // 把file展开称内部元素
+        let pairs = pairs.into_iter()
+            .map(|x| x.into_inner())
+            .flatten();
 
+        let mut config = GrammarConfig {
+            tokens: Vec::new(),
+            assoc: Vec::new(),
+            productions: Vec::new(),
+            user_code: String::new(),
+            typename: String::new()
+        };
+
+        // 遍历内部元素
         for pair in pairs {
-            self.parse_file(pair);
-        }
-        GrammarConfig { tokens: self.tokens, assoc: self.assoc, productions: self.productions, user_code: self.user_code, typename: self.typename }
-    }
+            match pair.as_rule() {
+                Rule::decls => {
 
-    fn parse_file(&mut self, file: Pair<Rule>) {
-        for rule in file.into_inner() {
-            match rule.as_rule() {
-                Rule::decls => self.parse_decls(rule),
-                Rule::rules => self.parse_rules(rule),
-                Rule::user_code => self.parse_user_code(rule),
-                Rule::EOI => (),
-                _ => unreachable!()
+                    let Decls(
+                        token_decl,
+                        assoc_decl,
+                        type_decl
+                    ) = Self::parse_decls(pair);
+
+                    config.tokens = token_decl;
+                    config.assoc = assoc_decl;
+                    config.typename = type_decl;
+                },
+                Rule::rules => {
+                    let productions = Self::parse_rules(pair);
+                    config.productions = productions;
+                },
+                Rule::user_code => {
+                    let user_code = self.parse_user_code(pair);
+                    config.user_code = user_code;
+                },
+                Rule::EOI => {}
+                _ => unreachable!(),
             }
         }
-    }
-    /// 解析 decl
-    fn parse_decls(&mut self, decls: Pair<Rule>) {
-        for decl in decls.into_inner() {
-            for pair in decl.into_inner() {
-                match pair.as_rule() {
-                    Rule::token_decl => self.parse_token_decl(pair),
-                    Rule::assoc_decl => self.parse_assoc_decl(pair),
-                    Rule::type_decl => self.parse_type_decl(pair),
-                    _ => unreachable!(),
-                }
-            }
-        }
-
+        config
     }
 
-    /// token声明
-    fn parse_token_decl(&mut self, decl: Pair<Rule>) {
-        self.tokens.extend(decl.into_inner().into_iter().map(|x| x.as_str().to_string()));
-    }
-    
-    /// 结合性声明
-    fn parse_assoc_decl(&mut self, decl: Pair<Rule>) {
-        let assoc_type = &decl.as_span().as_str().split_whitespace().next().unwrap()[1..];
-        let assoc_values: Vec<String> = decl.into_inner().map(|x| x.as_span().as_str().to_string()).collect();
-        let assoc = match assoc_type {
-            "left" => AssocType::Left(assoc_values),
-            "right" => AssocType::Right(assoc_values),
-            "nonassoc" => AssocType::NonAssoc(assoc_values),
+    fn parse_symbol(pair: Pair<Rule>) -> ConfigSymbol {
+        let symbol = pair.into_inner().next().unwrap();
+        let content = symbol.as_str().to_owned();
+        let kind = match symbol.as_rule() {
+            Rule::quoted_symbol => SymbolKind::Single,
+            Rule::unquoted_symbol => SymbolKind::Multi,
             _ => unreachable!()
         };
-        self.assoc.push(assoc);
+        ConfigSymbol {
+            kind,
+            content,
+        }
     }
 
-    /// type声明
-    fn parse_type_decl(&mut self, decl: Pair<Rule>) {
-        self.typename = decl.into_inner().as_str().to_string();
+    /// 解析 decl
+    fn parse_decls(decls: Pair<Rule>) -> Decls {
+        let mut token_decls = Vec::new();
+        let mut assoc_decls = Vec::new();
+        let mut type_decl = String::new();
+
+        for decl in decls.into_inner() {
+            let decl = decl.into_inner().next().unwrap();
+
+            match decl.as_rule() {
+                Rule::token_decl => {
+                    token_decls.extend(Self::parse_token_decl(decl))
+                },
+                Rule::assoc_decl => {
+                    assoc_decls.push(Self::parse_assoc_decl(decl))
+                },
+                Rule::type_decl => {
+                    let ident = decl.into_inner().next().unwrap();
+                    type_decl.push_str(ident.as_str());
+                },
+                _ => unreachable!(),
+            };
+        }
+
+        Decls(token_decls, assoc_decls, type_decl)
+    }
+
+    /// %token ...
+    /// token_decl = { "%token" ~ ident+ }
+    ///
+    fn parse_token_decl(pair: Pair<Rule>) -> Vec<String> {
+        pair.into_inner()
+            .map(|x| x.as_str().to_owned())
+            .collect()
+    }
+
+    ///
+    /// %left/right/nonassoc
+    /// assoc_decl = { ("%" ~ assoc_type) ~ symbol+ }
+    fn parse_assoc_decl(pair: Pair<Rule>) -> AssocType {
+        let mut pairs = pair.into_inner();
+
+        let assoc_type = pairs.next().unwrap().as_str();
+
+        let symbols: Vec<_> = pairs
+            .map(|x| Self::parse_symbol(x).content)
+            .collect();
+
+        match assoc_type {
+            "left" => AssocType::Left(symbols),
+            "right" => AssocType::Right(symbols),
+            "nonassoc" => AssocType::NonAssoc(symbols),
+            _ => unreachable!()
+        }
     }
 
     /// 解析文法相关
-    fn parse_rules(&mut self, rules: Pair<Rule>) {
-        for rule_decl in rules.into_inner() {
-            let production = Self::parse_rule_decl(rule_decl);
-            self.productions.push(production);
-        }
+    /// rules = { rule_decl* }
+    fn parse_rules(rules: Pair<Rule>) -> Vec<Production> {
+        rules.into_inner()
+            .map(|x| Self::parse_rule_decl(x))
+            .collect()
     }
 
     /// 单个推导式声明
     fn parse_rule_decl(rule_decl: Pair<Rule>) -> Production {
         let mut pairs = rule_decl.into_inner();
         // pairs.for_each(|pair| println!("{:?}", pair));
+        let name = pairs.next().unwrap().as_str().to_owned();
         let mut production = Production {
-            name: pairs.next().unwrap().as_str().to_string(),
+            name,
             rules: Vec::new(),
         };
     
         // pairs 内层是 prec_production
         for pair in pairs.into_iter() {
-            let mut symbols = Vec::new();
+            let mut symbols: Vec<ConfigSymbol> = Vec::new();
             let mut action = None;
             let mut prec_directive = Assoc::None;
 
@@ -203,7 +285,7 @@ impl GrammarConfigParser {
                 //  production 内层是 symbol和action
                 for item in prec_prod.into_inner() {
                     match item.as_rule() {
-                        Rule::symbol => symbols.push(item.as_str().to_string()),
+                        Rule::symbol => symbols.push(Self::parse_symbol(item)),
                         Rule::action => action = Some(item.as_str().to_string()),
                         _ => unreachable!()
                     }
@@ -213,13 +295,11 @@ impl GrammarConfigParser {
 
             production.rules.push((symbols, action, prec_directive));
         }
-
-
         production
     }
-    
-    fn parse_user_code(&mut self, rules: Pair<Rule>) {
-        self.user_code = rules.as_str().to_string();
+
+    fn parse_user_code(&mut self, rules: Pair<Rule>) -> String {
+        rules.as_str().to_owned()
     }
 
 }
@@ -237,7 +317,7 @@ impl GrammarConfigParser {
 /// - 'Vec<SymbolMeta>': symbol_id -> Symbol Meta
 /// - 'Vec<ProdMeta>': production_id -> Production Meta
 ///
-pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>, Vec<ProdMeta>) {
+pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<Option<SymbolMeta>>, Vec<ProdMeta>) {
 
     let mut grammar = Grammar::new(0);
 
@@ -245,6 +325,7 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>, 
         .map(|(idx, production)| (production.name.clone(), idx))
         .collect();
 
+    // 注意token_map是无序的，仅用于查询
     let (token_meta, token_map) = build_token_map(config);
 
     // production的meta信息
@@ -265,11 +346,12 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>, 
             } else {
                 // 非空，遍历所有symbol
                 let symbol_vec: SymbolVec<_> = symbols.iter().map(|symbol|{
+                    let symbol = symbol.content.as_str();
                     if non_terminal.contains_key(symbol) { // 非终结符
                         Symbol::NonTerminal(non_terminal[symbol]) // 查Rule ID
                     } else { // 终结符
                         let tid = *token_map.get(symbol).unwrap_or_else(|| panic!("No Such Token {}", symbol));
-                        let meta = &token_meta[tid];
+                        let meta = token_meta[tid].as_ref().unwrap(); // token_map查得到一定非None
                         prod_meta.priority = meta.priority;   // 推导式以最后的终结符为准
                         prod_meta.assoc = meta.assoc; // 最后终结符的assoc
                         Symbol::Terminal(tid)
@@ -294,12 +376,62 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<SymbolMeta>, 
     (grammar, token_meta, prod_map)
 }
 
-fn build_token_map(config: &GrammarConfig) -> (Vec<SymbolMeta>, HashMap<String, usize>) {
-    let mut id_factory = IncIDFactory::new(258); // 从258之后开始编码，256~257保留
-    let mut token_meta: Vec<Option<SymbolMeta>> = Vec::new();
+fn build_token_map(config: &GrammarConfig) -> (Vec<Option<SymbolMeta>>, HashMap<String, usize>) {
+    let mut id_factory = IncIDFactory::new(SYMBOL_ID_BEGIN);
+    // productions -> rules -> vec<String> -> Symbols -> Single Symbols
 
-    let mut token_map: IndexMap<String, usize> = IndexMap::new();
+    let singles: IndexSet<_> = config.productions.iter()
+        .map(|x| &x.rules)   // 取rules
+        .flat_map(|x| x.iter().map(|(rule, _, _)| rule))// 取vec<String>
+        .flatten() // 展平成为Symbol数组
+        .filter(|x| x.is_single()) // 过滤非single的符号，非终结符一定不会被single匹配
+        .map(|x| x.content.as_str())// 取出content
+        .collect() // set去重
+        ;
 
+    let symbol_sz = SYMBOL_ID_BEGIN + config.tokens.len(); // 所有的符号个数，假设Token不重复声明
+
+    let mut token_meta: Vec<Option<SymbolMeta>> = vec![None; symbol_sz];
+    let mut token_map: HashMap<String, usize> = HashMap::new(); // 不遍历，不需要保序
+
+    // 处理%token声明
+    for tok in config.tokens.iter() {
+        // %token声明的都是多字符的，单字符直接报错
+        if is_single_symbol(tok.as_str()) {
+            panic!("Unsupported %token declaration: {}", tok);
+        }
+
+        // 获取ID
+        let id = id_factory.next_id();
+
+        // 重复的就忽略，给一个警告
+        if token_map.contains_key(tok.as_str()) {
+            eprintln!("Duplicate %token: {}", tok);
+            continue;
+        }
+
+        token_map.insert(tok.clone(), id); // 保存ID
+
+        // 保存meta
+        let symbol_meta = SymbolMeta::new(id, tok.clone());
+        token_meta[id] = Some(symbol_meta);
+    }
+
+
+
+
+    // 已经都是无重复单字符符号了
+    for symbol in singles {
+        let id = single2id(symbol);
+        token_map.insert(symbol.to_owned(), id);
+        // 设置为单字符
+        let mut symbol_meta = SymbolMeta::new(id, symbol.to_owned());
+        symbol_meta.is_single = true;
+
+        token_meta[id] = Some(symbol_meta);
+    }
+
+    // 设置结核性和优先级
     for (idx, assoc) in config.assoc.iter().enumerate() {
         let assoc_type = match assoc {
             AssocType::Right(_) => Assoc::Right,
@@ -307,49 +439,26 @@ fn build_token_map(config: &GrammarConfig) -> (Vec<SymbolMeta>, HashMap<String, 
             AssocType::NonAssoc(_) => Assoc::NonAssoc,
         };
         assoc.unwrap().iter().for_each(|x| {
-            let token_id = *token_map
-                .entry(x.clone()).or_insert_with(|| get_symbol_id(x, &mut id_factory));
-            let mut meta = SymbolMeta::new(token_id, x.clone());
+            let token_id = *token_map.get(x).unwrap_or_else(|| panic!("No Such Token {}", x));
+            let meta = token_meta[token_id].as_mut().unwrap();
             meta.priority = idx;
             meta.assoc = assoc_type;
-            token_meta[token_id] = Some(meta);
+
         });
     }
+
     (token_meta, token_map)
 }
 
+/// 是否是单字符symbol，比如'+'
 fn is_single_symbol(symbol: &str) -> bool {
     symbol.starts_with("'") && symbol.ends_with("'")
 }
 
-/// 获取symbol的id，如果是但字符串则返回ASCII码，否则生成ID
-fn get_symbol_id(symbol: &str, id_factory: &mut IncIDFactory) -> usize {
-    let single = symbol.starts_with("'") && symbol.ends_with("'");
-
-    if single {
-        let symbol = unescape(&symbol[1usize..symbol.len() - 1]).unwrap();
-        assert_eq!(symbol.len(), 1, "unsupported symbol '{}'", symbol);
-        symbol.chars().next().unwrap() as usize
-    } else {
-        id_factory.next_id()
-    }
-}
-
-/// 读取lexer文件中的token，相互对应
-pub fn token_from_lexer(buffer: impl BufRead) -> Vec<String> {
-    let mut lex: Vec<String> = Vec::new();
-
-    for line in buffer.lines() {
-        let line = line.unwrap();
-        let vec: Vec<_> = line.split_whitespace().collect();
-
-        if vec.is_empty() {
-            continue;
-        }
-        let name: String = vec[0].to_string();
-
-        lex.push(name);
-    }
-
-    lex
+/// 获取但字符symbol的id，如果返回ASCII码
+fn single2id(symbol: &str) -> usize {
+    let symbol = unescape(&symbol[1usize..symbol.len() - 1]).unwrap();
+    // 要求单字符必须是单个的，否则报错
+    assert_eq!(symbol.len(), 1, "unsupported symbol '{}'", symbol);
+    symbol.chars().next().unwrap() as usize
 }

@@ -5,14 +5,14 @@
 //!
 //!
 
-use heck::{ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
 use crate::common::lr_type::LRAction;
 use crate::file_parser::table_builder::LRTableBuilder;
+use askama::Template;
 use common::utils::compress::compress_matrix;
-use common::utils::str_util::{default_cvt, option_cvt, string_cvt, vec_to_code};
+use common::utils::str_util::{default_cvt, option_cvt, str_option_cvt, string_cvt, vec_to_code};
+use heck::ToSnakeCase;
 use regex::Regex;
 use std::fs;
-use askama::Template;
 
 const ARG_BASE: &str = "_arg";
 const VALUE_NAME: &str = "value";
@@ -64,17 +64,19 @@ pub struct LexerDeclTemplate {
 /// 生成处理程序
 pub struct TableWriter {
     path: String, // 输出路径
+    decl_path: String, // 定义输出路径
     builder: LRTableBuilder,
     re_dollar_dollar: Regex,
     re_dollar_num: Regex,
 }
 
 impl TableWriter {
-    pub fn new(output: &str, lr_table_builder: LRTableBuilder) -> Self {
+    pub fn new(output: &str, decl_path: &str, lr_table_builder: LRTableBuilder) -> Self {
         let re_dollar_dollar = Regex::new(r"\$\$").unwrap();
         let re_dollar_num = Regex::new(r"\$(\d+)").unwrap();
         Self {
-            path: output.to_string(),
+            path: output.to_owned(),
+            decl_path: decl_path.to_owned(),
             builder: lr_table_builder,
             re_dollar_num,
             re_dollar_dollar
@@ -111,7 +113,7 @@ impl TableWriter {
 
     /// 写入文件
     pub fn write(self) {
-        // self.write_parser();
+        self.write_parser();
         self.write_lexer();
     }
 
@@ -142,8 +144,10 @@ impl TableWriter {
         let (expr_ids, expr_ids_sz) = vec_to_code(expr_ids.into_iter(), default_cvt);
 
         // 符号内容（符号名字）
-        let token_contents: Vec<String> = self.builder.token_meta.iter().map(|x| x.content.clone()).collect();
-        let (token_contents, token_contents_sz) = vec_to_code(token_contents.into_iter(), string_cvt);
+        let token_contents: Vec<Option<String>> = self.builder.token_meta.iter()
+            .map(|x| x.as_ref().map(|meta| meta.content.clone()))
+            .collect();
+        let (token_contents, token_contents_sz) = vec_to_code(token_contents.into_iter(), str_option_cvt);
 
         // 属性文法代码（解析后）
         let action_codes = self.resolve_action();
@@ -205,24 +209,26 @@ impl TableWriter {
 
         // 渲染模板
         let rendered = template.render().unwrap();
-        fs::write(self.path.clone(), rendered).unwrap();
-        // println!("{}", rendered);
+        // fs::write(self.path.clone(), rendered).unwrap();
+        println!("{}", rendered);
     }
 
-    /// 生成lexer定义代码
+    /// 生成lexer symbol代码定义
     pub fn write_lexer(&self) {
         let decls: Vec<_> = self.builder.token_meta.iter()
-            .enumerate()
-            .map(|(idx, meta)| {
+            .flatten() // 过滤None，取出Some
+            .filter(|x| !x.is_single) // 过滤单字符
+            .map(|meta| {
+                let id = meta.id;
                 let content = meta.content.to_snake_case().to_uppercase();
-                (content, idx)
+                (content, id)
             })
             .collect();
 
-        println!("{:?}", decls);
         let template = LexerDeclTemplate { decls };
-        let render = template.render().unwrap();
-        println!("{}", render);
+        let rendered = template.render().unwrap();
+        // fs::write(self.decl_path.clone(), rendered).unwrap();
+        println!("{}", rendered);
     }
 
 }
