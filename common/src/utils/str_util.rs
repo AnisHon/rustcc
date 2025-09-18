@@ -1,4 +1,4 @@
-use std::fmt::{Display};
+use std::fmt::Display;
 
 /// 默认的四个空格的锁进
 const IDENT_STR: &str = "    ";
@@ -54,18 +54,28 @@ pub fn vec_to_code<T>(vec: impl Iterator<Item=T>, cvt: fn(T) -> String) -> (Stri
 pub fn option_cvt<T: Display>(value: Option<T>) -> String {
     match value {
         None => "None".to_string(),
-        Some(x) => format!("Some({})", x),
+        Some(x) => format!("Some({})", default_cvt(x)),
+    }
+}
+
+/// 稳定版没有模版特化只能这样了
+pub fn str_option_cvt(value: Option<String>) -> String {
+    match value {
+        None => "None".to_string(),
+        Some(x) => format!("Some({})", string_cvt(x)),
     }
 }
 
 pub fn string_cvt(value: String) -> String {
-    format!("\"{}\"", value)
+    format!("{:?}", value) // 用debug打印保留可打印字符自动加 " "
 }
 
 /// 使用Display转换
 pub fn default_cvt<T: Display>(value: T) -> String {
     format!("{}", value)
 }
+
+
 
 
 ///
