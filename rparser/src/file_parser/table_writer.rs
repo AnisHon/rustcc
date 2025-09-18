@@ -13,6 +13,7 @@ use common::utils::str_util::{default_cvt, option_cvt, str_option_cvt, string_cv
 use heck::ToSnakeCase;
 use regex::Regex;
 use std::fs;
+use crate::file_parser::config_reader::END_SYMBOL_ID;
 
 const ARG_BASE: &str = "_arg";
 const VALUE_NAME: &str = "value";
@@ -123,8 +124,7 @@ impl TableWriter {
 
         let typename = self.builder.config.typename.clone();
 
-        // 结束符号在所有token之后
-        let end_symbol = self.builder.token_meta.len();
+        let end_symbol = END_SYMBOL_ID;
 
         // 表达式长度
         let expr_lens: Vec<_> = self.builder.prod_map.iter().map(|meta| meta.len).collect();

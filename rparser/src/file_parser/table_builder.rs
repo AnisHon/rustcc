@@ -10,7 +10,7 @@
 
 use crate::common::grammar::{Assoc, EndSymbol, Grammar, ProdMeta, Symbol, SymbolID, SymbolMeta};
 use crate::common::lr_type::{ActionTable, GotoTable, LRAction};
-use crate::file_parser::config_reader::{get_grammar, GrammarConfig, GrammarConfigParser};
+use crate::file_parser::config_reader::{get_grammar, GrammarConfig, GrammarConfigParser, END_SYMBOL_ID};
 use crate::lr::lalr1::{AdvancedLALR1Builder, LALR1Builder};
 use crate::lr::lr1::LR1Builder;
 use indexmap::IndexMap;
@@ -83,8 +83,6 @@ impl LRTableBuilder {
             TableType::LR1 => LR1Builder::new(&self.grammar).build_table(),
         };
 
-        let end_symbol_id = self.token_meta.len(); // 终结符号占用最后一个ID
-
         let token_sz = self.token_meta.len();
         let state_sz = item_set_map.len();
 
@@ -113,7 +111,7 @@ impl LRTableBuilder {
                 let lookahead = &item_set.lookahead_map[&item];
                 for symbol in lookahead {
                     let symbol_id = match symbol {
-                        EndSymbol::End => end_symbol_id,
+                        EndSymbol::End => END_SYMBOL_ID,
                         EndSymbol::Symbol(x) => *x
                     };
 
