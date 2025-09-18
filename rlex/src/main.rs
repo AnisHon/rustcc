@@ -1,5 +1,4 @@
 use rlex::rlexer::lex_config::LexConfigParser;
-use rlex::rlexer::lex_reader::LexReader;
 use rlex::rlexer::lex_writer::LexWriter;
 use rlex::rlexer::lexer::Lexer;
 
@@ -9,8 +8,8 @@ pub fn get_path(path: &str) -> String {
 }
 fn main() {
     
-    let lex = include_str!("../../src/clex.l");
-    let input = r#"
+    let lex_input = include_str!("../../src/clex.l");
+    let lex_input = r#"
 %{
 #include <stdio.h>
 %}
@@ -26,7 +25,7 @@ fn main() {
 int main() { yylex(); }
 "#;
 
-    let parser = LexConfigParser::new(input.to_owned());
+    let parser = LexConfigParser::new(lex_input.to_owned());
     let config = parser.parse();
     
     let lex = Lexer::new(config);

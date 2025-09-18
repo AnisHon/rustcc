@@ -46,7 +46,7 @@ impl Lexer {
             
             let tokens = re2tokens(regex)?; // 构建Token
             let parser = ReParser::new(tokens); // 构建Parser
-            let cst_node = parser.parse().map_err(|e| e.with_re(&regex))?; // 解析得到CST
+            let cst_node = parser.parse().map_err(|e| e.with_re(regex))?; // 解析得到CST
             let ast_node = to_ast(&cst_node)?; // 转换得到 AST
             ast_nodes.push(ast_node);
             ast_idx_map.push(idx);

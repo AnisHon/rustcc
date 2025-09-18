@@ -1,3 +1,9 @@
+{%- match decl_code -%}
+    {%- when Some(x) -%}
+    {{ x }}
+    {%- when None -%}
+{%- endmatch -%}
+
 pub const INIT_STATE: usize = {{ init_state }};
 
 static CHAR_CLASS: [(u32, u32); {{ ranges_sz }}] = {{ ranges }};
@@ -81,3 +87,28 @@ fn binary_search(chr: u32) -> usize {
     // not in ranges
     unreachable!("Not Find {}", chr)
 }
+macro_rules! action {
+    ($state:ident) => {
+        match $state {
+            {%- for (id, action) in actions -%}
+                {%- match action -%}
+                    {%- when Some(x) -%}
+                        {{"\n            "}}{{ id }} => {{ x }}
+                    {%- when None -%}
+                {%- endmatch -%}
+            {%- endfor %}
+        }
+    };
+}
+
+
+
+
+
+{%- match user_code -%}
+    {%- when Some(x) -%}
+    {{ x }}
+    {%- when None -%}
+{%- endmatch -%}
+
+

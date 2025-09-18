@@ -3,10 +3,14 @@ use askama::Template;
 use common::utils::compress::compress_matrix;
 use std::fs;
 use common::utils::str_util::{default_cvt, option_cvt, vec_to_code};
+use crate::rlexer::lex_config::LexRule;
 
 #[derive(Template)]
 #[template(path = "lex.rs.askama", ext = "txt", escape = "none")]
-struct LexTemplate {
+struct LexTemplate<'a> {
+    decl_code: Option<&'a str>,
+    user_code: Option<&'a str>,
+    actions: Vec<(usize, Option<String>)>,
     init_state: usize,
     base: String,
     base_sz: usize,
@@ -37,6 +41,18 @@ impl LexWriter {
     pub fn write(self) {
         let dfa = self.lexer.get_dfa();
 
+        let actions: Vec<_> = (0..dfa.size())
+            .filter(|&x| dfa.is_exist(x))
+            .map(|x| dfa.get_meta(x).id)
+            .flatten()
+            .map(|id| (id, dfa.get_meta(id).action.clone()))
+            .collect();
+
+        let config = self.lexer.get_config();
+
+        let decl_code = config.decl_code.as_ref().map(|x| x.as_str());
+        let user_code = config.user_code.as_ref().map(|x| x.as_str());
+
         let char_class = self.lexer.get_char_class_set();
 
         let ranges = char_class.get_raw_ranges();
@@ -65,6 +81,9 @@ impl LexWriter {
         let (row_id, row_id_sz) = vec_to_code(row_id.into_iter(), default_cvt);
 
         let template = LexTemplate {
+            decl_code,
+            user_code,
+            actions,
             init_state: dfa.get_init_state(),
             base,
             base_sz,
@@ -84,8 +103,8 @@ impl LexWriter {
 
         let rendered = template.render().unwrap();
 
-        fs::write(self.path, rendered).unwrap();
-        // println!("{}", rendered);
+        // fs::write(self.path, rendered).unwrap();
+        println!("{}", rendered);
     }
 
 }
