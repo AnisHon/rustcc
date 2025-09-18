@@ -14,7 +14,7 @@ pub type ClassID = usize;
 #[derive(Debug, Clone)]
 pub struct StateMeta {
     pub id: Option<StateID>,
-    pub name: Option<String>,
+    pub action: Option<String>,
     pub priority: Option<usize>,
     pub terminate: bool, // 其他
 }
@@ -24,7 +24,7 @@ impl Default for StateMeta {
         StateMeta {
             id: None,
             priority: None, // 最大表示没有优先级
-            name: None,
+            action: None,
             terminate: false,
         }
     }

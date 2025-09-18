@@ -21,6 +21,7 @@ const VALUE_NAME: &str = "value";
 #[derive(Template)]
 #[template(path = "parser.rs.askama", ext = "txt", escape = "none")]
 pub struct ParserTemplate<'a> {
+    decl_code: &'a str,
     user_code: &'a str,
     value_name: &'static str,
     typename: String,
@@ -122,6 +123,8 @@ impl TableWriter {
     pub fn write_parser(&self) {
         let (action_table, goto_table, init_state) = self.builder.build_lr_table();
 
+        let decl_code = self.builder.config.decl_code.as_str();
+
         let typename = self.builder.config.typename.clone();
 
         let end_symbol = END_SYMBOL_ID;
@@ -173,6 +176,7 @@ impl TableWriter {
 
 
         let template = ParserTemplate {
+            decl_code,
             init_state,
             end_symbol,
             typename,
@@ -209,8 +213,8 @@ impl TableWriter {
 
         // 渲染模板
         let rendered = template.render().unwrap();
-        // fs::write(self.path.clone(), rendered).unwrap();
-        println!("{}", rendered);
+        fs::write(self.path.clone(), rendered).unwrap();
+        // println!("{}", rendered);
     }
 
     /// 生成lexer symbol代码定义
@@ -227,8 +231,8 @@ impl TableWriter {
 
         let template = LexerDeclTemplate { decls };
         let rendered = template.render().unwrap();
-        // fs::write(self.decl_path.clone(), rendered).unwrap();
-        println!("{}", rendered);
+        fs::write(self.decl_path.clone(), rendered).unwrap();
+        // println!("{}", rendered);
     }
 
 }

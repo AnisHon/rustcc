@@ -3,7 +3,10 @@ COMMENT       = _{ block_comment | line_comment }
 block_comment =  { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 line_comment  =  { "//" ~ (!("\n" | "\r") ~ ANY)* ~ ("\n" | "\r" | EOI) }
 
-file = { SOI ~ decls ~ "%%" ~ rules ~ "%%" ~ user_code? ~ EOI }
+file = { SOI ~ decl_code? ~ decls ~ "%%" ~ rules ~ "%%" ~ user_code? ~ EOI }
+
+// 声明代码块（%{%} 包裹的内容）
+decl_code = { "%{" ~ (!"%}" ~ ANY)* ~ "%}" }
 
 decls      = { decl* }
 decl       = { token_decl | assoc_decl | type_decl }

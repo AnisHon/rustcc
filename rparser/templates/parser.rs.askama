@@ -1,5 +1,5 @@
-{{ user_code }}
-
+{{- decl_code -}}
+use LRAction::*;
 
 
 /// vector deconstruct into vars
@@ -52,24 +52,27 @@ pub static EXPR_NAMES: [&str; {{ expr_names_sz }}] = {{ expr_names }};
 static EXPR_IDS: [usize; {{ expr_ids_sz }}] = {{ expr_ids }};
 
 /// token_id -> token content (terminal name)
-pub static TOKEN_CONTENTS: [&str; {{ token_contents_sz }}] = {{ token_contents }};
+pub static TOKEN_CONTENTS: [Option<&str>; {{ token_contents_sz }}] = {{ token_contents }};
 
 /// action_table[state][token]
 pub fn get_action(state: usize, token: usize) -> LRAction {
     let row_id = ACTION_ROW_ID[state];
     let base = ACTION_BASE[row_id];
     if base.is_none() {
-        return LRAction::Error
+        return Error
     }
 
     let idx = base.unwrap() + token;
 
-    let check = ACTION_CHECK[idx]?;
+    let check = match ACTION_CHECK[idx] {
+        None => return Error,
+        Some(x) => x
+    };
 
     if check == row_id {
         ACTION_NEXT[idx].clone()
     } else {
-        LRAction::Error
+        Error
     }
 }
 
@@ -79,7 +82,7 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     let rule_id = EXPR_IDS[prod_id];
     let base = GOTO_BASE[row_id]?;
 
-    let idx = base.unwrap() + rule_id;
+    let idx = base + rule_id;
 
     let check = GOTO_CHECK[idx]?;
 
@@ -89,6 +92,7 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
         None
     }
 }
+
 
 /// action_code[state](params)
 pub fn exec_action(rule: usize, arguments: Vec<{{ typename }}>) -> {{ typename }} {
@@ -109,3 +113,5 @@ pub fn exec_action(rule: usize, arguments: Vec<{{ typename }}>) -> {{ typename }
     };
     {{ value_name }}
 }
+
+{{ user_code }}

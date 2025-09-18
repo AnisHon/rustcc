@@ -1,3 +1,4 @@
+use rlex::rlexer::lex_config::LexConfigParser;
 use rlex::rlexer::lex_reader::LexReader;
 use rlex::rlexer::lex_writer::LexWriter;
 use rlex::rlexer::lexer::Lexer;
@@ -7,17 +8,28 @@ pub fn get_path(path: &str) -> String {
     format!("{}{}", env!("CARGO_MANIFEST_DIR"), path)
 }
 fn main() {
+    
+    let lex = include_str!("../../src/clex.l");
+    let input = r#"
+%{
+#include <stdio.h>
+%}
 
+%option noyywrap
 
+%%
+[a-z]+    { return IDENT; }
+"+"       { return PLUS; }
+[0-9]+    { return NUMBER; }
+%%
 
-    let lex = LexReader::new(&get_path("/../src/clex.l"))
-        .read_from_file()
-        .unwrap();
-    // lex.iter().for_each(|x| println!("{:?}", x));
+int main() { yylex(); }
+"#;
 
-    println!("{}", lex.len());
-
-    let lex = Lexer::new(lex);
+    let parser = LexConfigParser::new(input.to_owned());
+    let config = parser.parse();
+    
+    let lex = Lexer::new(config);
 
     let dfa = lex.get_dfa();
 

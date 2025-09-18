@@ -3,13 +3,13 @@ use pest::iterators::Pairs;
 use pest::Parser;
 use pest_derive::Parser;
 
-// 词法分析器 结构
-#[derive(Debug)]
-pub struct LexStruct {
-    pub name: String,
-    pub regex: String,
-    pub skip: bool,
-}
+// // 词法分析器 结构
+// #[derive(Debug)]
+// pub struct LexStruct {
+//     pub name: String,
+//     pub regex: String,
+//     pub skip: bool,
+// }
 
 ///
 /// # Members
@@ -19,10 +19,10 @@ pub struct LexStruct {
 /// - `user_code`: 用户代码
 #[derive(Debug)]
 pub struct LexConfig {
-    decl_code: Option<String>,
-    decls: Vec<LexDecl>,
-    rules: Vec<LexRule>,
-    user_code: Option<String>,
+    pub decl_code: Option<String>,
+    pub decls: Vec<LexDecl>,
+    pub rules: Vec<LexRule>,
+    pub user_code: Option<String>,
 }
 
 /// 目前只有这一个配置
@@ -33,8 +33,8 @@ pub enum LexDecl {
 
 #[derive(Debug)]
 pub struct LexRule {
-    regex: String,
-    action: Option<String>,
+    pub regex: String,
+    pub action: Option<String>,
 }
 
 #[derive(Parser)]
@@ -145,27 +145,4 @@ impl LexConfigParser {
         }
     }
 
-}
-
-
-#[test]
-pub fn t() {
-    let input = r#"
-%{
-#include <stdio.h>
-%}
-
-%option noyywrap
-
-%%
-[a-z]+    { return IDENT; }
-"+"       { return PLUS; }
-[0-9]+    { return NUMBER; }
-%%
-
-int main() { yylex(); }
-"#;
-
-
-    LexConfigParser::new(input.to_string()).parse();
 }

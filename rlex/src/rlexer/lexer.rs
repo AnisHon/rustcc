@@ -6,48 +6,47 @@ use crate::char_class::char_class_set::CharClassSet;
 use crate::common::re_err::ReResult;
 use crate::lex::lex_core::re2tokens;
 use crate::parser::parser_core::{to_ast, ReParser};
-use crate::rlexer::lex_config::LexStruct;
+use crate::rlexer::lex_config::LexConfig;
 use common::lex::{DFA, NFA, NFASymbol, StateID, StateMeta};
 use std::collections::BTreeSet;
 use crate::parser::ast::ASTNode;
 
 pub struct Lexer {
     dfa: DFA,
-    lex: Vec<LexStruct>,
+    config: LexConfig,
     char_class_set: CharClassSet,
 }
 
 impl Lexer {
-    pub fn new(lex: Vec<LexStruct>) -> Self {
-        let (dfa, char_class_set) = match Self::init(&lex) {
+    pub fn new(config: LexConfig) -> Self {
+        let (dfa, char_class_set) = match Self::init(&config) {
             Ok(dfa) => dfa,
             Err(e) => panic!("{}", e),
         };
         Self {
             dfa,
-            lex,
+            config,
             char_class_set,
         }
     }
 
-    fn init(lex: &[LexStruct]) -> ReResult<(DFA, CharClassSet)> {
-
-        if lex.is_empty() {
+    fn init(config: &LexConfig) -> ReResult<(DFA, CharClassSet)> {
+        if config.rules.is_empty() {
             panic!("No regex specified");
         }
+        let rules_sz = config.rules.len();
         let builder = CharClassBuilder::new((0, 0x10FFFF)); // char_class_set 初始化为 Unicode全集
-        let mut ast_nodes: Vec<ASTNode> = Vec::with_capacity(lex.len());
-        let mut ast_idx_map: Vec<usize> = Vec::with_capacity(lex.len()); // 用来映射对应的Lex结构位置
+        let mut ast_nodes: Vec<ASTNode> = Vec::with_capacity(rules_sz);
+        let mut ast_idx_map: Vec<usize> = Vec::with_capacity(rules_sz); // 用来映射对应的Lex结构位置
 
         // Regex -> Token -> CST -> AST
         // 这个场景用iter函数式不太好用
-        for (idx, lex_struct) in lex.iter().enumerate() {
-            if lex_struct.skip { // 跳过占位项目
-                continue;
-            }
-            let tokens = re2tokens(&lex_struct.regex)?; // 构建Token
+        for (idx, rule) in config.rules.iter().enumerate() {
+            let regex = rule.regex.as_str();
+            
+            let tokens = re2tokens(regex)?; // 构建Token
             let parser = ReParser::new(tokens); // 构建Parser
-            let cst_node = parser.parse().map_err(|e| e.with_re(&lex_struct.regex))?; // 解析得到CST
+            let cst_node = parser.parse().map_err(|e| e.with_re(&regex))?; // 解析得到CST
             let ast_node = to_ast(&cst_node)?; // 转换得到 AST
             ast_nodes.push(ast_node);
             ast_idx_map.push(idx);
@@ -75,7 +74,9 @@ impl Lexer {
 
             for state_id in terminate_states {
                 let meta = nfa.get_status_mut(state_id);
-                meta.name = Some(lex[idx].name.clone());
+                let lex_rule = &config.rules[idx];
+                
+                meta.action = lex_rule.action.clone();
                 meta.terminate = true;
                 meta.id = Some(idx);
                 meta.priority = Some(idx);
@@ -135,15 +136,15 @@ impl Lexer {
         meta.unwrap().0
     }
 
-    pub fn get_lex(&self) -> &Vec<LexStruct> {
-        &self.lex
-    }
-
     pub fn get_char_class_set(&self) -> &CharClassSet {
         &self.char_class_set
     }
 
     pub fn get_dfa(&self) -> &DFA {
         &self.dfa
+    }
+    
+    pub fn get_config(&self) -> &LexConfig {
+        &self.config
     }
 }

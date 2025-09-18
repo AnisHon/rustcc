@@ -9,6 +9,10 @@
  * 5) Old-style (K&R) parameter declarations are accepted.
  */
 
+%{
+use crate::parser::cst::*;
+%}
+
 %type SemanticValue
 
 /* ====== Tokens ====== */
@@ -233,7 +237,7 @@ pointer_opt
 pointer
     : '*'                              {$$ = Pointer::make_pointer(SemanticValue::None, SemanticValue::None);}
     | '*' type_qualifier_list          {$$ = Pointer::make_pointer($2, SemanticValue::None);}
-    | '*' pointer                      {$$ = Pointer::make_pointer(SemanticValue::None, $3);}
+    | '*' pointer                      {$$ = Pointer::make_pointer(SemanticValue::None, $2);}
     | '*' type_qualifier_list pointer  {$$ = Pointer::make_pointer($2, $3);}
     ;
 
@@ -537,5 +541,3 @@ type_name
     ;
 
 %%
-use crate::parser::cst::*;
-

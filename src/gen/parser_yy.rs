@@ -1,5 +1,6 @@
 use crate::parser::cst::*;
-use LRAction::*;
+
+
 
 /// vector deconstruct into vars
 macro_rules! destruct_vec {
@@ -19,6 +20,7 @@ pub enum LRAction {
     Accept(usize),
     Error
 }
+
 
 /// action matrix -> base next check
 static ACTION_BASE: [Option<usize>; 348] = [
@@ -2126,7 +2128,7 @@ static EXPR_IDS: [usize; 218] = [
 ];
 
 /// token_id -> token content (terminal name)
-pub static TOKEN_CONTENTS: [Option<&str>; 318] = [
+pub static TOKEN_CONTENTS: [&str; 318] = [
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, 
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, Some("'!'"), 
     None, None, None, Some("'%'"), Some("'&'"), None, Some("'('"), Some("')'"), Some("'*'"), Some("'+'"), 
@@ -2163,20 +2165,17 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
     let row_id = ACTION_ROW_ID[state];
     let base = ACTION_BASE[row_id];
     if base.is_none() {
-        return Error
+        return LRAction::Error
     }
 
     let idx = base.unwrap() + token;
 
-    let check = match ACTION_CHECK[idx] {
-        None => return Error,
-        Some(x) => x
-    };
+    let check = ACTION_CHECK[idx]?;
 
     if check == row_id {
         ACTION_NEXT[idx].clone()
     } else {
-        Error
+        LRAction::Error
     }
 }
 
@@ -2186,7 +2185,7 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     let rule_id = EXPR_IDS[prod_id];
     let base = GOTO_BASE[row_id]?;
 
-    let idx = base + rule_id;
+    let idx = base.unwrap() + rule_id;
 
     let check = GOTO_CHECK[idx]?;
 
@@ -2483,7 +2482,7 @@ pub fn exec_action(rule: usize, arguments: Vec<SemanticValue>) -> SemanticValue 
         }
         70 => {
             destruct_vec!(arguments, _arg1, _arg2);
-            value = Pointer::make_pointer(SemanticValue::None, _arg2.into());
+            value = Pointer::make_pointer(SemanticValue::None, _arg3.into());
         }
         71 => {
             destruct_vec!(arguments, _arg1, _arg2, _arg3);

@@ -33,18 +33,22 @@ struct BisonParser;
 /// 文法结构，相当于文法配置的AST
 ///
 /// # Members
-/// - 'tokens': %token声明
-/// - 'assoc': 结核性声明
-/// - 'productions': 文法推导式
-/// - 'user_code': 用户代码区域
+/// - `decl_code`: 源码导入声明语句
+/// - `tokens`: %token声明
+/// - `assoc`: 结核性声明
+/// - `typename`: 类型信息
+/// - `productions`: 文法推导式
+/// - `user_code`: 用户代码区域
 ///
 #[derive(Debug)]
 pub struct GrammarConfig {
+    pub decl_code: String,
     pub tokens: Vec<String>,
     pub assoc: Vec<AssocType>,
+    pub typename: String,
     pub productions: Vec<Production>,
     pub user_code: String,
-    pub typename: String,
+
 }
 
 /// Token结核性表类型
@@ -135,16 +139,22 @@ impl GrammarConfigParser {
             .flatten();
 
         let mut config = GrammarConfig {
+            decl_code: String::new(),
+            typename: String::new(),
             tokens: Vec::new(),
             assoc: Vec::new(),
             productions: Vec::new(),
             user_code: String::new(),
-            typename: String::new()
         };
 
         // 遍历内部元素
         for pair in pairs {
             match pair.as_rule() {
+                Rule::decl_code => {
+                    let decl_code = pair.as_str();
+                    let decl_code = decl_code[2..decl_code.len() - 2].trim().to_owned();
+                    config.decl_code = decl_code;
+                }
                 Rule::decls => {
 
                     let Decls(
