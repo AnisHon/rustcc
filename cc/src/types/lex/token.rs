@@ -1,4 +1,4 @@
-use crate::lex::lex_yy::TokenType;
+use crate::types::lex::token_kind::TokenKind;
 use crate::parser::parser_yy::END_SYMBOL;
 use enum_as_inner::EnumAsInner;
 use num_traits::FromPrimitive;
@@ -24,26 +24,27 @@ pub struct Token {
 
 impl Token {
 
-    pub fn new(beg: usize, typ: TokenType, value: String ) -> Self {
+    pub fn new(beg: usize, typ: usize, value: String ) -> Self {
         let end = beg + value.len();
+        let typ = TokenKind::from_usize(typ).unwrap();
         let (value, typ) = match typ {
-            TokenType::Id => (TokenValue::String(value), typ as usize),
-            TokenType::Hex => {
+            TokenKind::ID => (TokenValue::String(value), typ as usize),
+            TokenKind::Hex => {
                 let (value, signed) = hex2int(value);
-                (TokenValue::Number{value, signed}, TokenType::Int as usize)
+                (TokenValue::Number{value, signed}, TokenKind::Int as usize)
             },
-            TokenType::Oct => {
+            TokenKind::Oct => {
                 let (value, signed) = oct2int(value);
-                (TokenValue::Number{value, signed}, TokenType::Int as usize)
+                (TokenValue::Number{value, signed}, TokenKind::Int as usize)
             },
-            TokenType::Int => {
+            TokenKind::Int => {
                 let (value, signed) = str2int(value);
-                (TokenValue::Number{value, signed}, TokenType::Int as usize)
+                (TokenValue::Number{value, signed}, TokenKind::Int as usize)
             },
-            TokenType::Float => (TokenValue::Float(str2float(value)), typ as usize),
-            TokenType::StringLiteral => (TokenValue::String(format_str(value)), typ as usize),
-            TokenType::CharacterConstant => (TokenValue::Char(format_char(value)), typ as usize),
-            TokenType::TypeName => (TokenValue::String(value), TokenType::Float as usize),
+            TokenKind::Float => (TokenValue::Float(str2float(value)), typ as usize),
+            TokenKind::StringLiteral => (TokenValue::String(format_str(value)), typ as usize),
+            TokenKind::CharacterConstant => (TokenValue::Char(format_char(value)), typ as usize),
+            TokenKind::TypeName => (TokenValue::String(value), TokenKind::Float as usize),
             _ => (TokenValue::Other, typ as usize)
         };
 
@@ -55,7 +56,7 @@ impl Token {
         }
     }
     
-    pub fn is(&self, typ: TokenType) -> bool {
+    pub fn is(&self, typ: TokenKind) -> bool {
         self.typ == typ as usize
     }
     
@@ -67,23 +68,22 @@ impl Token {
             value: TokenValue::Other,
         }
     }
-    pub fn ignore(&self) -> bool {
-        self.typ == TokenType::BlockComment as usize
-            || self.typ == TokenType::LineComment as usize
-            || self.typ == TokenType::Whitespace as usize
-    }
 
-    pub fn as_type(&self) -> Option<TokenType> {
-       TokenType::from_usize(self.typ)
+    pub fn as_type(&self) -> TokenKind {
+        TokenKind::from_usize(self.typ).unwrap()
     }
 }
 
 impl Debug for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.as_type() {
-            None => {write!(f, "Token(END)")}
-            Some(x) => {write!(f, "Token(beg: {:?}, end: {:?}, type: {:?}, value: {:?})", self.beg, self.end, x, self.value)}
-        }
+        write!(
+            f, 
+            "Token(beg: {:?}, end: {:?}, type: {:?}, value: {:?})", 
+            self.beg, 
+            self.end, 
+            self.as_type(), 
+            self.value
+        )
     }
 }
 

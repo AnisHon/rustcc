@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use crate::lex::lex_core::Lex;
 use crate::parser::parser_core::Parser;
-use crate::types::token::Token;
+use crate::types::lex::token::Token;
 use std::io::Read;
 use std::rc::Rc;
 use crate::types::symbol_table::SymbolTable;
@@ -30,14 +30,12 @@ impl<R: Read> CCompiler<R> {
         
         let symbol_table: Rc<RefCell<SymbolTable<()>>> = Rc::new(RefCell::new(SymbolTable::new())); // 临时符号表，仅用于查询符号
 
-        let lex = Lex::new(self.input, Rc::clone(&symbol_table));
-        let iter = lex.into_iter()
-            .chain(std::iter::once(Token::end_token())); // 末尾加上结束符
+        let lex = Lex::new(self.input);
 
-        let parser = Parser::new(iter, symbol_table);
-        let cst = parser.parse().unwrap();
-        
-        println!("{:?}", cst);
+        // let parser = Parser::new(iter, symbol_table);
+        // let cst = parser.parse().unwrap();
+        // 
+        // println!("{:?}", cst);
 
 
 

@@ -1,200 +1,250 @@
-use std::cell::RefCell;
 use crate::err::lex_error::{LexError, LexResult};
-use crate::lex::lex_yy::{find_next, find_token, TokenType, INIT_STATE};
-use crate::types::token::Token;
+use super::lex_yy::{find_next, INIT_STATE, TERMINATE_MAP};
+use crate::types::lex::token::Token;
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader, Read};
-use std::rc::Rc;
-use crate::types::symbol_table::SymbolTable;
-use crate::util::try_type_name::try_type_name;
+use std::io::{BufReader, Read};
 
+/// 缓冲区默认块大小
+const BUFF_BLOCK: usize = 4096;
+
+enum LexMode {
+    Normal,         // 正常模式
+    String,         // 未实现
+    LineCommon,     // 行注释
+    BlockCommon,    // 块注释
+}
+
+
+///
+/// 维护了一个环形缓冲区
+/// 维持三个位置，所有位置都是物理位置，而非环形缓冲区的相对位置
+/// - `pos`: 当前指针位置
+/// - `last_pos`: 最近一次成功的位置
+/// - `cursor_pos`: 文件指针位置
+///
+///
+/// # Members
+/// - `mode`: 工作模式
+/// - `buff`: 环形缓冲区
+/// - `reader`: 流
+/// - `curr_pos`: lex工作当前位置，（文件指针，绝对位置）
+/// - 'curr_state'
+/// - `last_pos`: lex工作上一个位置 （文件指针，绝对位置）
+/// - `last_state`: 上一个状态
+/// - `cursor_pos`: 文件指针真实位置
+/// - `errors`: 错误缓冲区，用于错误恢复
 pub struct Lex<R: Read> {
-    pos: usize,  // 当前指针位置，可以回退，但始终在buff范围内
-    line: usize,
-    state: usize,
-    reader_pos: usize,  // 流指针位置，始终指向最新的位置，只增不减
+    mode: LexMode,
     buff: VecDeque<char>,
     reader: BufReader<R>,
+
+    curr_pos: usize,
+    curr_state: usize,
     last_pos: Option<usize>,
     last_state: Option<usize>,
-    symbol_table: Rc<RefCell<SymbolTable<()>>>
+    cursor_pos: usize,
+
+    errors: Vec<LexError>
 }
 
 impl <R: Read> Lex<R> {
-    pub fn new(reader: R, symbol_table: Rc<RefCell<SymbolTable<()>>>) -> Self {
+    pub fn new(reader: R) -> Self {
         Self {
-            pos: 0,
-            line: 0,
-            state: INIT_STATE,
-            reader_pos: 0,
-            buff: VecDeque::new(),
+            mode: LexMode::Normal,
+            buff: VecDeque::with_capacity(BUFF_BLOCK),
             reader: BufReader::new(reader),
+
+            curr_pos: 0,
+            curr_state: INIT_STATE,
             last_pos: None,
             last_state: None,
-            symbol_table
+            cursor_pos: 0,
+
+            errors: Vec::new()
         }
     }
 
-    pub fn next_token(&mut self) -> Option<LexResult<Token>> {
-        // 状态机转移
-        loop {
-            let chr =  match self.next_char() {
-                Some(c) => c, // 正常
-                None if self.state == INIT_STATE => return None, // 未读取流结束
-                _ => break  // 已经读取流结束，交给下面处理
-            };
-
-            self.state = match find_next(self.state, chr) {
-                Some(x) => x, // 正常转移
-
-                None if self.has_load_state() => break, // 回溯
-
-                _ => { // 错误转移
-                    return Some(Err(self.build_err("use of undeclared identifier")))
-                }
-            };
-
-            if let Some(x) = find_token(self.state) {
-                if x == TokenType::BlockComment {
-                    let closed = self.read_block_comment(); // 手动处理注释
-                    if !closed {
-                        return Some(Err(self.build_err("unterminated comment /*")));
+    pub fn next_token(&mut self) -> LexResult<Option<Token>> {
+        while let Some(_) = self.peek() {
+            match self.mode {
+                LexMode::Normal => {
+                    let token = self.handle_normal()?;
+                    if token.is_some() {
+                        return Ok(token);
                     }
                 }
-                self.save_state();
-            }
-
-        }
-
-
-        // 处理状态
-        match find_token(self.state) {
-            None => Some(Err(self.build_err("unterminated"))),
-            Some(typ) => {
-                self.load_state();
-                let (value, size) = self.pop_buff();
-                let pos = self.pos - size;
-                self.reset_state(); // 重要！必须重置状态
-                Some(Ok(Token::new(pos, typ, value)))
+                LexMode::LineCommon => self.handle_common(),
+                LexMode::BlockCommon => self.handle_common(),
+                LexMode::String => self.reset_state(), // 未使用
             }
         }
+
+        Ok(None)
     }
 
-    // 手动处理注释，返回bool表示注释是否闭合
-    fn read_block_comment(&mut self) -> bool {
-        self.pos -= 1; // 回退一个，保证存在
-        let mut prev: char;
-        let mut curr: char = self.next_char().unwrap();
-        let mut closed = false;
-        while let Some(chr) =self.next_char() {
+    fn handle_normal(&mut self) -> LexResult<Option<Token>> {
+        while let Some(chr) = self.peek() {
+
+            if let Some(x) = find_next(self.curr_state, chr) {
+                if TERMINATE_MAP[x] {
+                    self.save_state();
+                }
+                self.curr_pos = x;
+            }
+        }
+        Ok(None)
+    }
+
+    ///
+    /// 处理换行
+    ///
+    fn handle_common(&mut self) {
+
+        let mut prev;
+        let mut curr = '\x00';
+        while let Some(chr) = self.peek() {
             prev = curr;
             curr = chr;
-            if prev == '*' && curr == '/' {
-                closed = true;
+
+            if curr == '\n' {
+                self.next();
+                break
+            }
+
+            match (prev, curr) {
+                ('\r', '\n') => {
+                    self.next();
+                    break;
+                }
+                ('\r', _) => {
+                    break;
+                }
+                (_, _) => {
+                    self.next();
+                }
+            }
+        }
+
+        self.pop_buff(self.curr_pos);
+        self.reset_state();
+    }
+
+    fn handle_block_common(&mut self) {
+        let mut prev;
+        let mut curr = '\x00';
+
+        while let Some(chr) = self.peek() {
+            prev = curr;
+            curr = chr;
+            self.next();
+            if (prev, curr) == ('*', '/') {
                 break;
             }
         }
-        closed
+
+        self.pop_buff(self.curr_pos);
+        self.reset_state();
     }
 
-    fn build_err(&self, msg: &str) -> LexError {
-        LexError::new(
-            self.get_buff_pos(),
-            self.line,
-            msg,
-            self.buff.iter().collect()
-        )
-    }
-
-    fn get_buff_pos(&self) -> usize {
-        self.pos - (self.reader_pos - self.buff.len())
-    }
-
-    /// 读取一行，如果到达文件末尾则返回false，失败则直接终止程序
-    fn read_line(&mut self) -> bool {
-        self.line += 1; // 行数增加
-        let mut buff_str = String::new();
-        let size =self.reader.read_line(&mut buff_str).expect("read line error occurred");
-        let chars = buff_str.chars();
-
-        // 推入buff，更新reader_pos
-        for chr in chars {
-            self.buff.push_back(chr);
-            self.reader_pos += 1;
+    /// 出错后，对当前状态进行恢复
+    ///
+    fn recover(&mut self) -> String {
+        // 跳过当前词
+        while let Some(chr) = self.peek() {
+            if chr.is_ascii_whitespace() {
+                break
+            }
+            self.next();
         }
-        size != 0 // 是否读取成功
+
+        // 恢复状态
+        self.reset_state();
+        // 弹出出错符号
+        self.pop_buff(self.curr_pos)
+    }
+
+    fn buff_pos(&self, cursor: usize) -> usize {
+        assert!(cursor <= self.cursor_pos);
+        let ring_len = self.buff.len();
+        let buff_pos = ring_len - (self.cursor_pos - self.curr_pos) - 1;
+        buff_pos
+    }
+
+    /// 检查是否需要读取
+    fn check_read(&mut self, pos: usize) {
+        // 不需要
+        if pos < self.cursor_pos {
+            return;
+        }
+
+        let mut chunk = String::with_capacity(BUFF_BLOCK);
+        let n = self.reader
+            .by_ref()
+            .take(4096)
+            .read_to_string(&mut chunk)
+            .unwrap_or_else(|e| panic!("{}", e));
+
+        self.buff.extend(chunk[0..n].chars());
+        self.cursor_pos += n;
     }
 
     /// 拿到下一个char，自动选择流或者缓冲区，更新pos
-    fn next_char(&mut self) -> Option<char> {
-        // 计算偏移值, pos - buff_begin_pos todo 这里if没必要嵌套两层
-        let buff_pos = self.get_buff_pos();
-        if buff_pos >= self.buff.len() && !self.read_line() {
+    fn next(&mut self) -> Option<char> {
+        let chr = self.peek();
+        if chr.is_some() {
+            self.curr_pos += 1;
+        }
+        chr
+    }
+
+    fn peek(&mut self) -> Option<char> {
+        let buff_idx = self.buff_pos(self.curr_pos);
+        self.check_read(buff_idx);
+
+        if buff_idx >= self.buff.len() {
             return None;
         }
 
-        let char = self.buff[buff_pos];
-        self.pos += 1;
+        let char = self.buff[buff_idx];
 
         Some(char)
     }
 
-    /// 根据pos从头弹出缓冲区，转换成字符串
-    fn pop_buff(&mut self) -> (String, usize) {
-        let pos = self.get_buff_pos();
-
-        let value = self.buff.drain(0..pos).collect(); // 不包含pos
-        (value, pos)
-
+    /// 根据pos从头弹出缓冲区，转换成字符串，不包含pos
+    fn pop_buff(&mut self, pos: usize) -> String {
+        let pos = self.buff_pos(pos);
+        let value = self.buff.drain(0..pos).collect();
+        value
     }
 
     /// 保存当前状态
     fn save_state(&mut self) {
-        self.last_state = Some(self.state);
-        self.last_pos = Some(self.pos);
+        self.last_state = Some(self.curr_state);
+        self.last_pos = Some(self.curr_state);
     }
 
-    /// 是否存在保存的state
-    fn has_load_state(&self) -> bool {
+    /// 加载上一个状态，如果没有返回false，加载后会清空
+    fn load_state(&mut self) -> bool {
+        if !self.has_last() {
+            return false;
+        }
+        self.curr_state = self.last_state.unwrap();
+        self.curr_pos = self.last_pos.unwrap();
+        // 加载后清空
+        self.last_state = None;
+        self.last_pos = None;
+        true
+    }
+
+    /// 是否存在 last_state和last_pos
+    fn has_last(&self) -> bool {
         self.last_state.is_some() && self.last_pos.is_some()
     }
 
-    /// 加载上一个状态，清空state，如果没有触发panic
-    fn load_state(&mut self) {
-        if !self.has_load_state() {
-            panic!("last_state or last_pos is None");
-        }
-        self.state = self.last_state.unwrap();
-        self.pos = self.last_pos.unwrap();
-        self.last_state = None;
-        self.last_pos = None;
-    }
-
+    /// 重制状态
     fn reset_state(&mut self) {
-        self.state = INIT_STATE;
+        self.mode = LexMode::Normal;
+        self.curr_state = INIT_STATE;
     }
 
-}
-
-impl <R: Read> Iterator for Lex<R> {
-    type Item = Token;
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let result = self.next_token()?;
-
-            let mut token = match result { // 错误处理未实现
-                Ok(x) => x,
-                Err(err) => panic!("{:?}", err)
-            };
-
-
-            if token.ignore() {  // 过滤无用Token
-                continue;
-            }
-
-            try_type_name(&mut token, &self.symbol_table); // 尝试使用符号表转换token
-
-            return Some(token);
-        }
-    }
 }

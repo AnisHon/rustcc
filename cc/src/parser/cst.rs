@@ -1,7 +1,7 @@
 #![allow(clippy::all)]
 
 use enum_as_inner::EnumAsInner;
-use crate::types::token::Token;
+use crate::types::lex::token::Token;
 
 
 macro_rules! make_opt {

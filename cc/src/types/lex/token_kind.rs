@@ -1,12 +1,13 @@
-use crate::lex::decl_yy::*;
+use super::decl_yy::*;
 use num_derive::FromPrimitive;
+use crate::parser::parser_yy::END_SYMBOL;
 
 macro_rules! define_token {
-    ($($name:ident $value:expr),* $(,)?) => {
+    ($name:ident, $($variant:ident $value:expr),* $(,)?) => {
         #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive)]
-        pub enum TokenKind {
+        pub enum $name {
             $(
-                $name = $value as isize,
+                $variant = $value as isize,
             )*
         }
     };
@@ -18,6 +19,8 @@ const TOKEN_HEX: isize = 10001;
 const TOKEN_OCT: isize = 10002;
 
 define_token!(
+    TokenKind,
+    
     KeywordAuto         KEYWORD_AUTO,
     KeywordBreak        KEYWORD_BREAK,
     KeywordCase         KEYWORD_CASE,
@@ -85,18 +88,18 @@ define_token!(
     OpAssign            '=',
     OpGt                '>',
     OpLt                '<',
-    Lparen              '(',
-    Rparen              ')',
-    Lbrace              '{',
-    Rbrace              '}',
-    Lbracket            '[',
-    Rbracket            ']',
+    LParen              '(',
+    RParen              ')',
+    LBrace              '{',
+    RBrace              '}',
+    LBracket            '[',
+    RBracket            ']',
     Semicolon           ';',
     Comma               ',',
     Dot                 '.',
     Question            '?',
     Colon               ':',
-    Id                  ID,
+    ID                  ID,
     Hex                 TOKEN_HEX,  // 没定义
     Oct                 TOKEN_OCT,  // 没定义
     Int                 INT,
@@ -104,5 +107,6 @@ define_token!(
     StringLiteral       STRING_LITERAL,
     CharacterConstant   CHARACTER_CONSTANT,
     TypeName            TYPE_NAME,
+    EOF                 END_SYMBOL
 );
 

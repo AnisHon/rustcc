@@ -5,8 +5,8 @@ use crate::types::span::{Span, UnwrapSpan};
 use crate::types::symbol_table::Symbol;
 use enum_as_inner::EnumAsInner;
 use std::rc::Rc;
-use crate::lex::lex_yy::TokenType;
-use crate::types::token::{Token, TokenValue};
+use crate::types::lex::token::{Token, TokenValue};
+use crate::types::lex::token_kind::TokenKind;
 
 /// 顶层翻译单元
 #[derive(Debug, Clone)]
@@ -469,25 +469,25 @@ impl TryFrom<Token> for BinaryOpKind {
     type Error = &'static str; // todo 后期可以用this error
 
     fn try_from(value: Token) -> Result<Self, Self::Error> {
-        match value.as_type().unwrap() {
-            TokenType::OpPlus => Ok(BinaryOpKind::Add),
-            TokenType::OpMinus => Ok(BinaryOpKind::Sub),
-            TokenType::OpTimes => Ok(BinaryOpKind::Mul),
-            TokenType::OpDivide => Ok(BinaryOpKind::Div),
-            TokenType::OpMod => Ok(BinaryOpKind::Mod),
-            TokenType::OpLShift => Ok(BinaryOpKind::Shl),
-            TokenType::OpRShift => Ok(BinaryOpKind::Shr),
-            TokenType::OpLt => Ok(BinaryOpKind::Lt),
-            TokenType::OpGt => Ok(BinaryOpKind::Gt),
-            TokenType::OpLe => Ok(BinaryOpKind::Le),
-            TokenType::OpGe => Ok(BinaryOpKind::Ge),
-            TokenType::OpEq => Ok(BinaryOpKind::Eq),
-            TokenType::OpNe => Ok(BinaryOpKind::Ne),
-            TokenType::OpBitand =>Ok(BinaryOpKind::BitAnd),
-            TokenType::OpXor => Ok(BinaryOpKind::BitXor),
-            TokenType::OpBitor => Ok(BinaryOpKind::BitOr),
-            TokenType::OpAnd => Ok(BinaryOpKind::LogicalAnd),
-            TokenType::OpOr => Ok(BinaryOpKind::LogicalOr),
+        match value.as_type() {
+            TokenKind::OpPlus => Ok(BinaryOpKind::Add),
+            TokenKind::OpMinus => Ok(BinaryOpKind::Sub),
+            TokenKind::OpTimes => Ok(BinaryOpKind::Mul),
+            TokenKind::OpDivide => Ok(BinaryOpKind::Div),
+            TokenKind::OpMod => Ok(BinaryOpKind::Mod),
+            TokenKind::OpLShift => Ok(BinaryOpKind::Shl),
+            TokenKind::OpRShift => Ok(BinaryOpKind::Shr),
+            TokenKind::OpLt => Ok(BinaryOpKind::Lt),
+            TokenKind::OpGt => Ok(BinaryOpKind::Gt),
+            TokenKind::OpLe => Ok(BinaryOpKind::Le),
+            TokenKind::OpGe => Ok(BinaryOpKind::Ge),
+            TokenKind::OpEq => Ok(BinaryOpKind::Eq),
+            TokenKind::OpNe => Ok(BinaryOpKind::Ne),
+            TokenKind::OpBitand =>Ok(BinaryOpKind::BitAnd),
+            TokenKind::OpXor => Ok(BinaryOpKind::BitXor),
+            TokenKind::OpBitor => Ok(BinaryOpKind::BitOr),
+            TokenKind::OpAnd => Ok(BinaryOpKind::LogicalAnd),
+            TokenKind::OpOr => Ok(BinaryOpKind::LogicalOr),
             _ => Err("Failed to convert binary operator"),
         }
     }
@@ -523,17 +523,17 @@ pub enum AssignOpKind {
 impl TryFrom<Token> for AssignOpKind {
     type Error = &'static str;
     fn try_from(value: Token) -> Result<Self, Self::Error> {
-       match value.as_type().unwrap() {
-            TokenType::OpAssign => Ok(AssignOpKind::Assign),
-            TokenType::OpMulAssign => Ok(AssignOpKind::MulAssign),
-            TokenType::OpDivAssign => Ok(AssignOpKind::DivAssign),
-            TokenType::OpModAssign => Ok(AssignOpKind::ModAssign),
-            TokenType::OpAddAssign => Ok(AssignOpKind::AddAssign),
-            TokenType::OpSubAssign => Ok(AssignOpKind::SubAssign),
-            TokenType::OpLShiftAssign => Ok(AssignOpKind::ShlAssign),
-            TokenType::OpRShiftAssign => Ok(AssignOpKind::ShrAssign),
-            TokenType::OpAndAssign => Ok(AssignOpKind::AndAssign),
-            TokenType::OpOrAssign => Ok(AssignOpKind::OrAssign),
+       match value.as_type() {
+            TokenKind::OpAssign => Ok(AssignOpKind::Assign),
+            TokenKind::OpMulAssign => Ok(AssignOpKind::MulAssign),
+            TokenKind::OpDivAssign => Ok(AssignOpKind::DivAssign),
+            TokenKind::OpModAssign => Ok(AssignOpKind::ModAssign),
+            TokenKind::OpAddAssign => Ok(AssignOpKind::AddAssign),
+            TokenKind::OpSubAssign => Ok(AssignOpKind::SubAssign),
+            TokenKind::OpLShiftAssign => Ok(AssignOpKind::ShlAssign),
+            TokenKind::OpRShiftAssign => Ok(AssignOpKind::ShrAssign),
+            TokenKind::OpAndAssign => Ok(AssignOpKind::AndAssign),
+            TokenKind::OpOrAssign => Ok(AssignOpKind::OrAssign),
             _ => Err("Failed to convert assignment operator"),
         }
     }

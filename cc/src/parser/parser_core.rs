@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use crate::err::parser_error::{ParserError, ParserResult};
-use crate::lex::lex_yy::TokenType;
+use crate::types::lex::token_kind::TokenKind;
 use crate::parser::cst::DirectDeclarator::Paren;
 use crate::parser::cst::{DeclarationSpecifiers, DirectDeclarator, InitDeclarator, SemanticValue, StorageClassSpecifier, TranslationUnit};
 use crate::parser::parser_yy::{exec_action, get_action, get_goto, LRAction, EXPR_LENS, EXPR_NAMES, INIT_STATE};
 use crate::types::symbol_table::SymbolTable;
-use crate::types::token::Token;
+use crate::types::lex::token::Token;
 use std::iter::Peekable;
 use std::rc::Rc;
 use crate::util::try_type_name::try_type_name;
@@ -165,9 +165,9 @@ where
         };
 
         // 针对typedef粗略的符号表作用域控制
-        if token.is(TokenType::Lbrace) {
+        if token.is(TokenKind::LBrace) {
             self.symbol_table.borrow_mut().enter_scope();
-        } else if token.is(TokenType::Rbrace) {
+        } else if token.is(TokenKind::RBrace) {
             self.symbol_table.borrow_mut().exit_scope();
         }
 

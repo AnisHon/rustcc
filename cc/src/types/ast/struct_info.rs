@@ -2,12 +2,12 @@
 //! struct union enum类型声明相关的AST临时节点定义
 //!
 
-use crate::lex::lex_yy::TokenType;
+use crate::types::lex::token_kind::TokenKind;
 use crate::types::ast::ast_nodes::Expression;
 use crate::types::ast::decl_info::{DeclSpec, Declarator};
 use crate::types::ast::parser_node::ParserNode;
 use crate::types::span::{Delim, SepList, Span};
-use crate::types::token::Token;
+use crate::types::lex::token::Token;
 
 #[derive(Debug, Clone)]
 pub enum StructKind {
@@ -29,9 +29,9 @@ impl StructOrUnionSpec {
         let kind_span = Span::from_token(&kind);
         let span = kind_span.merge(&Span::from_token(&name));
         let name = name.value.into_string().unwrap();
-        let kind = match kind.as_type().unwrap() {
-            TokenType::KeywordStruct => StructKind::Struct(kind_span),
-            TokenType::KeywordUnion => StructKind::Union(kind_span),
+        let kind = match kind.as_type() {
+            TokenKind::KeywordStruct => StructKind::Struct(kind_span),
+            TokenKind::KeywordUnion => StructKind::Union(kind_span),
             _ => unreachable!()
         };
 
@@ -49,9 +49,9 @@ impl StructOrUnionSpec {
 
         let name = name.map(|x| x.value.into_string().unwrap());
 
-        let kind = match kind.as_type().unwrap() {
-            TokenType::KeywordStruct => StructKind::Struct(kind_span),
-            TokenType::KeywordUnion => StructKind::Union(kind_span),
+        let kind = match kind.as_type() {
+            TokenKind::KeywordStruct => StructKind::Struct(kind_span),
+            TokenKind::KeywordUnion => StructKind::Union(kind_span),
             _ => unreachable!()
         };
 

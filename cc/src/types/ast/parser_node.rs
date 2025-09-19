@@ -11,7 +11,7 @@ use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::{CompleteDecl, DeclSpec, Declarator, DeclaratorChunk, ParamList, TypeQual, TypeSpec};
 use crate::types::ast::struct_info::{EnumSpec, Enumerator, StructDeclarator, StructMember, StructOrUnionSpec};
 use crate::types::span::{SepList, Span};
-use crate::types::token::Token;
+use crate::types::lex::token::Token;
 
 
 // =============================

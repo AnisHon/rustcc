@@ -3,12 +3,12 @@
 //! Sema函数会做语义检查，类型检查，错误处理 和 错误恢复
 //!
 
-use crate::lex::lex_yy::TokenType;
+use crate::types::lex::token_kind::TokenKind;
 use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclaratorChunk, TypeQual};
 use crate::types::ast::parser_node::ParserNode;
 use crate::types::span::{Span, UnwrapSpan};
-use crate::types::token::Token;
+use crate::types::lex::token::Token;
 use std::mem;
 
 impl TranslationUnit {
@@ -114,9 +114,9 @@ impl Statement {
             None => span,
             Some(x) => Span::from_token(&x).merge(&span)
         };
-        let kind = match while_token.as_type().unwrap() {
-            TokenType::KeywordWhile => StatementKind::While { cond: Box::new(cond), body: Box::new(body) },
-            TokenType::KeywordDo => StatementKind::DoWhile { cond: Box::new(cond), body: Box::new(body) },
+        let kind = match while_token.as_type() {
+            TokenKind::KeywordWhile => StatementKind::While { cond: Box::new(cond), body: Box::new(body) },
+            TokenKind::KeywordDo => StatementKind::DoWhile { cond: Box::new(cond), body: Box::new(body) },
             _ => unreachable!()
         };
         Statement::new(kind, span).into()
@@ -142,9 +142,9 @@ impl Statement {
 
     pub fn make_continue_break(token: Token) -> ParserNode {
         let span = Span::from_token(&token);
-        let kind = match token.as_type().unwrap() {
-            TokenType::KeywordContinue => StatementKind::Continue,
-            TokenType::KeywordBreak => StatementKind::Break,
+        let kind = match token.as_type() {
+            TokenKind::KeywordContinue => StatementKind::Continue,
+            TokenKind::KeywordBreak => StatementKind::Break,
             _ => unreachable!()
         };
 
@@ -221,11 +221,11 @@ impl Expression {
     pub fn make_update(expr: Expression, token: Token, post: bool) -> ParserNode {
         let span = Span::from_token(&token).merge(&expr.span);
 
-        let kind = match (token.as_type().unwrap(), post) {
-            (TokenType::OpDec, true) => ExpressionKind::PostDec,
-            (TokenType::OpDec, false) => ExpressionKind::PreDec,
-            (TokenType::OpInc, true) => ExpressionKind::PostInc,
-            (TokenType::OpInc, false) => ExpressionKind::PreInc,
+        let kind = match (token.as_type(), post) {
+            (TokenKind::OpDec, true) => ExpressionKind::PostDec,
+            (TokenKind::OpDec, false) => ExpressionKind::PreDec,
+            (TokenKind::OpInc, true) => ExpressionKind::PostInc,
+            (TokenKind::OpInc, false) => ExpressionKind::PreInc,
             _ => unreachable!()
         };
 
@@ -237,13 +237,13 @@ impl Expression {
         let token_span = Span::from_token(&token);
         let span = token_span.merge(&expr.span);
 
-        let kind = match token.as_type().unwrap() {
-            TokenType::OpBitand => UnaryOpKind::AddressOf,
-            TokenType::OpTimes => UnaryOpKind::Deref,
-            TokenType::OpPlus => UnaryOpKind::Plus,
-            TokenType::OpMinus => UnaryOpKind::Minus,
-            TokenType::OpBitNot => UnaryOpKind::BitNot,
-            TokenType::OpNot => UnaryOpKind::LogicalNot,
+        let kind = match token.as_type() {
+            TokenKind::OpBitand => UnaryOpKind::AddressOf,
+            TokenKind::OpTimes => UnaryOpKind::Deref,
+            TokenKind::OpPlus => UnaryOpKind::Plus,
+            TokenKind::OpMinus => UnaryOpKind::Minus,
+            TokenKind::OpBitNot => UnaryOpKind::BitNot,
+            TokenKind::OpNot => UnaryOpKind::LogicalNot,
             _ => unreachable!()
         };
 

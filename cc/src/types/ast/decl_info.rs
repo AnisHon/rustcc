@@ -11,13 +11,13 @@
 //! - `ParamInfo`:
 //!
 
-use crate::lex::lex_yy::TokenType;
+use crate::types::lex::token_kind::TokenKind;
 use crate::types::span::{Delim, SepList, Span, UnwrapSpan};
 use crate::types::ast::ast_nodes;
 use crate::types::ast::ast_nodes::{ExpressionKind, StorageClass};
 use crate::types::ast::parser_node::ParserNode;
 use crate::types::ast::struct_info::{EnumSpec, StructOrUnionSpec};
-use crate::types::token::Token;
+use crate::types::lex::token::{Token};
 
 #[derive(Debug, Clone)]
 pub enum TypeSpec {
@@ -38,17 +38,17 @@ pub enum TypeSpec {
 impl TypeSpec {
     pub fn make_simple(token: Token) -> ParserNode {
         let span = Span::from_token(&token);
-        let result = match token.as_type().unwrap() {
-            TokenType::KeywordVoid => TypeSpec::Void(span),
-            TokenType::KeywordChar => TypeSpec::Char(span),
-            TokenType::KeywordShort => TypeSpec::Short(span),
-            TokenType::KeywordInt => TypeSpec::Int(span),
-            TokenType::KeywordLong => TypeSpec::Long(span),
-            TokenType::KeywordSigned => TypeSpec::Signed(span),
-            TokenType::KeywordUnsigned => TypeSpec::Unsigned(span),
-            TokenType::KeywordFloat => TypeSpec::Float(span),
-            TokenType::KeywordDouble => TypeSpec::Double(span),
-            TokenType::TypeName => {
+        let result = match token.as_type() {
+            TokenKind::KeywordVoid => TypeSpec::Void(span),
+            TokenKind::KeywordChar => TypeSpec::Char(span),
+            TokenKind::KeywordShort => TypeSpec::Short(span),
+            TokenKind::KeywordInt => TypeSpec::Int(span),
+            TokenKind::KeywordLong => TypeSpec::Long(span),
+            TokenKind::KeywordSigned => TypeSpec::Signed(span),
+            TokenKind::KeywordUnsigned => TypeSpec::Unsigned(span),
+            TokenKind::KeywordFloat => TypeSpec::Float(span),
+            TokenKind::KeywordDouble => TypeSpec::Double(span),
+            TokenKind::TypeName => {
                 let typename = token.value.into_string().unwrap();
                 TypeSpec::TypeName(typename, span)
             },
@@ -103,9 +103,9 @@ impl TypeQual {
     pub fn make(list: Option<Vec<TypeQual>>, token: Token) -> ParserNode {
         let span = Span::from_token(&token);
         let mut list = list.unwrap_or_default();
-        let result = match token.as_type().unwrap() {
-            TokenType::KeywordConst => TypeQual::Const(span),
-            TokenType::KeywordVolatile => TypeQual::Volatile(span),
+        let result = match token.as_type() {
+            TokenKind::KeywordConst => TypeQual::Const(span),
+            TokenKind::KeywordVolatile => TypeQual::Volatile(span),
             _ => unreachable!()
         };
 
@@ -135,12 +135,12 @@ impl DeclSpec {
     pub fn make_storage(spec: Token, decl_spec: Option<Box<DeclSpec>>) -> ParserNode {
         let span = Span::from_token(&spec);
         let mut decl_spec = decl_spec.unwrap_or_else(|| Box::from(Self::new(span)));
-        let spec = match spec.as_type().unwrap() {
-            TokenType::KeywordTypedef => StorageClass::Typedef(span),
-            TokenType::KeywordExtern => StorageClass::Extern(span),
-            TokenType::KeywordStatic => StorageClass::Static(span),
-            TokenType::KeywordAuto => StorageClass::Auto(span),
-            TokenType::KeywordRegister => StorageClass::Register(span),
+        let spec = match spec.as_type() {
+            TokenKind::KeywordTypedef => StorageClass::Typedef(span),
+            TokenKind::KeywordExtern => StorageClass::Extern(span),
+            TokenKind::KeywordStatic => StorageClass::Static(span),
+            TokenKind::KeywordAuto => StorageClass::Auto(span),
+            TokenKind::KeywordRegister => StorageClass::Register(span),
             _ => unreachable!()
         };
 
@@ -154,9 +154,9 @@ impl DeclSpec {
         let span = Span::from_token(&qual);
         let mut decl_spec = decl_spec.unwrap_or_else(|| Box::new(Self::new(span)));
 
-        let qual = match qual.as_type().unwrap() {
-            TokenType::KeywordConst => TypeQual::Const(span),
-            TokenType::KeywordVolatile => TypeQual::Volatile(span),
+        let qual = match qual.as_type() {
+            TokenKind::KeywordConst => TypeQual::Const(span),
+            TokenKind::KeywordVolatile => TypeQual::Volatile(span),
             _ => unreachable!()
         };
 
@@ -208,7 +208,7 @@ impl Declarator {
     }
 
     pub fn make(token: Token) -> ParserNode {
-        assert!(token.is(TokenType::Id));
+        assert!(token.is(TokenKind::ID));
 
         let span = Span::from_token(&token);
         let name = token.value.into_string().unwrap();

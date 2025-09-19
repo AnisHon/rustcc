@@ -3,7 +3,7 @@
 //! 废弃，无用
 //!
 use crate::parser::cst::*;
-use crate::types::token::Token;
+use crate::types::lex::token::Token;
 
 /// 解包+Optional转换的声明宏
 macro_rules! unwrap_list_opt {

@@ -1,4 +1,4 @@
-use crate::types::token::Token;
+use crate::types::lex::token::Token;
 
 ///
 /// 节点对应的位置区间
