@@ -3,14 +3,15 @@ use askama::Template;
 use common::utils::compress::compress_matrix;
 use std::fs;
 use common::utils::str_util::{default_cvt, option_cvt, vec_to_code};
-use crate::rlexer::lex_config::LexRule;
 
 #[derive(Template)]
 #[template(path = "lex.rs.askama", ext = "txt", escape = "none")]
 struct LexTemplate<'a> {
     decl_code: Option<&'a str>,
     user_code: Option<&'a str>,
-    actions: Vec<(usize, Option<String>)>,
+    actions: Vec<(usize, &'a str)>,
+    terminate_map: String,
+    terminate_map_sz: usize,
     init_state: usize,
     base: String,
     base_sz: usize,
@@ -41,12 +42,23 @@ impl LexWriter {
     pub fn write(self) {
         let dfa = self.lexer.get_dfa();
 
-        let actions: Vec<_> = (0..dfa.size())
-            .filter(|&x| dfa.is_exist(x))
-            .map(|x| dfa.get_meta(x).id)
-            .flatten()
-            .map(|id| (id, dfa.get_meta(id).action.clone()))
+        // 将所有终结符打包成
+        let actions: Vec<(usize, &str)> = dfa.get_states().iter()
+            .enumerate() // enumerate就是ID
+            .filter_map(|(state, meta)| Some((state, meta.as_ref()?))) // 过滤不存在的，并解包
+            .filter_map(|(state, meta)| Some((state, meta.action.as_ref()?))) // 过滤没有action的，包括非终结状态和部分终结状态
+            .map(|(state, meta)| (state, meta.as_str()))
             .collect();
+
+
+        let terminate_map: Vec<bool> = dfa.get_states().iter()
+            .map(|x| match x {
+                None => false,
+                Some(x) => x.terminate,
+            }).collect();
+        let (terminate_map, terminate_map_sz) = vec_to_code(terminate_map.into_iter(), default_cvt);
+
+        // println!("{:#?}", dfa.get_states());
 
         let config = self.lexer.get_config();
 
@@ -84,6 +96,8 @@ impl LexWriter {
             decl_code,
             user_code,
             actions,
+            terminate_map,
+            terminate_map_sz,
             init_state: dfa.get_init_state(),
             base,
             base_sz,
@@ -103,8 +117,8 @@ impl LexWriter {
 
         let rendered = template.render().unwrap();
 
-        // fs::write(self.path, rendered).unwrap();
-        println!("{}", rendered);
+        fs::write(self.path, rendered).unwrap();
+        // println!("{}", rendered);
     }
 
 }

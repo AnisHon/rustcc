@@ -9,25 +9,11 @@ pub fn get_path(path: &str) -> String {
 fn main() {
     
     let lex_input = include_str!("../../src/clex.l");
-    let lex_input = r#"
-%{
-#include <stdio.h>
-%}
-
-%option noyywrap
-
-%%
-[a-z]+    { return IDENT; }
-"+"       { return PLUS; }
-[0-9]+    { return NUMBER; }
-%%
-
-int main() { yylex(); }
-"#;
 
     let parser = LexConfigParser::new(lex_input.to_owned());
     let config = parser.parse();
-    
+    // println!("{:#?}", config);
+
     let lex = Lexer::new(config);
 
     let dfa = lex.get_dfa();

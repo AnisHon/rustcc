@@ -1,7 +1,4 @@
 //!
-//! date: 2025/8/26
-//! author: anishan
-//!
 //! LR0构造器
 //!
 
@@ -96,8 +93,8 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
         }
     }
 
-    /// 获取项目集转移符号
-    fn item_symbols(&self, items: &LR0ItemSet) -> BTreeMap<Symbol<T>, BTreeSet<LRItem>> {
+    /// 获取下一个转移符号，并分类
+    fn item_shift_symbols(&self, items: &LR0ItemSet) -> BTreeMap<Symbol<T>, BTreeSet<LRItem>> {
         let mut symbols_table = BTreeMap::new();
         for item in items.iter() {
             let symbol = match item.next_symbol(self.grammar) {
@@ -136,14 +133,17 @@ impl<'a, T: SymbolBound> LR0Builder<'a, T> {
         let mut lr0_table = Vec::new();
         
         while !queue.is_empty() {
+            // 初始项集
             let item_set = queue.pop_front().unwrap();
+            // 初始项集ID
             let items_id = *items2id_table
                 .entry(item_set.clone())
                 .or_insert_with(|| self.id_factory.next_id());
-        
-            let symbol_table = self.item_symbols(&item_set);
 
-            // 转移边symbol，对应的转移集合items
+            // 根据下一个转移符号进行分类，得到一个 symbol -> items的映射，过滤规约项目
+            let symbol_table = self.item_shift_symbols(&item_set);
+
+            // 对分类进行goto操作
             for (symbol, items) in symbol_table {
                 let goto_set = self.item_goto(items, symbol.clone());
                 let goto_set_id = *items2id_table.entry(goto_set.clone()).or_insert_with(|| {

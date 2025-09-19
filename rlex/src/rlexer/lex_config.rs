@@ -1,5 +1,6 @@
+use indexmap::IndexMap;
 use crate::utils::regex_util::escape_regex_meta;
-use pest::iterators::Pairs;
+use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -43,30 +44,17 @@ pub struct LexGrammar;
 
 pub struct LexConfigParser {
     input: String,
+    pattern_decl: IndexMap<String, String>,
 }
-
-pub enum PatternType {
-    Unquoted,
-    Quoted,
-}
-
-
-pub struct LexConfigRule {
-    pattern: String,
-    pattern_type: PatternType,
-    action: Option<String>,
-}
-
 
 impl LexConfigParser {
     pub fn new(input: String) -> LexConfigParser {
-        LexConfigParser { input }
+        LexConfigParser { input, pattern_decl: IndexMap::new() }
     }
 
-    pub fn parse(self) -> LexConfig {
-
-
-        let file = LexGrammar::parse(Rule::file, self.input.as_str())
+    pub fn parse(mut self) -> LexConfig {
+        let input = self.input.clone();
+        let file = LexGrammar::parse(Rule::file, input.as_str())
             .unwrap()
             .next()
             .unwrap();
@@ -86,6 +74,9 @@ impl LexConfigParser {
                     lex_config.decl_code = Some(code);
                 },
                 Rule::decls => { /* 目前无用忽略 */ },
+                Rule::pattern_decls => { // pattern声明
+                    self.parse_pattern_decls(x);
+                }
                 Rule::rules => {
                     lex_config.rules = self.parse_rules(x.into_inner());
                 },
@@ -97,10 +88,18 @@ impl LexConfigParser {
             }
         }
 
-
-
-        println!("{:#?}", lex_config);
         lex_config
+    }
+
+    pub fn parse_pattern_decls(&mut self, x: Pair<Rule>) {
+        for pattern_decl in x.into_inner() {
+            let mut pattern_decl = pattern_decl.into_inner();
+            let ident = pattern_decl.next().unwrap().as_str().to_owned();
+            let pattern = pattern_decl.next().unwrap().into_inner().next().unwrap();
+            let pattern = self.parse_pattern(pattern);
+
+            self.pattern_decl.insert(ident, pattern);
+        }
     }
 
     pub fn parse_rules(&self, rules: Pairs<Rule>) -> Vec<LexRule> {
@@ -121,16 +120,7 @@ impl LexConfigParser {
             match pair.as_rule() {
                 Rule::pattern => {
                     let pattern = pair.into_inner().next().unwrap();
-                    let regex = pattern.as_str();
-
-                    let regex = match pattern.as_rule() {
-                        Rule::quoted_pattern => {
-                            let regex: &str = &regex[1..regex.len() - 1]; // 去掉引号
-                            escape_regex_meta(regex)
-                        },
-                        Rule::unquoted_pattern => regex.to_string(),
-                        _ => unreachable!()
-                    };
+                    let regex = self.parse_pattern(pattern);
                     rule_regex = Some(regex);
                 },
                 Rule::action => rule_action = Some(pair.as_str().to_string()),
@@ -138,11 +128,92 @@ impl LexConfigParser {
             }
         }
 
-
         LexRule {
             regex: rule_regex.unwrap(),
             action: rule_action,
         }
+    }
+
+    pub fn parse_pattern(&self, pattern: Pair<Rule>) -> String {
+        let regex = pattern.as_str();
+        match pattern.as_rule() {
+            Rule::quoted_pattern => {
+                let regex: &str = &regex[1..regex.len() - 1]; // 去掉引号
+                escape_regex_meta(regex)
+            },
+            Rule::unquoted_pattern => {
+                // 试图对占位符格式化
+                self.format_pattern(regex)
+            },
+            _ => unreachable!()
+        }
+    }
+
+    /// 填充模版
+    pub fn format_pattern(&self, input: &str) -> String {
+        let mut out = String::with_capacity(input.len());
+        let mut i = 0usize;
+        let input: Vec<_>= input.chars().collect();
+        let len = input.len();
+
+        while i < len {
+            let ch = input[i];
+
+            // 是否在 '{' 之后，遇到 '}' 停止
+            let lbrace = ch == '{';
+
+            // 不在{ 中直接推入
+            if !lbrace {
+                out.push(ch);
+                i += 1;
+                continue;
+            }
+
+            // 在 { 中判断是否合法
+            let lbrace_idx = i;
+            let mut rbrace_idx = i + 1;
+            let mut valid = false;
+
+            // 检查 } 边界，和是否是有效占位
+            while rbrace_idx < len {
+                let ch = input[rbrace_idx];
+                let legal = ch.is_ascii_alphanumeric() || ch == '_';
+
+                // 如果遇到 '}' 且长度大于1，则是合法的占位
+                if ch == '}' && rbrace_idx - lbrace_idx > 1 {
+                    valid = true;
+                    break;
+                }
+
+                // 字符不合法直接结束
+                if !legal {
+                    break;
+                }
+
+                rbrace_idx += 1;
+            }
+
+            // 合法则查表
+            let content: String = match valid {
+                true => {
+                    let name: String = input[lbrace_idx + 1..=rbrace_idx - 1].iter().collect();
+                    let content = self.pattern_decl.get(name.as_str())
+                        .unwrap_or_else(|| panic!("Not found {}", name));
+                    // 防止出现优先级问题，加上括号
+                    format!("({})", content)
+                }
+                false => input[lbrace_idx..rbrace_idx].iter().collect()
+            };
+
+            // 推入
+            out.push_str(&content);
+
+            // 跳到下一个
+            i = rbrace_idx + 1;
+        }
+
+        out
+
     }
 
 }

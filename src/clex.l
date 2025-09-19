@@ -1,108 +1,128 @@
-KEYWORD_AUTO                auto
-KEYWORD_BREAK               break
-KEYWORD_CASE                case
-KEYWORD_CHAR                char
-KEYWORD_CONST               const
-KEYWORD_CONTINUE            continue
-KEYWORD_DEFAULT             default
-KEYWORD_DO                  do
-KEYWORD_DOUBLE              double
-KEYWORD_ELSE                else
-KEYWORD_ENUM                enum
-KEYWORD_EXTERN              extern
-KEYWORD_FLOAT               float
-KEYWORD_FOR                 for
-KEYWORD_GOTO                goto
-KEYWORD_IF                  if
-KEYWORD_INT                 int
-KEYWORD_LONG                long
-KEYWORD_REGISTER            register
-KEYWORD_RETURN              return
-KEYWORD_SHORT               short
-KEYWORD_SIGNED              signed
-KEYWORD_SIZEOF              sizeof
-KEYWORD_STATIC              static
-KEYWORD_STRUCT              struct
-KEYWORD_SWITCH              switch
-KEYWORD_TYPEDEF             typedef
-KEYWORD_UNION               union
-KEYWORD_UNSIGNED            unsigned
-KEYWORD_VOID                void
-KEYWORD_VOLATILE            volatile
-KEYWORD_WHILE               while
+%{
+use crate::types::lex::token_kind::TokenKind::*;
+%}
+
+ID                      [a-zA-Z_]\w*
+
+HEX                     0[xX][0-9a-fA-F]+([uU]?[lL]{0,2}|[lL]{1,2}[uU]?)?
+OCT                     0[0-7]*([uU]?[lL]{0,2}|[lL]{1,2}[uU]?)?
+INT                     (0|[1-9][0-9]*)([uU]?[lL]{0,2}|[lL]{1,2}[uU]?)?
+FLOAT                   (([0-9]+\.[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)([fFlL])?
+
+STRING_LITERAL          \"([^"\\\n]|\\.)*\"
+CHARACTER_CONSTANT      '([^\\'\n]|\\.)*'
+
+LINE_COMMENT
+BLOCK_COMMENT
+
+WHITESPACE              \s+
+
+%%
+
+auto 	                { return KeywordAuto.into(); }
+break 	                { return KeywordBreak.into(); }
+case 	                { return KeywordCase.into(); }
+char 	                { return KeywordChar.into(); }
+const 	                { return KeywordConst.into(); }
+continue 	            { return KeywordContinue.into(); }
+default 	            { return KeywordDefault.into(); }
+do 	                    { return KeywordDo.into(); }
+double 	                { return KeywordDouble.into(); }
+else 	                { return KeywordElse.into(); }
+enum 	                { return KeywordEnum.into(); }
+extern 	                { return KeywordExtern.into(); }
+float 	                { return KeywordFloat.into(); }
+for 	                { return KeywordFor.into(); }
+goto 	                { return KeywordGoto.into(); }
+if 	                    { return KeywordIf.into(); }
+int 	                { return KeywordInt.into(); }
+long 	                { return KeywordLong.into(); }
+register    	        { return KeywordRegister.into(); }
+return 	                { return KeywordReturn.into(); }
+short 	                { return KeywordShort.into(); }
+signed 	                { return KeywordSigned.into(); }
+sizeof 	                { return KeywordSizeof.into(); }
+static 	                { return KeywordStatic.into(); }
+struct 	                { return KeywordStruct.into(); }
+switch 	                { return KeywordSwitch.into(); }
+typedef 	            { return KeywordTypedef.into(); }
+union 	                { return KeywordUnion.into(); }
+unsigned    	        { return KeywordUnsigned.into(); }
+void        	        { return KeywordVoid.into(); }
+volatile    	        { return KeywordVolatile.into(); }
+while 	                { return KeywordWhile.into(); }
 
 
-OP_ELLIPSIS            "..."
-OP_ARROW               "->"
-OP_INC                 "++"
-OP_DEC                 "--"
+"..." 	                { return OpEllipsis.into(); }
+"->" 	                { return OpArrow.into(); }
+"++" 	                { return OpInc.into(); }
+"--" 	                { return OpDec.into(); }
 
 
-OP_ADD_ASSIGN          "+="
-OP_SUB_ASSIGN          "-="
-OP_MUL_ASSIGN          "*="
-OP_DIV_ASSIGN          "/="
-OP_MOD_ASSIGN          "%="
-OP_L_SHIFT_ASSIGN      "<<="
-OP_R_SHIFT_ASSIGN      ">>="
-OP_AND_ASSIGN          "&="
-OP_XOR_ASSIGN          "^="
-OP_OR_ASSIGN           "|="
+"+=" 	                { return OpAddAssign.into(); }
+"-=" 	                { return OpSubAssign.into(); }
+"*=" 	                { return OpMulAssign.into(); }
+"/=" 	                { return OpDivAssign.into(); }
+"%=" 	                { return OpModAssign.into(); }
+"<<=" 	                { return OpLShiftAssign.into(); }
+">>=" 	                { return OpRShiftAssign.into(); }
+"&=" 	                { return OpAndAssign.into(); }
+"^=" 	                { return OpXorAssign.into(); }
+"|=" 	                { return OpOrAssign.into(); }
 
 
-OP_EQ                  "=="
-OP_NE                  "!="
-OP_GE                  ">="
-OP_LE                  "<="
-OP_AND                 "&&"
-OP_OR                  "||"
+"==" 	                { return OpEq.into(); }
+"!=" 	                { return OpNe.into(); }
+">=" 	                { return OpGe.into(); }
+"<=" 	                { return OpLe.into(); }
+"&&" 	                { return OpAnd.into(); }
+"||" 	                { return OpOr.into(); }
+"<<" 	                { return OpLShift.into(); }
+">>" 	                { return OpRShift.into(); }
 
 
-OP_L_SHIFT             "<<"
-OP_R_SHIFT             ">>"
+"+"                     { return  '+'.into(); }
+"-"                     { return  '-'.into(); }
+"*"                     { return  '*'.into(); }
+"/"                     { return  '/'.into(); }
+"%"                     { return  '%'.into(); }
+"!"                     { return  '!'.into(); }
+"&"                     { return  '&'.into(); }
+"|"                     { return  '|'.into(); }
+"^"                     { return  '^'.into(); }
+"~"                     { return  '~'.into(); }
+"="                     { return  '='.into(); }
+">"                     { return  '>'.into(); }
+"<"                     { return  '<'.into(); }
 
 
-OP_PLUS                "+"
-OP_MINUS               "-"
-OP_TIMES               "*"
-OP_DIVIDE              "/"
-OP_MOD                 "%"
-OP_NOT                 "!"
-OP_BITAND              "&"
-OP_BITOR               "|"
-OP_XOR                 "^"
-OP_BIT_NOT              "~"
-OP_ASSIGN              "="
-OP_GT                  ">"
-OP_LT                  "<"
+"("                     { return  '('.into(); }
+")"                     { return  ')'.into(); }
+"{"                     { return  LParen.into(); }
+"}"                     { return  RParen.into(); }
+"["                     { return  '['.into(); }
+"]"                     { return  ']'.into(); }
+";"                     { return  ';'.into(); }
+","                     { return  ','.into(); }
+"."                     { return  '.'.into(); }
+"?"                     { return  '?'.into(); }
+":"                     { return  ':'.into(); }
+
+{ID}                    { return Id; }
+
+{HEX}                   { return Hex; }
+{OCT}                   { return Oct; }
+{INT}                   { return Int; }
+{FLOAT}                 { return Float; }
+
+{STRING_LITERAL}        { return StringLiteral; }
+{CHARACTER_CONSTANT}    { return CHARACTER_CONSTANT; }
+
+"/*"                    { $self.mode = LexMode::BlockCommon; }
+"//"                    { $self.mode = LexMode::LineCommon; }
+
+{WHITESPACE}            { ; }
+
+%%
 
 
-LPAREN              "("
-RPAREN              ")"
-LBRACE              "{"
-RBRACE              "}"
-LBRACKET            "["
-RBRACKET            "]"
-SEMICOLON           ";"
-COMMA               ","
-DOT                 "."
-QUESTION            "?"
-COLON               ":"
-
-
-ID                  [a-zA-Z_]\w*
-
-HEX                 0[xX][0-9a-fA-F]+([uU]?[lL]{0,2}|[lL]{1,2}[uU]?)?
-OCT                 0[0-7]*([uU]?[lL]{0,2}|[lL]{1,2}[uU]?)?
-INT                 (0|[1-9][0-9]*)([uU]?[lL]{0,2}|[lL]{1,2}[uU]?)?
-FLOAT               (([0-9]+\.[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)([fFlL])?
-
-STRING_LITERAL      \"([^"\\\n]|\\.)*\"
-CHARACTER_CONSTANT  '([^\\'\n]|\\.)*'
-
-LINE_COMMENT        //.*
-BLOCK_COMMENT       /\*
-
-WHITESPACE          \s+
-
-TYPE_NAME

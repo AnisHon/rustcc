@@ -1,7 +1,4 @@
 //!
-//! date: 2025/8/26
-//! author: anishan
-//!
 //! LR1构造器
 //!
 
@@ -120,12 +117,13 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
             next_item
         }));
 
+        // 闭包
         self.item_closure(&mut next_item_set);
         next_item_set
     }
 
-    /// 获取项目集转移符号
-    fn item_symbols(&self, item_set: &'a LookaheadItemSet<T>) -> BTreeMap<Symbol<T>, LookaheadItemSet<T>> {
+    /// 获取下一个转移符号，并分类
+    fn item_shift_symbols(&self, item_set: &'a LookaheadItemSet<T>) -> BTreeMap<Symbol<T>, LookaheadItemSet<T>> {
         let mut symbols_table = BTreeMap::new();
         for item in item_set.core_set.iter() {
             let symbol = match item.next_symbol(self.grammar) {
@@ -171,25 +169,33 @@ impl<'a, T: SymbolBound> LR1Builder<'a, T> {
         let mut lr1_table = Vec::new();
 
         while !queue.is_empty() {
+            // 初始项集
             let item_set = queue.pop_front().unwrap();
+            // 初始项集ID
             let items_id = *items2id_table
                 .entry(item_set.clone())
                 .or_insert_with(|| self.id_factory.next_id());
 
-            let symbol_table = self.item_symbols(&item_set);
+            // 根据下一个转移符号进行分类，得到一个 symbol -> items的映射，过滤规约项目
+            let symbol_table = self.item_shift_symbols(&item_set);
 
-            // 转移边symbol，对应的转移集合items
+            // 对分类进行goto操作
             for (symbol, items) in symbol_table {
+                // GOTO(I, X)得到新项目集
                 let goto_set = self.item_goto(items, symbol.clone());
 
+                // 有可能已经出现过了，查表或分配ID
                 let goto_set_id = *items2id_table.entry(goto_set.clone()).or_insert_with(|| {
                     queue.push_back(goto_set.clone());
                     self.id_factory.next_id()
                 });
+
+                // 记录转移
                 lr1_table.push((items_id, symbol, goto_set_id));
             }
         }
 
+        // 获取初始状态
         let init_state = items2id_table[&init_set];
         let id2items_table = items2id_table.into_iter()
             .map(|(k, v)| (v, k))

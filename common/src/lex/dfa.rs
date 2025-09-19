@@ -59,6 +59,10 @@ impl DFA {
         self.states.len()
     }
 
+    pub fn get_states(&self) -> &Vec<Option<StateMeta>> {
+        &self.states
+    }
+
     pub fn get_stride(&self) -> usize {
         self.stride
     }

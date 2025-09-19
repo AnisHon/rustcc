@@ -6,6 +6,8 @@
 
 pub const INIT_STATE: usize = {{ init_state }};
 
+pub static TERMINATE_MAP: [bool; {{ terminate_map_sz }}] = {{ terminate_map }};
+
 static CHAR_CLASS: [(u32, u32); {{ ranges_sz }}] = {{ ranges }};
 
 static CHAR_CLASS_MAP: [usize; {{ class_map_sz }}] = {{ class_map }};
@@ -87,28 +89,25 @@ fn binary_search(chr: u32) -> usize {
     // not in ranges
     unreachable!("Not Find {}", chr)
 }
-macro_rules! action {
-    ($state:ident) => {
-        match $state {
-            {%- for (id, action) in actions -%}
-                {%- match action -%}
-                    {%- when Some(x) -%}
-                        {{"\n            "}}{{ id }} => {{ x }}
-                    {%- when None -%}
-                {%- endmatch -%}
-            {%- endfor %}
-        }
+
+/// execute action, return results
+macro_rules! exec_action {
+    ($self:ident, $state:ident) => {
+        //  Use lambda for compatibility with `return ..`
+        (|| => {
+            match $state {
+                {%- for (id, action) in actions %}
+                {{ id }} => {{ action }}
+                {%- endfor %}
+                _ => {}
+            }
+            return None
+        })()
     };
 }
 
-
-
-
-
-{%- match user_code -%}
+{% match user_code %}
     {%- when Some(x) -%}
     {{ x }}
     {%- when None -%}
-{%- endmatch -%}
-
-
+{% endmatch %}

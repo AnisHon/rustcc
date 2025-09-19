@@ -1,15 +1,14 @@
 // 空白字符（不包含注释）
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
-
 // 注释（单独定义，避免递归问题）
 COMMENT = {
     "/*" ~ (!"*/" ~ ANY)* ~ "*/"
   | "//" ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI)
 }
-NEWLINE = { "\n" | "\r\n" }
+
 
 // 文件结构
-file = { SOI ~ decl_code? ~ decls* ~ rules ~ user_code? ~ EOI }
+file = { SOI ~ decl_code? ~ decls* ~ pattern_decls ~ rules ~ user_code? ~ EOI }
 
 // 声明代码块（%{%} 包裹的内容）
 decl_code = { "%{" ~ (!"%}" ~ ANY)* ~ "%}" }
@@ -17,21 +16,25 @@ decl_code = { "%{" ~ (!"%}" ~ ANY)* ~ "%}" }
 // 选项声明（%option 后跟标识符列表）
 decls = { "%option" ~ ident ~ (WHITESPACE ~ ident)* }
 
+pattern_decls = { (pattern_decl)* }
+
+pattern_decl = { ident ~ pattern }
+
 // 规则块（%% 包裹的规则）
 rules = { "%%" ~ rule_decl* ~ "%%" }
 
 // 单条规则（模式 + 可选动作）
-rule_decl = { pattern ~ action? }
+rule_decl = { pattern ~ action }
 
 // 模式（分为带引号和不带引号两种）
 pattern = { quoted_pattern | unquoted_pattern }
 
 // 带引号的模式（"..." 包裹的内容）
-quoted_pattern = { "\"" ~ (!"\"" ~ (ESCAPED_CHAR | ANY))* ~ "\"" }
-ESCAPED_CHAR = { "\\" ~ ("\"" | "\\" | "n" | "r" | "t") }
+quoted_pattern = @{ "\"" ~ (!"\"" ~ (ESCAPED_CHAR | ANY))* ~ "\"" }
+ESCAPED_CHAR = @{ "\\" ~ ("\"" | "\\" | "n" | "r" | "t") }
 
 // 不带引号的模式（限制为非动作和非 %% 的内容）
-unquoted_pattern = { (!("{" | "%%" | "\"") ~ ANY)+ }
+unquoted_pattern = @{ ( !("\r" | "\n" | WHITESPACE ) ~ ANY )+ }
 
 // 动作（{...} 包裹的代码）
 action = { "{" ~ (!"}" ~ ANY)* ~ "}" }
