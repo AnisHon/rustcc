@@ -16,7 +16,7 @@ static ASCII_MAPPING: [usize; {{ ascii_map_sz }}] = {{ ascii_map }};
 
 static BASE: [Option<usize>; {{ base_sz }}] = {{ base }};
 
-static NEXT: [Option<usize>; {{ next_sz }}] = {{ next }};
+static NEXT: [usize; {{ next_sz }}] = {{ next }};
 
 static CHECK: [Option<usize>; {{ check_sz }}] = {{ check }};
 
