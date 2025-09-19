@@ -94,18 +94,13 @@ pub struct LookaheadItemSet<T: SymbolBound> {
 
 /// LR表格的规约移入操作
 /// 默认为Error，同样作为稀疏供压缩矩阵使用
-#[derive(Debug, Clone, PartialEq, Copy, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Copy, Eq, Hash, Default)]
 pub enum LRAction {
     Reduce(usize), // 规约 推导式ID
     Shift(usize),  // 移入 状态ID
     Accept(usize),    // 结束规约 推导式ID
+    #[default]
     Error          // 出错Error
-}
-
-impl Default for LRAction {
-    fn default() -> Self {
-        LRAction::Error
-    }
 }
 
 impl LRAction {

@@ -10,8 +10,8 @@ struct LexTemplate<'a> {
     decl_code: Option<&'a str>,
     user_code: Option<&'a str>,
     actions: Vec<(usize, &'a str)>,
-    terminate_map: String,
-    terminate_map_sz: usize,
+    params: Vec<String>,
+    typ: String,
     init_state: usize,
     base: String,
     base_sz: usize,
@@ -50,20 +50,12 @@ impl LexWriter {
             .map(|(state, meta)| (state, meta.as_str()))
             .collect();
 
-
-        let terminate_map: Vec<bool> = dfa.get_states().iter()
-            .map(|x| match x {
-                None => false,
-                Some(x) => x.terminate,
-            }).collect();
-        let (terminate_map, terminate_map_sz) = vec_to_code(terminate_map.into_iter(), default_cvt);
-
         // println!("{:#?}", dfa.get_states());
 
         let config = self.lexer.get_config();
 
-        let decl_code = config.decl_code.as_ref().map(|x| x.as_str());
-        let user_code = config.user_code.as_ref().map(|x| x.as_str());
+        let decl_code = config.decl_code.as_deref();
+        let user_code = config.user_code.as_deref();
 
         let char_class = self.lexer.get_char_class_set();
 
@@ -96,8 +88,8 @@ impl LexWriter {
             decl_code,
             user_code,
             actions,
-            terminate_map,
-            terminate_map_sz,
+            params: config.params.clone(),
+            typ: config.typ.clone(),
             init_state: dfa.get_init_state(),
             base,
             base_sz,

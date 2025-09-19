@@ -1,5 +1,5 @@
 use crate::err::lex_error::{LexError, LexResult};
-use super::lex_yy::{find_next, INIT_STATE, TERMINATE_MAP};
+use super::lex_yy::{exec_action, find_next, INIT_STATE};
 use crate::types::lex::token::Token;
 use std::collections::VecDeque;
 use std::io::{BufReader, Read};
@@ -7,7 +7,7 @@ use std::io::{BufReader, Read};
 /// 缓冲区默认块大小
 const BUFF_BLOCK: usize = 4096;
 
-enum LexMode {
+pub enum LexMode {
     Normal,         // 正常模式
     String,         // 未实现
     LineCommon,     // 行注释
@@ -31,41 +31,43 @@ enum LexMode {
 /// - 'curr_state'
 /// - `last_pos`: lex工作上一个位置 （文件指针，绝对位置）
 /// - `last_state`: 上一个状态
+/// - `last_tok`: 上一个tok
 /// - `cursor_pos`: 文件指针真实位置
 /// - `errors`: 错误缓冲区，用于错误恢复
 pub struct Lex<R: Read> {
     mode: LexMode,
     buff: VecDeque<char>,
     reader: BufReader<R>,
-
     curr_pos: usize,
     curr_state: usize,
     last_pos: Option<usize>,
     last_state: Option<usize>,
+    last_tok: Option<usize>,
     cursor_pos: usize,
-
-    errors: Vec<LexError>
+    errors: Vec<LexError>,
 }
 
-impl <R: Read> Lex<R> {
+impl<R: Read> Lex<R> {
     pub fn new(reader: R) -> Self {
         Self {
             mode: LexMode::Normal,
             buff: VecDeque::with_capacity(BUFF_BLOCK),
             reader: BufReader::new(reader),
-
             curr_pos: 0,
             curr_state: INIT_STATE,
             last_pos: None,
             last_state: None,
             cursor_pos: 0,
-
             errors: Vec::new()
         }
     }
 
+    pub fn set_mode(&mut self, mode: LexMode) {
+        self.mode = mode;
+    }
+
     pub fn next_token(&mut self) -> LexResult<Option<Token>> {
-        while let Some(_) = self.peek() {
+        while self.peek().is_some() {
             match self.mode {
                 LexMode::Normal => {
                     let token = self.handle_normal()?;
@@ -85,12 +87,34 @@ impl <R: Read> Lex<R> {
     fn handle_normal(&mut self) -> LexResult<Option<Token>> {
         while let Some(chr) = self.peek() {
 
+            // 正常转移
             if let Some(x) = find_next(self.curr_state, chr) {
-                if TERMINATE_MAP[x] {
-                    self.save_state();
+                let tok = exec_action(x, self);
+                self.next();
+                // 得到tok，保存状态
+                if let Some(tok) = tok {
+                    self.save_state(tok);
                 }
-                self.curr_pos = x;
+                self.curr_state = x;
+
+                continue;
             }
+
+            // 此处匹配失败
+
+            // 没有保存，出错
+            if !self.has_last() {
+                let err_pos = self.curr_pos;
+                let symbol = self.recover();
+                return Err(LexError::InvalidToken{ pos: err_pos, symbol })
+            }
+            self.reset_state();
+
+            let tok = self.load_state();
+            let content = self.pop_buff(self.curr_pos);
+
+            let token = Token::new(self.curr_pos - 1, tok, content);
+            return Ok(Some(token));
         }
         Ok(None)
     }
@@ -146,7 +170,7 @@ impl <R: Read> Lex<R> {
         self.reset_state();
     }
 
-    /// 出错后，对当前状态进行恢复
+    /// 出错后，对当前状态进行恢复，返回出错单词
     ///
     fn recover(&mut self) -> String {
         // 跳过当前词
@@ -166,8 +190,7 @@ impl <R: Read> Lex<R> {
     fn buff_pos(&self, cursor: usize) -> usize {
         assert!(cursor <= self.cursor_pos);
         let ring_len = self.buff.len();
-        let buff_pos = ring_len - (self.cursor_pos - self.curr_pos) - 1;
-        buff_pos
+        ring_len - (self.cursor_pos - self.curr_pos) - 1
     }
 
     /// 检查是否需要读取
@@ -213,27 +236,28 @@ impl <R: Read> Lex<R> {
     /// 根据pos从头弹出缓冲区，转换成字符串，不包含pos
     fn pop_buff(&mut self, pos: usize) -> String {
         let pos = self.buff_pos(pos);
-        let value = self.buff.drain(0..pos).collect();
-        value
+        self.buff.drain(0..pos).collect()
     }
 
     /// 保存当前状态
-    fn save_state(&mut self) {
+    fn save_state(&mut self, tok: usize) {
         self.last_state = Some(self.curr_state);
         self.last_pos = Some(self.curr_state);
+        self.last_tok = Some(tok);
     }
 
-    /// 加载上一个状态，如果没有返回false，加载后会清空
-    fn load_state(&mut self) -> bool {
-        if !self.has_last() {
-            return false;
-        }
+    /// 加载上一个状态，加载后会清空，返回保存的tok结果
+    fn load_state(&mut self) -> usize {
+        assert!(self.has_last());
         self.curr_state = self.last_state.unwrap();
         self.curr_pos = self.last_pos.unwrap();
         // 加载后清空
         self.last_state = None;
         self.last_pos = None;
-        true
+
+        let tok = self.last_tok;
+        self.last_tok = None;
+        tok.unwrap()
     }
 
     /// 是否存在 last_state和last_pos

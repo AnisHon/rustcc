@@ -19,7 +19,7 @@ use crate::types::lex::token::Token;
 // =============================
 
 #[derive(Debug)]
-#[derive(EnumAutoInto, EnumAutoFrom, )]
+#[derive(EnumAutoInto, EnumAutoFrom, Default)]
 pub enum ParserNode {
     TranslationUnitNode(TranslationUnit),
     ExternalDeclarationNode(Box<ExternalDeclaration>),
@@ -56,13 +56,8 @@ pub enum ParserNode {
     TokenListNode(SepList<Token>),
     ParamListNode(Box<ParamList>),
     #[enum_auto_ignore]
+    #[default]
     None
-}
-
-impl Default for ParserNode {
-    fn default() -> ParserNode {
-        ParserNode::None
-    }
 }
 
 pub fn make_ident_list(ident_list: Option<SepList<Token>>, comma: Option<Token>, ident: Token) -> ParserNode {

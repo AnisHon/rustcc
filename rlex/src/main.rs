@@ -13,7 +13,7 @@ fn main() {
     let parser = LexConfigParser::new(lex_input.to_owned());
     let config = parser.parse();
     // println!("{:#?}", config);
-
+    
     let lex = Lexer::new(config);
 
     let dfa = lex.get_dfa();

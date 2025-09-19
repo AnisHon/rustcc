@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use crate::parser::cst::*;
 use LRAction::*;
 
@@ -2199,6 +2200,7 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
 
 /// action_code[state](params)
 pub fn exec_action(rule: usize, arguments: Vec<SemanticValue>) -> SemanticValue {
+    #![allow(clippy::needless_late_init)]
     let value: SemanticValue;
     match rule {
         0 => {
@@ -3072,8 +3074,7 @@ pub fn exec_action(rule: usize, arguments: Vec<SemanticValue>) -> SemanticValue 
         217 => {
             destruct_vec!(arguments, _arg1, _arg2);
             value = TypeName::make_type_name(_arg1.into(), _arg2.into());
-        }_ => { value = SemanticValue::default()
-        }
+        }_ => { value = SemanticValue::default() }
     };
     value
 }

@@ -21,15 +21,11 @@ use pest_derive::Parser;
 #[derive(Debug)]
 pub struct LexConfig {
     pub decl_code: Option<String>,
-    pub decls: Vec<LexDecl>,
+    pub options: Vec<String>,
+    pub params: Vec<String>,
+    pub typ: String,
     pub rules: Vec<LexRule>,
     pub user_code: Option<String>,
-}
-
-/// 目前只有这一个配置
-#[derive(Debug)]
-pub enum LexDecl {
-    Option(String)
 }
 
 #[derive(Debug)]
@@ -61,7 +57,9 @@ impl LexConfigParser {
 
         let mut lex_config = LexConfig {
             decl_code: None,
-            decls: Vec::new(),
+            options: Vec::new(),
+            params: Vec::new(),
+            typ: "usize".to_string(),
             rules: Vec::new(),
             user_code: None,
         };
@@ -73,7 +71,7 @@ impl LexConfigParser {
                     let code: String = code[2..code.len() - 2].iter().collect();
                     lex_config.decl_code = Some(code);
                 },
-                Rule::decls => { /* 目前无用忽略 */ },
+                Rule::decls => { self.parse_decls(x, &mut lex_config) },
                 Rule::pattern_decls => { // pattern声明
                     self.parse_pattern_decls(x);
                 }
@@ -89,6 +87,30 @@ impl LexConfigParser {
         }
 
         lex_config
+    }
+
+    pub fn parse_decls(&self, pair: Pair<Rule>, config: &mut LexConfig) {
+        for decl in pair.into_inner() {
+            match decl.as_rule() {
+                Rule::type_decl => {
+                    let typ = decl.into_inner().as_str();
+                    config.typ = typ.to_string();
+                }
+                Rule::option_decl => {
+                    for ident in decl.into_inner() {
+                        config.options.push(ident.as_str().to_string());
+                    }
+                }
+                Rule::param_decl => {
+                    let param = decl.into_inner().as_str().trim();
+                    config.params.push(param.to_string());
+                }
+                _ => unreachable!()
+            }
+
+        }
+
+
     }
 
     pub fn parse_pattern_decls(&mut self, x: Pair<Rule>) {

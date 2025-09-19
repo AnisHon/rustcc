@@ -8,13 +8,21 @@ COMMENT = {
 
 
 // 文件结构
-file = { SOI ~ decl_code? ~ decls* ~ pattern_decls ~ rules ~ user_code? ~ EOI }
+file = { SOI ~ decl_code? ~ decls ~ pattern_decls ~ rules ~ user_code? ~ EOI }
 
 // 声明代码块（%{%} 包裹的内容）
 decl_code = { "%{" ~ (!"%}" ~ ANY)* ~ "%}" }
 
 // 选项声明（%option 后跟标识符列表）
-decls = { "%option" ~ ident ~ (WHITESPACE ~ ident)* }
+decls = { type_decl? ~ ( option_decl | param_decl )* }
+
+option_decl = { "%option" ~ ident ~ (WHITESPACE ~ ident)* }
+
+param_decl = { "%param" ~ "{" ~ param_content ~ "}"}
+
+type_decl = { "%type" ~ ident+ }
+
+param_content = { (!"}" ~ ANY)+ }
 
 pattern_decls = { (pattern_decl)* }
 

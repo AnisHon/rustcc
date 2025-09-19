@@ -1,25 +1,9 @@
 
 use crate::types::lex::token_kind::TokenKind::*;
+use crate::lex::lex_core::LexMode;
+use crate::lex::lex_core::Lex;
+use std::io::Read;
 pub const INIT_STATE: usize = 90;
-
-pub static TERMINATE_MAP: [bool; 255] = [
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, false, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, false, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, false, false, false, false, false, false, true, true, true, false, 
-    true, true, false, true, true, false, true, true, false, false, false, false, false, false, false, 
-    false, false, false, false, false, false, false, false, false, false, false, true, false, false, 
-    false, false, true, true, false, true, false, false, false, false, false, false, false, false, false, 
-    false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, 
-    true, true, true, true, true, true, true, true, true, true, true, true, 
-];
 
 static CHAR_CLASS: [(u32, u32); 81] = [
     (0, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 31), (32, 32), (33, 33), (34, 34), (35, 36), 
@@ -76,7 +60,7 @@ static BASE: [Option<usize>; 255] = [
     None, None, None, None, None, None, None, None, None, None, None, 
 ];
 
-static NEXT: [Option<usize>; 5899] = [
+static NEXT: [usize; 5899] = [
     89, 89, 0, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 
     89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 
     89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 88, 88, 76, 
@@ -954,19 +938,12 @@ static ROW_ID: [usize; 255] = [
 pub fn find_next(state_id: usize, chr: char) -> Option<usize> {
     let row_id = ROW_ID[state_id];
     let class_id = find_char(chr);
-    let base = BASE[row_id];
-    if base.is_none() {
-        return None
-    }
+    let base = BASE[row_id]?;
 
-    let idx = base.unwrap() + class_id;
-    let check = CHECK[idx];
-    if check.is_none() {
-        return None
-    }
+    let idx = base + class_id;
+    let check = CHECK[idx]?;
 
-
-    if check.unwrap() == row_id {
+    if check == row_id {
         Some(NEXT[idx])
     } else {
         None
@@ -1014,224 +991,223 @@ fn binary_search(chr: u32) -> usize {
 }
 
 /// execute action, return results
-macro_rules! exec_action {
-    ($self:ident, $state:ident) => {
-        //  Use lambda for compatibility with `return ..`
-        (|| => {
-            match $state {
-                0 => { return OpNe.into(); }
-                1 => { ; }
-                2 => { return  '!'.into(); }
-                3 => { return  '%'.into(); }
-                4 => { return  '&'.into(); }
-                5 => { return  '('.into(); }
-                6 => { return  ')'.into(); }
-                7 => { return  '*'.into(); }
-                8 => { return  '+'.into(); }
-                9 => { return  ','.into(); }
-                10 => { return  '-'.into(); }
-                11 => { return  '.'.into(); }
-                12 => { return  '/'.into(); }
-                13 => { return Float; }
-                14 => { return Oct; }
-                15 => { return  ':'.into(); }
-                16 => { return  ';'.into(); }
-                17 => { return  '<'.into(); }
-                18 => { return  '='.into(); }
-                19 => { return  '>'.into(); }
-                20 => { return  '?'.into(); }
-                22 => { return  '['.into(); }
-                23 => { return  ']'.into(); }
-                24 => { return  '^'.into(); }
-                25 => { return  LParen.into(); }
-                26 => { return  '|'.into(); }
-                27 => { return  RParen.into(); }
-                28 => { return  '~'.into(); }
-                29 => { return OpOrAssign.into(); }
-                30 => { return OpOr.into(); }
-                31 => { return KeywordWhile.into(); }
-                32 => { return KeywordVolatile.into(); }
-                33 => { return KeywordVoid.into(); }
-                34 => { return KeywordUnsigned.into(); }
-                35 => { return KeywordUnion.into(); }
-                36 => { return KeywordTypedef.into(); }
-                37 => { return KeywordSwitch.into(); }
-                38 => { return KeywordStruct.into(); }
-                39 => { return KeywordStatic.into(); }
-                40 => { return KeywordSizeof.into(); }
-                41 => { return KeywordSigned.into(); }
-                42 => { return KeywordShort.into(); }
-                43 => { return KeywordReturn.into(); }
-                44 => { return KeywordRegister.into(); }
-                45 => { return KeywordLong.into(); }
-                46 => { return KeywordIf.into(); }
-                47 => { return KeywordInt.into(); }
-                48 => { return KeywordGoto.into(); }
-                49 => { return KeywordFor.into(); }
-                50 => { return KeywordFloat.into(); }
-                51 => { return KeywordExtern.into(); }
-                52 => { return KeywordEnum.into(); }
-                53 => { return KeywordElse.into(); }
-                54 => { return KeywordDo.into(); }
-                55 => { return KeywordDouble.into(); }
-                56 => { return KeywordDefault.into(); }
-                57 => { return KeywordContinue.into(); }
-                58 => { return KeywordConst.into(); }
-                59 => { return KeywordChar.into(); }
-                60 => { return KeywordCase.into(); }
-                61 => { return KeywordBreak.into(); }
-                62 => { return KeywordAuto.into(); }
-                63 => { return OpXorAssign.into(); }
-                64 => { return OpGe.into(); }
-                65 => { return OpRShift.into(); }
-                66 => { return OpRShiftAssign.into(); }
-                67 => { return OpEq.into(); }
-                68 => { return OpLShift.into(); }
-                69 => { return OpLe.into(); }
-                70 => { return OpLShiftAssign.into(); }
-                72 => { return Int; }
-                73 => { $self.mode = LexMode::BlockCommon; }
-                74 => { $self.mode = LexMode::LineCommon; }
-                75 => { return OpDivAssign.into(); }
-                76 => { return OpEllipsis.into(); }
-                77 => { return OpDec.into(); }
-                78 => { return OpSubAssign.into(); }
-                79 => { return OpArrow.into(); }
-                80 => { return OpInc.into(); }
-                81 => { return OpAddAssign.into(); }
-                82 => { return OpMulAssign.into(); }
-                83 => { return CHARACTER_CONSTANT; }
-                84 => { return OpAnd.into(); }
-                85 => { return OpAndAssign.into(); }
-                86 => { return OpModAssign.into(); }
-                87 => { return StringLiteral; }
-                94 => { return Hex; }
-                95 => { return Int; }
-                96 => { return Float; }
-                98 => { return Oct; }
-                99 => { return Int; }
-                101 => { return Hex; }
-                102 => { return Oct; }
-                104 => { return Hex; }
-                105 => { return Hex; }
-                124 => { return Float; }
-                129 => { return Oct; }
-                130 => { return Int; }
-                132 => { return Oct; }
-                145 => { return Id; }
-                146 => { return Id; }
-                147 => { return Id; }
-                148 => { return Id; }
-                149 => { return Id; }
-                150 => { return Id; }
-                151 => { return Id; }
-                152 => { return Id; }
-                153 => { return Id; }
-                154 => { return Id; }
-                155 => { return Id; }
-                156 => { return Id; }
-                157 => { return Id; }
-                158 => { return Id; }
-                159 => { return Id; }
-                160 => { return Id; }
-                161 => { return Id; }
-                162 => { return Id; }
-                163 => { return Id; }
-                164 => { return Id; }
-                165 => { return Id; }
-                166 => { return Id; }
-                167 => { return Id; }
-                168 => { return Id; }
-                169 => { return Id; }
-                170 => { return Id; }
-                171 => { return Id; }
-                172 => { return Id; }
-                173 => { return Id; }
-                174 => { return Id; }
-                175 => { return Id; }
-                176 => { return Id; }
-                177 => { return Id; }
-                178 => { return Id; }
-                179 => { return Id; }
-                180 => { return Id; }
-                181 => { return Id; }
-                182 => { return Id; }
-                183 => { return Id; }
-                184 => { return Id; }
-                185 => { return Id; }
-                186 => { return Id; }
-                187 => { return Id; }
-                188 => { return Id; }
-                189 => { return Id; }
-                190 => { return Id; }
-                191 => { return Id; }
-                192 => { return Id; }
-                193 => { return Id; }
-                194 => { return Id; }
-                195 => { return Id; }
-                196 => { return Id; }
-                197 => { return Id; }
-                198 => { return Id; }
-                199 => { return Id; }
-                200 => { return Id; }
-                201 => { return Id; }
-                202 => { return Id; }
-                203 => { return Id; }
-                204 => { return Id; }
-                205 => { return Id; }
-                206 => { return Id; }
-                207 => { return Id; }
-                208 => { return Id; }
-                209 => { return Id; }
-                210 => { return Id; }
-                211 => { return Id; }
-                212 => { return Id; }
-                213 => { return Id; }
-                214 => { return Id; }
-                215 => { return Id; }
-                216 => { return Id; }
-                217 => { return Id; }
-                218 => { return Id; }
-                219 => { return Id; }
-                220 => { return Id; }
-                221 => { return Id; }
-                222 => { return Id; }
-                223 => { return Id; }
-                224 => { return Id; }
-                225 => { return Id; }
-                226 => { return Id; }
-                227 => { return Id; }
-                228 => { return Id; }
-                229 => { return Id; }
-                230 => { return Id; }
-                231 => { return Id; }
-                232 => { return Id; }
-                233 => { return Id; }
-                234 => { return Id; }
-                235 => { return Id; }
-                236 => { return Id; }
-                237 => { return Id; }
-                238 => { return Id; }
-                239 => { return Id; }
-                240 => { return Id; }
-                241 => { return Id; }
-                242 => { return Id; }
-                243 => { return Id; }
-                244 => { return Id; }
-                245 => { return Id; }
-                246 => { return Id; }
-                247 => { return Id; }
-                248 => { return Id; }
-                249 => { return Id; }
-                250 => { return Id; }
-                251 => { return Id; }
-                252 => { return Id; }
-                253 => { return Id; }
-                254 => { return Id; }
-                _ => {}
-            }
-            return None
-        })()
-    };
+pub fn exec_action(
+    state: usize,
+    
+    lex: &mut Lex<impl Read>,
+) -> Option<usize> {
+    match state {
+        0 => { return OpNe.into(); }
+        1 => {}
+        2 => { return '!'.into(); }
+        3 => { return '%'.into(); }
+        4 => { return '&'.into(); }
+        5 => { return '('.into(); }
+        6 => { return ')'.into(); }
+        7 => { return '*'.into(); }
+        8 => { return '+'.into(); }
+        9 => { return ','.into(); }
+        10 => { return '-'.into(); }
+        11 => { return '.'.into(); }
+        12 => { return '/'.into(); }
+        13 => { return Float.into(); }
+        14 => { return Oct.into(); }
+        15 => { return ':'.into(); }
+        16 => { return ';'.into(); }
+        17 => { return '<'.into(); }
+        18 => { return '='.into(); }
+        19 => { return '>'.into(); }
+        20 => { return '?'.into(); }
+        22 => { return '['.into(); }
+        23 => { return ']'.into(); }
+        24 => { return '^'.into(); }
+        25 => { return LParen.into(); }
+        26 => { return '|'.into(); }
+        27 => { return RParen.into(); }
+        28 => { return '~'.into(); }
+        29 => { return OpOrAssign.into(); }
+        30 => { return OpOr.into(); }
+        31 => { return KeywordWhile.into(); }
+        32 => { return KeywordVolatile.into(); }
+        33 => { return KeywordVoid.into(); }
+        34 => { return KeywordUnsigned.into(); }
+        35 => { return KeywordUnion.into(); }
+        36 => { return KeywordTypedef.into(); }
+        37 => { return KeywordSwitch.into(); }
+        38 => { return KeywordStruct.into(); }
+        39 => { return KeywordStatic.into(); }
+        40 => { return KeywordSizeof.into(); }
+        41 => { return KeywordSigned.into(); }
+        42 => { return KeywordShort.into(); }
+        43 => { return KeywordReturn.into(); }
+        44 => { return KeywordRegister.into(); }
+        45 => { return KeywordLong.into(); }
+        46 => { return KeywordIf.into(); }
+        47 => { return KeywordInt.into(); }
+        48 => { return KeywordGoto.into(); }
+        49 => { return KeywordFor.into(); }
+        50 => { return KeywordFloat.into(); }
+        51 => { return KeywordExtern.into(); }
+        52 => { return KeywordEnum.into(); }
+        53 => { return KeywordElse.into(); }
+        54 => { return KeywordDo.into(); }
+        55 => { return KeywordDouble.into(); }
+        56 => { return KeywordDefault.into(); }
+        57 => { return KeywordContinue.into(); }
+        58 => { return KeywordConst.into(); }
+        59 => { return KeywordChar.into(); }
+        60 => { return KeywordCase.into(); }
+        61 => { return KeywordBreak.into(); }
+        62 => { return KeywordAuto.into(); }
+        63 => { return OpXorAssign.into(); }
+        64 => { return OpGe.into(); }
+        65 => { return OpRShift.into(); }
+        66 => { return OpRShiftAssign.into(); }
+        67 => { return OpEq.into(); }
+        68 => { return OpLShift.into(); }
+        69 => { return OpLe.into(); }
+        70 => { return OpLShiftAssign.into(); }
+        72 => { return Int.into(); }
+        73 => { lex.set_mode(LexMode::BlockCommon); }
+        74 => { lex.set_mode(LexMode::LineCommon); }
+        75 => { return OpDivAssign.into(); }
+        76 => { return OpEllipsis.into(); }
+        77 => { return OpDec.into(); }
+        78 => { return OpSubAssign.into(); }
+        79 => { return OpArrow.into(); }
+        80 => { return OpInc.into(); }
+        81 => { return OpAddAssign.into(); }
+        82 => { return OpMulAssign.into(); }
+        83 => { return CharacterConstant.into(); }
+        84 => { return OpAnd.into(); }
+        85 => { return OpAndAssign.into(); }
+        86 => { return OpModAssign.into(); }
+        87 => { return StringLiteral.into(); }
+        94 => { return Hex.into(); }
+        95 => { return Int.into(); }
+        96 => { return Float.into(); }
+        98 => { return Oct.into(); }
+        99 => { return Int.into(); }
+        101 => { return Hex.into(); }
+        102 => { return Oct.into(); }
+        104 => { return Hex.into(); }
+        105 => { return Hex.into(); }
+        124 => { return Float.into(); }
+        129 => { return Oct.into(); }
+        130 => { return Int.into(); }
+        132 => { return Oct.into(); }
+        145 => { return ID.into(); }
+        146 => { return ID.into(); }
+        147 => { return ID.into(); }
+        148 => { return ID.into(); }
+        149 => { return ID.into(); }
+        150 => { return ID.into(); }
+        151 => { return ID.into(); }
+        152 => { return ID.into(); }
+        153 => { return ID.into(); }
+        154 => { return ID.into(); }
+        155 => { return ID.into(); }
+        156 => { return ID.into(); }
+        157 => { return ID.into(); }
+        158 => { return ID.into(); }
+        159 => { return ID.into(); }
+        160 => { return ID.into(); }
+        161 => { return ID.into(); }
+        162 => { return ID.into(); }
+        163 => { return ID.into(); }
+        164 => { return ID.into(); }
+        165 => { return ID.into(); }
+        166 => { return ID.into(); }
+        167 => { return ID.into(); }
+        168 => { return ID.into(); }
+        169 => { return ID.into(); }
+        170 => { return ID.into(); }
+        171 => { return ID.into(); }
+        172 => { return ID.into(); }
+        173 => { return ID.into(); }
+        174 => { return ID.into(); }
+        175 => { return ID.into(); }
+        176 => { return ID.into(); }
+        177 => { return ID.into(); }
+        178 => { return ID.into(); }
+        179 => { return ID.into(); }
+        180 => { return ID.into(); }
+        181 => { return ID.into(); }
+        182 => { return ID.into(); }
+        183 => { return ID.into(); }
+        184 => { return ID.into(); }
+        185 => { return ID.into(); }
+        186 => { return ID.into(); }
+        187 => { return ID.into(); }
+        188 => { return ID.into(); }
+        189 => { return ID.into(); }
+        190 => { return ID.into(); }
+        191 => { return ID.into(); }
+        192 => { return ID.into(); }
+        193 => { return ID.into(); }
+        194 => { return ID.into(); }
+        195 => { return ID.into(); }
+        196 => { return ID.into(); }
+        197 => { return ID.into(); }
+        198 => { return ID.into(); }
+        199 => { return ID.into(); }
+        200 => { return ID.into(); }
+        201 => { return ID.into(); }
+        202 => { return ID.into(); }
+        203 => { return ID.into(); }
+        204 => { return ID.into(); }
+        205 => { return ID.into(); }
+        206 => { return ID.into(); }
+        207 => { return ID.into(); }
+        208 => { return ID.into(); }
+        209 => { return ID.into(); }
+        210 => { return ID.into(); }
+        211 => { return ID.into(); }
+        212 => { return ID.into(); }
+        213 => { return ID.into(); }
+        214 => { return ID.into(); }
+        215 => { return ID.into(); }
+        216 => { return ID.into(); }
+        217 => { return ID.into(); }
+        218 => { return ID.into(); }
+        219 => { return ID.into(); }
+        220 => { return ID.into(); }
+        221 => { return ID.into(); }
+        222 => { return ID.into(); }
+        223 => { return ID.into(); }
+        224 => { return ID.into(); }
+        225 => { return ID.into(); }
+        226 => { return ID.into(); }
+        227 => { return ID.into(); }
+        228 => { return ID.into(); }
+        229 => { return ID.into(); }
+        230 => { return ID.into(); }
+        231 => { return ID.into(); }
+        232 => { return ID.into(); }
+        233 => { return ID.into(); }
+        234 => { return ID.into(); }
+        235 => { return ID.into(); }
+        236 => { return ID.into(); }
+        237 => { return ID.into(); }
+        238 => { return ID.into(); }
+        239 => { return ID.into(); }
+        240 => { return ID.into(); }
+        241 => { return ID.into(); }
+        242 => { return ID.into(); }
+        243 => { return ID.into(); }
+        244 => { return ID.into(); }
+        245 => { return ID.into(); }
+        246 => { return ID.into(); }
+        247 => { return ID.into(); }
+        248 => { return ID.into(); }
+        249 => { return ID.into(); }
+        250 => { return ID.into(); }
+        251 => { return ID.into(); }
+        252 => { return ID.into(); }
+        253 => { return ID.into(); }
+        254 => { return ID.into(); }
+        _ => {}
+    }
+    None
 }
 

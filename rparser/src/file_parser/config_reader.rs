@@ -135,8 +135,7 @@ impl GrammarConfigParser {
 
         // 把file展开称内部元素
         let pairs = pairs.into_iter()
-            .map(|x| x.into_inner())
-            .flatten();
+            .flat_map(|x| x.into_inner());
 
         let mut config = GrammarConfig {
             decl_code: String::new(),

@@ -1,6 +1,11 @@
 %{
 use crate::types::lex::token_kind::TokenKind::*;
+use crate::lex::lex_core::LexMode;
+use crate::lex::lex_core::Lex;
+use std::io::Read;
 %}
+
+%param                  { lex: &mut Lex<impl Read> }
 
 ID                      [a-zA-Z_]\w*
 
@@ -81,47 +86,47 @@ while 	                { return KeywordWhile.into(); }
 ">>" 	                { return OpRShift.into(); }
 
 
-"+"                     { return  '+'.into(); }
-"-"                     { return  '-'.into(); }
-"*"                     { return  '*'.into(); }
-"/"                     { return  '/'.into(); }
-"%"                     { return  '%'.into(); }
-"!"                     { return  '!'.into(); }
-"&"                     { return  '&'.into(); }
-"|"                     { return  '|'.into(); }
-"^"                     { return  '^'.into(); }
-"~"                     { return  '~'.into(); }
-"="                     { return  '='.into(); }
-">"                     { return  '>'.into(); }
-"<"                     { return  '<'.into(); }
+"+"                     { return '+'.into(); }
+"-"                     { return '-'.into(); }
+"*"                     { return '*'.into(); }
+"/"                     { return '/'.into(); }
+"%"                     { return '%'.into(); }
+"!"                     { return '!'.into(); }
+"&"                     { return '&'.into(); }
+"|"                     { return '|'.into(); }
+"^"                     { return '^'.into(); }
+"~"                     { return '~'.into(); }
+"="                     { return '='.into(); }
+">"                     { return '>'.into(); }
+"<"                     { return '<'.into(); }
 
 
-"("                     { return  '('.into(); }
-")"                     { return  ')'.into(); }
-"{"                     { return  LParen.into(); }
-"}"                     { return  RParen.into(); }
-"["                     { return  '['.into(); }
-"]"                     { return  ']'.into(); }
-";"                     { return  ';'.into(); }
-","                     { return  ','.into(); }
-"."                     { return  '.'.into(); }
-"?"                     { return  '?'.into(); }
-":"                     { return  ':'.into(); }
+"("                     { return '('.into(); }
+")"                     { return ')'.into(); }
+"{"                     { return LParen.into(); }
+"}"                     { return RParen.into(); }
+"["                     { return '['.into(); }
+"]"                     { return ']'.into(); }
+";"                     { return ';'.into(); }
+","                     { return ','.into(); }
+"."                     { return '.'.into(); }
+"?"                     { return '?'.into(); }
+":"                     { return ':'.into(); }
 
-{ID}                    { return Id; }
+{ID}                    { return ID.into(); }
 
-{HEX}                   { return Hex; }
-{OCT}                   { return Oct; }
-{INT}                   { return Int; }
-{FLOAT}                 { return Float; }
+{HEX}                   { return Hex.into(); }
+{OCT}                   { return Oct.into(); }
+{INT}                   { return Int.into(); }
+{FLOAT}                 { return Float.into(); }
 
-{STRING_LITERAL}        { return StringLiteral; }
-{CHARACTER_CONSTANT}    { return CHARACTER_CONSTANT; }
+{STRING_LITERAL}        { return StringLiteral.into(); }
+{CHARACTER_CONSTANT}    { return CharacterConstant.into(); }
 
-"/*"                    { $self.mode = LexMode::BlockCommon; }
-"//"                    { $self.mode = LexMode::LineCommon; }
+"/*"                    { lex.set_mode(LexMode::BlockCommon); }
+"//"                    { lex.set_mode(LexMode::LineCommon); }
 
-{WHITESPACE}            { ; }
+{WHITESPACE}            {}
 
 %%
 

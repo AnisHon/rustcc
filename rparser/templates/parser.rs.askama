@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 {{- decl_code -}}
 use LRAction::*;
 
@@ -96,6 +97,7 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
 
 /// action_code[state](params)
 pub fn exec_action(rule: usize, arguments: Vec<{{ typename }}>) -> {{ typename }} {
+    #![allow(clippy::needless_late_init)]
     let {{ value_name }}: {{ typename }};
     match rule {
         {%- for item in action_codes -%}
@@ -108,8 +110,7 @@ pub fn exec_action(rule: usize, arguments: Vec<{{ typename }}>) -> {{ typename }
                {%- when none -%}
             {%- endmatch -%}
         {%- endfor -%}
-        _ => { {{ value_name }} = {{ typename }}::default()
-        }
+        _ => { {{ value_name }} = {{ typename }}::default() }
     };
     {{ value_name }}
 }

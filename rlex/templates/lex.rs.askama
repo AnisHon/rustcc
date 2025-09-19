@@ -6,8 +6,6 @@
 
 pub const INIT_STATE: usize = {{ init_state }};
 
-pub static TERMINATE_MAP: [bool; {{ terminate_map_sz }}] = {{ terminate_map }};
-
 static CHAR_CLASS: [(u32, u32); {{ ranges_sz }}] = {{ ranges }};
 
 static CHAR_CLASS_MAP: [usize; {{ class_map_sz }}] = {{ class_map }};
@@ -16,7 +14,7 @@ static ASCII_MAPPING: [usize; {{ ascii_map_sz }}] = {{ ascii_map }};
 
 static BASE: [Option<usize>; {{ base_sz }}] = {{ base }};
 
-static NEXT: [Option<usize>; {{ next_sz }}] = {{ next }};
+static NEXT: [usize; {{ next_sz }}] = {{ next }};
 
 static CHECK: [Option<usize>; {{ check_sz }}] = {{ check }};
 
@@ -31,19 +29,12 @@ static ROW_ID: [usize; {{ row_id_sz }}] = {{ row_id }};
 pub fn find_next(state_id: usize, chr: char) -> Option<usize> {
     let row_id = ROW_ID[state_id];
     let class_id = find_char(chr);
-    let base = BASE[row_id];
-    if base.is_none() {
-        return None
-    }
+    let base = BASE[row_id]?;
 
-    let idx = base.unwrap() + class_id;
-    let check = CHECK[idx];
-    if check.is_none() {
-        return None
-    }
+    let idx = base + class_id;
+    let check = CHECK[idx]?;
 
-
-    if check.unwrap() == row_id {
+    if check == row_id {
         Some(NEXT[idx])
     } else {
         None
@@ -91,19 +82,19 @@ fn binary_search(chr: u32) -> usize {
 }
 
 /// execute action, return results
-macro_rules! exec_action {
-    ($self:ident, $state:ident) => {
-        //  Use lambda for compatibility with `return ..`
-        (|| => {
-            match $state {
-                {%- for (id, action) in actions %}
-                {{ id }} => {{ action }}
-                {%- endfor %}
-                _ => {}
-            }
-            return None
-        })()
-    };
+pub fn exec_action(
+    state: usize,
+    {% for item in params %}
+    {{ item }},
+    {%- endfor %}
+) -> Option<{{ typ }}> {
+    match state {
+        {%- for (id, action) in actions %}
+        {{ id }} => {{ action }}
+        {%- endfor %}
+        _ => {}
+    }
+    None
 }
 
 {% match user_code %}
