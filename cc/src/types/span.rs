@@ -1,9 +1,10 @@
+use std::fmt::{Debug, Formatter};
 use crate::types::lex::token::Token;
 
 ///
 /// 节点对应的位置区间
 ///
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct Span {
     pub start: usize, // 在源文件中的字节偏移
     pub end: usize,   // 在源文件中的字节偏移（不包含end）
@@ -14,20 +15,13 @@ impl Span {
         Span { start, end }
     }
     
-    pub fn from_token(token: &Token) -> Self {
-        Span {
-            start: token.beg,
-            end: token.end,
-        }
-    }
-
     ///
     /// 假设 token 数组“有序”，只读取头尾元素
     ///
     pub fn from_tokens(tokens: Vec<&Token>) -> Self {
         assert!(!tokens.is_empty());
-        let first = tokens.first().unwrap().beg;
-        let last = tokens.last().unwrap().end;
+        let first = tokens.first().unwrap().span.start;
+        let last = tokens.last().unwrap().span.end;
 
         Self {
             start: first,
@@ -50,6 +44,12 @@ impl Span {
     }
 }
 
+impl Debug for Span {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}..={}", self.start, self.end)
+    }
+}
+
 ///
 /// 对于的被包裹类型，比如(A) \[X\]可以直接用这个结构
 ///
@@ -63,9 +63,9 @@ pub struct Delim<T> {
 impl <T> Delim<T> {
     pub fn new(l: &Token, inner: T, r: &Token) -> Self {
         Self {
-            l: Span::from_token(l),
+            l: l.span,
             inner,
-            r: Span::from_token(r),
+            r: r.span,
         }
     }
 }

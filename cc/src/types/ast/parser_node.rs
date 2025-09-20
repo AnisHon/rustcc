@@ -6,12 +6,12 @@
 //! 配套定义了From Into(包括Option<T>)，在Parser阶段调用Into自动解开
 //!
 
-use macros::{EnumAutoFrom, EnumAutoInto, EnumAutoIntoOption};
 use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::{CompleteDecl, DeclSpec, Declarator, DeclaratorChunk, ParamList, TypeQual, TypeSpec};
 use crate::types::ast::struct_info::{EnumSpec, Enumerator, StructDeclarator, StructMember, StructOrUnionSpec};
-use crate::types::span::{SepList, Span};
 use crate::types::lex::token::Token;
+use crate::types::span::SepList;
+use macros::{EnumAutoFrom, EnumAutoInto, EnumAutoIntoOption};
 
 
 // =============================
@@ -19,7 +19,7 @@ use crate::types::lex::token::Token;
 // =============================
 
 #[derive(Debug)]
-#[derive(EnumAutoInto, EnumAutoFrom, Default)]
+#[derive(EnumAutoInto, EnumAutoFrom, EnumAutoIntoOption, Default)]
 pub enum ParserNode {
     TranslationUnitNode(TranslationUnit),
     ExternalDeclarationNode(Box<ExternalDeclaration>),
@@ -65,7 +65,7 @@ pub fn make_ident_list(ident_list: Option<SepList<Token>>, comma: Option<Token>,
     ident_list.push_item(ident);
 
     if let Some(x) = comma {
-        ident_list.push_sep(Span::from_token(&x));
+        ident_list.push_sep(x.span);
     }
 
     ident_list.into()

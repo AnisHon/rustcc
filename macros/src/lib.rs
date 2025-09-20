@@ -5,7 +5,7 @@
 
 use std::cmp::Ordering;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Fields, Variant};
+use syn::{DeriveInput, Fields, Variant};
 
 
 fn is_ignore(variant: &Variant) -> bool {
@@ -162,9 +162,7 @@ fn impl_into_option(ast: &DeriveInput) -> proc_macro2::TokenStream {
         if is_ignore(variant) {
             continue;
         }
-
-        let variant_name = &variant.ident;
-
+        
         let target_type = get_type(variant);
 
         let impl_block = quote!(

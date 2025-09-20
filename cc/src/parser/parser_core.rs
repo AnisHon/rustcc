@@ -1,14 +1,14 @@
-use std::cell::RefCell;
 use crate::err::parser_error::{ParserError, ParserResult};
-use crate::types::lex::token_kind::TokenKind;
 use crate::parser::cst::DirectDeclarator::Paren;
 use crate::parser::cst::{DeclarationSpecifiers, DirectDeclarator, InitDeclarator, SemanticValue, StorageClassSpecifier, TranslationUnit};
 use crate::parser::parser_yy::{exec_action, get_action, get_goto, LRAction, EXPR_LENS, EXPR_NAMES, INIT_STATE};
-use crate::types::symbol_table::SymbolTable;
 use crate::types::lex::token::Token;
+use crate::types::lex::token_kind::TokenKind;
+use crate::types::symbol_table::SymbolTable;
+use crate::util::try_type_name::try_type_name;
+use std::cell::RefCell;
 use std::iter::Peekable;
 use std::rc::Rc;
-use crate::util::try_type_name::try_type_name;
 
 /// 前端Parser，负责将Token流翻译为CST
 /// Parser会维护一个最低限度的符号表用于转换前端的TYPE_NAME
@@ -49,7 +49,7 @@ where
     pub fn parse(mut self) -> ParserResult<TranslationUnit> {
         while let Some(token) = self.iter.peek() {
             let curr_state = *self.state_stack.last().unwrap();
-            let token_id = token.typ;
+            let token_id = token.kind as usize;
             let action = get_action(curr_state, token_id);
 
             // peek 阶段只做粗略语义区分
@@ -61,10 +61,9 @@ where
         }
 
         let value = self.value_stack.pop().unwrap();
-
         value.into_translation_unit().map_err(|_| {
             let x = self.get_latest_token();
-            ParserError::new(x.beg, x.end, "Syntax Error", self.get_latest_expr())
+            ParserError::new(x.span, "Syntax Error", self.get_latest_expr())
         })
     }
 
@@ -97,6 +96,7 @@ where
             None => return false,
             Some(x) => x,
         };
+
         match specifiers {
             DeclarationSpecifiers::StorageClass(StorageClassSpecifier::Typedef(_), _) => true,
             DeclarationSpecifiers::StorageClass(_, rest) => Self::is_type_def(rest.as_deref()),
@@ -112,6 +112,7 @@ where
             Some(x) => x
         };
 
+
         if !Self::is_type_def(Some(&declaration.specifiers)) {
             return Ok(());
         }
@@ -126,7 +127,7 @@ where
                 InitDeclarator::Plain(x) => x,
                 InitDeclarator::Initialized(x, _) => x
             };
-            
+
             if let Err(err) = self.recursive_register(&declarator.direct) {
                 let token = self.iter.peek().unwrap();
                 return Err(err.with_token(token)) // 补充pos line信息
@@ -136,7 +137,7 @@ where
         // 对当前符号修正
         let token = self.iter.peek_mut().unwrap();
         try_type_name(token, &self.symbol_table);
-        
+
         Ok(())
     }
 
@@ -154,9 +155,14 @@ where
     /// shift错误只会在shift阶段出现
     fn shift(&mut self, curr_state: usize) -> ParserResult<()> {
         let token = self.iter.next().unwrap();
-        let token_id = token.typ;
+        let token_id = token.kind as usize;
         let action = get_action(curr_state, token_id);
 
+        // println!("{} {:?}", token.typ, TOKEN_CONTENTS[token.typ]);
+        //
+        // if matches!(action, LRAction::Error) {
+        //     panic!("{} {} {}", curr_state, token, self.iter.peek().unwrap())
+        // }
 
         let next_state = match action {
             LRAction::Shift(x) => x,
@@ -165,9 +171,9 @@ where
         };
 
         // 针对typedef粗略的符号表作用域控制
-        if token.is(TokenKind::LBrace) {
+        if token.kind == TokenKind::LBrace {
             self.symbol_table.borrow_mut().enter_scope();
-        } else if token.is(TokenKind::RBrace) {
+        } else if token.kind == TokenKind::RBrace {
             self.symbol_table.borrow_mut().exit_scope();
         }
 
@@ -180,7 +186,7 @@ where
 
     fn error(&mut self, token: Token) -> ParserError {    // 错误恢复没做
         let expr = self.get_latest_expr();
-        ParserError::new(token.beg, token.end, "Syntax Error", expr)
+        ParserError::new(token.span, "Syntax Error", expr)
     }
 
     /// 获取最近的token,优先从Iter中获取

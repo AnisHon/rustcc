@@ -37,8 +37,8 @@ pub enum TypeSpec {
 
 impl TypeSpec {
     pub fn make_simple(token: Token) -> ParserNode {
-        let span = Span::from_token(&token);
-        let result = match token.as_type() {
+        let span = token.span;
+        let result = match token.kind {
             TokenKind::KeywordVoid => TypeSpec::Void(span),
             TokenKind::KeywordChar => TypeSpec::Char(span),
             TokenKind::KeywordShort => TypeSpec::Short(span),
@@ -101,9 +101,9 @@ impl TypeQual {
     }
 
     pub fn make(list: Option<Vec<TypeQual>>, token: Token) -> ParserNode {
-        let span = Span::from_token(&token);
+        let span = token.span;
         let mut list = list.unwrap_or_default();
-        let result = match token.as_type() {
+        let result = match token.kind {
             TokenKind::KeywordConst => TypeQual::Const(span),
             TokenKind::KeywordVolatile => TypeQual::Volatile(span),
             _ => unreachable!()
@@ -133,9 +133,9 @@ impl DeclSpec {
     }
 
     pub fn make_storage(spec: Token, decl_spec: Option<Box<DeclSpec>>) -> ParserNode {
-        let span = Span::from_token(&spec);
+        let span = spec.span;
         let mut decl_spec = decl_spec.unwrap_or_else(|| Box::from(Self::new(span)));
-        let spec = match spec.as_type() {
+        let spec = match spec.kind {
             TokenKind::KeywordTypedef => StorageClass::Typedef(span),
             TokenKind::KeywordExtern => StorageClass::Extern(span),
             TokenKind::KeywordStatic => StorageClass::Static(span),
@@ -151,10 +151,10 @@ impl DeclSpec {
     }
 
     pub fn make_qual(qual: Token, decl_spec: Option<Box<DeclSpec>>) -> ParserNode {
-        let span = Span::from_token(&qual);
+        let span = qual.span;
         let mut decl_spec = decl_spec.unwrap_or_else(|| Box::new(Self::new(span)));
 
-        let qual = match qual.as_type() {
+        let qual = match qual.kind {
             TokenKind::KeywordConst => TypeQual::Const(span),
             TokenKind::KeywordVolatile => TypeQual::Volatile(span),
             _ => unreachable!()
@@ -208,9 +208,9 @@ impl Declarator {
     }
 
     pub fn make(token: Token) -> ParserNode {
-        assert!(token.is(TokenKind::ID));
+        assert_eq!(token.kind, TokenKind::ID);
 
-        let span = Span::from_token(&token);
+        let span = token.span;
         let name = token.value.into_string().unwrap();
         Self {
             name: Some(name),
@@ -320,7 +320,7 @@ impl DeclaratorChunk {
     /// # Returns
     /// 注意返回的Chunk的数组
     pub fn make_pointer(token: Token, quals: Option<Vec<TypeQual>>, chunks: Option<Vec<DeclaratorChunk>>) -> ParserNode {
-        let span = Span::from_token(&token);
+        let span = token.span;
         let mut chunks = chunks.unwrap_or_default();
         let kind = DeclaratorChunkKind::Pointer { quals };
         chunks.push(DeclaratorChunk::new(kind, span));
@@ -348,7 +348,7 @@ impl DeclaratorChunk {
     /// ANSI 函数声明
     pub fn make_function(declarator: Option<Declarator>, lparen: Token, param_list: Option<ParamList>, rparen: Token) -> ParserNode {
         let mut declarator = declarator.unwrap_or_else(|| Declarator::new(Span::from_tokens(vec![&lparen, &rparen])));
-        let span = declarator.span.merge(&Span::from_token(&rparen));
+        let span = declarator.span.merge(&rparen.span);
 
         let kind = DeclaratorChunkKind::Function {
             param_list: Delim::new(&lparen, param_list.map(Box::new), &rparen),
@@ -359,11 +359,11 @@ impl DeclaratorChunk {
 
     /// K&R 函数声明
     pub fn make_old_function(mut declarator: Declarator, lparen: Token, ident_list: Option<SepList<Token>>, rparen: Token) -> ParserNode {
-        let span = declarator.span.merge(&Span::from_token(&rparen));
+        let span = declarator.span.merge(&rparen.span);
 
         let ident_list = ident_list.unwrap_or_default();
         let params: Vec<_> = ident_list.list.into_iter().map(|x| {
-            let span = Span::from_token(&x);
+            let span = x.span;
             let name = x.value.into_string().unwrap();
             ParamInfo::Ident(name, span)
         }).collect();
@@ -403,7 +403,7 @@ pub struct ParamList {
 
 impl ParamList {
     pub fn set_variadic(mut param_list: Box<ParamList>, comma: Token) -> ParserNode {
-        let span = Span::from_token(&comma);
+        let span = comma.span;
         param_list.is_variadic = true;
         param_list.params.sep.push(span);
         param_list.into()
@@ -420,7 +420,7 @@ impl ParamList {
     }
 
     pub fn append_list(mut param_list: Box<ParamList>, comma: Token, param_info: ParamInfo) -> ParserNode {
-        let span = Span::from_token(&comma);
+        let span = comma.span;
 
         param_list.span.merge_self(&param_info.unwrap_span()); // 增大span
         param_list.params.push_item(param_info);

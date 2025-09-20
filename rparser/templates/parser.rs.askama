@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
-{{- decl_code -}}
 use LRAction::*;
+{{ decl_code }}
 
 
 /// vector deconstruct into vars

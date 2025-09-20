@@ -2,25 +2,16 @@
    用于测试词法分析器的注释处理能力
 */
 
-const volatile unsigned long int *(*(*(* (* const (* const (*foo[3])(int, ...))(double))(short))(void))[5])(char, float);
-
-typedef const int wtf;
 
 // 函数声明
 int factorial(int n);
 
-//wtf factorial(wtf w);
-
+typedef int type1;
+type1 i = 10;
 struct Person {
     char name[20];
     int age;
 };
-
-
-
-typedef struct Person Person;  // 为struct Person起别名Person
-
-Person p;
 
 // 主函数
 int main() {

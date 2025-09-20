@@ -84,7 +84,7 @@ fn binary_search(chr: u32) -> usize {
 /// execute action, return results
 pub fn exec_action(
     state: usize,
-    {% for item in params %}
+    {%- for item in params %}
     {{ item }},
     {%- endfor %}
 ) -> Option<{{ typ }}> {

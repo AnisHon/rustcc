@@ -393,7 +393,7 @@ impl TryFrom<Token> for Constant {
     type Error = &'static str;
 
     fn try_from(value: Token) -> Result<Self, Self::Error> {
-        let span = Span::from_token(&value);
+        let span = value.span;
         let kind: ConstantKind = value.try_into()?;
         Ok(Self::new(kind, span))
     }
@@ -469,7 +469,7 @@ impl TryFrom<Token> for BinaryOpKind {
     type Error = &'static str; // todo 后期可以用this error
 
     fn try_from(value: Token) -> Result<Self, Self::Error> {
-        match value.as_type() {
+        match value.kind {
             TokenKind::OpPlus => Ok(BinaryOpKind::Add),
             TokenKind::OpMinus => Ok(BinaryOpKind::Sub),
             TokenKind::OpTimes => Ok(BinaryOpKind::Mul),
@@ -523,7 +523,7 @@ pub enum AssignOpKind {
 impl TryFrom<Token> for AssignOpKind {
     type Error = &'static str;
     fn try_from(value: Token) -> Result<Self, Self::Error> {
-       match value.as_type() {
+       match value.kind {
             TokenKind::OpAssign => Ok(AssignOpKind::Assign),
             TokenKind::OpMulAssign => Ok(AssignOpKind::MulAssign),
             TokenKind::OpDivAssign => Ok(AssignOpKind::DivAssign),

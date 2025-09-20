@@ -45,7 +45,7 @@ ESCAPED_CHAR = @{ "\\" ~ ("\"" | "\\" | "n" | "r" | "t") }
 unquoted_pattern = @{ ( !("\r" | "\n" | WHITESPACE ) ~ ANY )+ }
 
 // 动作（{...} 包裹的代码）
-action = { "{" ~ (!"}" ~ ANY)* ~ "}" }
+action = { "{" ~ ("'}'" | (!"}" ~ ANY))* ~ "}" }
 
 // 用户代码（文件末尾的可选代码）
 user_code = { (!EOI ~ ANY)* }

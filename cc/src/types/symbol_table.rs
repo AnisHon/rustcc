@@ -8,6 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use indexmap::IndexMap;
 use crate::err::parser_error::{ParserError, ParserResult};
+use crate::types::span::Span;
 
 ///
 /// 符号类型
@@ -39,7 +40,7 @@ impl<V> Scope<V> {
     ///
     pub fn insert(&mut self, name: &str, v: V) -> ParserResult<()> {
         if self.table.contains_key(name) { 
-            return Err(ParserError::new(0, 0, format!("Duplicate Define {}", name).as_str(), ""));
+            return Err(ParserError::new(Span::default(), format!("Duplicate Define {}", name).as_str(), ""));
         }
         self.table.insert(name.to_string(), Rc::new(v));
         Ok(())

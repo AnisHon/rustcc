@@ -231,7 +231,7 @@ impl TableWriter {
 
         let template = LexerDeclTemplate { decls };
         let rendered = template.render().unwrap();
-        fs::write(self.decl_path.clone(), rendered).unwrap();
+        // fs::write(self.decl_path.clone(), rendered).unwrap();
         // println!("{}", rendered);
     }
 

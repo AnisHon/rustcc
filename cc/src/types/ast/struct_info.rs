@@ -26,10 +26,10 @@ pub struct StructOrUnionSpec {
 
 impl StructOrUnionSpec {
     pub fn make(kind: Token, name: Token) -> ParserNode {
-        let kind_span = Span::from_token(&kind);
-        let span = kind_span.merge(&Span::from_token(&name));
+        let kind_span = kind.span;
+        let span = kind_span.merge(&name.span);
         let name = name.value.into_string().unwrap();
-        let kind = match kind.as_type() {
+        let kind = match kind.kind {
             TokenKind::KeywordStruct => StructKind::Struct(kind_span),
             TokenKind::KeywordUnion => StructKind::Union(kind_span),
             _ => unreachable!()
@@ -44,12 +44,12 @@ impl StructOrUnionSpec {
         Box::new(result).into()
     }
     pub fn make_decl(kind: Token, name: Option<Token>, lparen: Token, members: Vec<StructMember>, rparen: Token) -> ParserNode {
-        let kind_span = Span::from_token(&kind);
-        let span = kind_span.merge(&Span::from_token(&rparen));
+        let kind_span = kind.span;
+        let span = kind_span.merge(&rparen.span);
 
         let name = name.map(|x| x.value.into_string().unwrap());
 
-        let kind = match kind.as_type() {
+        let kind = match kind.kind {
             TokenKind::KeywordStruct => StructKind::Struct(kind_span),
             TokenKind::KeywordUnion => StructKind::Union(kind_span),
             _ => unreachable!()
@@ -111,7 +111,7 @@ impl StructDeclarator {
     pub fn make_list(list: Option<SepList<StructDeclarator>>, comma: Token, struct_declarator: StructDeclarator) -> ParserNode {
         let mut list = list.unwrap_or_default();
         list.push_item(struct_declarator);
-        list.push_sep(Span::from_token(&comma));
+        list.push_sep(comma.span);
         list.into()
     }
 }
@@ -168,14 +168,14 @@ impl Enumerator {
     pub fn append_list(enums: SepList<Enumerator>, comma: Token, enumerator: Enumerator) -> ParserNode {
         let mut enums = enums;
         enums.push_item(enumerator);
-        enums.push_sep(Span::from_token(&comma));
+        enums.push_sep(comma.span);
         enums.into()
     }
 
     pub fn make(name: Token, value: Option<Expression>) -> ParserNode {
         let span = match &value {
-            None => Span::from_token(&name),
-            Some(x) => Span::from_token(&name).merge(&x.span),
+            None => name.span,
+            Some(x) => name.span.merge(&x.span),
         };
         let name = name.value.into_string().unwrap();
         

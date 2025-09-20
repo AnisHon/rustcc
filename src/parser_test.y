@@ -249,7 +249,7 @@ type_qualifier_list
 direct_declarator
     : ID                                                            {$$ = DirectDeclarator::make_id($1);}
     | '(' declarator ')'                                      {$$ = DirectDeclarator::make_paren($2);}
-    | direct_declarator '[' constant_expression_opt ']'   {$$ = DirectDeclarator::make_array($1, $3);}
+    | direct_declarator '[' constant_expression_opt ']' {$$ = DirectDeclarator::make_array($1, $3);}
     | direct_declarator '(' parameter_type_list ')'           {$$ = DirectDeclarator::make_func_params($1, $3);}
     | direct_declarator '(' identifier_list_opt ')'           {$$ = DirectDeclarator::make_func_identifiers($1, $3);}
     ;

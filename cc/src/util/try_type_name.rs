@@ -6,7 +6,7 @@ use crate::types::lex::token::Token;
 
 /// 尝试识别TYPE_NAME
 pub fn try_type_name<T>(token: &mut Token, symbol_table: &Rc<RefCell<SymbolTable<T>>>) {
-    if !token.is(TokenKind::ID) { // 非ID类型
+    if token.kind != TokenKind::ID { // 非ID类型
         return;
     }
 
@@ -14,6 +14,6 @@ pub fn try_type_name<T>(token: &mut Token, symbol_table: &Rc<RefCell<SymbolTable
     let id = token.value.as_string().unwrap().as_str();
     let symbol_table = symbol_table.borrow();
     if symbol_table.lookup(id).is_some() { // 符号表中存在, 修改为TYPE_NAME
-        token.typ = TokenKind::TypeName as usize;
+        token.kind = TokenKind::TypeName;
     }
 }

@@ -1,8 +1,7 @@
 use crate::types::lex::token_kind::TokenKind;
-use crate::parser::parser_yy::END_SYMBOL;
+use crate::types::span::Span;
 use enum_as_inner::EnumAsInner;
-use num_traits::FromPrimitive;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum TokenValue {
@@ -13,77 +12,93 @@ pub enum TokenValue {
     Other,
 }
 
+impl Display for TokenValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenValue::Number { value, signed } =>
+                if *signed {
+                    write!(f, "{:#}", value)
+                } else {
+                    write!(f, "{:#}u", value)
+                }
+            TokenValue::Float(x) => write!(f, "{:#}", x),
+            TokenValue::String(x) => write!(f, "{:?}", x),
+            TokenValue::Char(x) => write!(f, "{:?}", *x as char),
+            TokenValue::Other => write!(f, "None"),
+        }
+    }
+}
+
 /// 词法分析输出Token
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Token {
-    pub beg: usize,
-    pub end: usize,
-    pub typ: usize,
+    pub span: Span,
+    pub kind: TokenKind,
     pub value: TokenValue,
 }
 
 impl Token {
 
-    pub fn new(beg: usize, typ: usize, value: String ) -> Self {
-        let end = beg + value.len();
-        let typ = TokenKind::from_usize(typ).unwrap();
-        let (value, typ) = match typ {
-            TokenKind::ID => (TokenValue::String(value), typ as usize),
+    pub fn new(beg: usize, end: usize, kind: TokenKind, value: String) -> Self {
+        assert!(beg <= end);
+        let value = match kind {
+            TokenKind::ID => TokenValue::String(value),
             TokenKind::Hex => {
                 let (value, signed) = hex2int(value);
-                (TokenValue::Number{value, signed}, TokenKind::Int as usize)
+                TokenValue::Number{value, signed}
             },
             TokenKind::Oct => {
                 let (value, signed) = oct2int(value);
-                (TokenValue::Number{value, signed}, TokenKind::Int as usize)
+                TokenValue::Number{value, signed}
             },
             TokenKind::Int => {
                 let (value, signed) = str2int(value);
-                (TokenValue::Number{value, signed}, TokenKind::Int as usize)
+                TokenValue::Number{value, signed}
             },
-            TokenKind::Float => (TokenValue::Float(str2float(value)), typ as usize),
-            TokenKind::StringLiteral => (TokenValue::String(format_str(value)), typ as usize),
-            TokenKind::CharacterConstant => (TokenValue::Char(format_char(value)), typ as usize),
-            TokenKind::TypeName => (TokenValue::String(value), TokenKind::Float as usize),
-            _ => (TokenValue::Other, typ as usize)
+            TokenKind::Float => TokenValue::Float(str2float(value)),
+            TokenKind::StringLiteral => TokenValue::String(format_str(value)),
+            TokenKind::CharacterConstant => TokenValue::Char(format_char(value)),
+            _ => TokenValue::Other
+        };
+
+        // 统一数字类型
+        let kind = match kind {
+            TokenKind::Hex | TokenKind::Oct => TokenKind::Int,
+            _ => kind
         };
 
         Self {
-            beg,
-            end,
-            typ,
+            span: Span::new(beg, end),
+            kind,
             value,
         }
     }
-    
-    pub fn is(&self, typ: TokenKind) -> bool {
-        self.typ == typ as usize
-    }
-    
-    pub fn end_token() -> Self {
-        Self {
-            beg: 0,
-            end: 0,
-            typ: END_SYMBOL,
-            value: TokenValue::Other,
-        }
-    }
 
-    pub fn as_type(&self) -> TokenKind {
-        TokenKind::from_usize(self.typ).unwrap()
-    }
 }
 
-impl Debug for Token {
+impl Display for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f, 
-            "Token(beg: {:?}, end: {:?}, type: {:?}, value: {:?})", 
-            self.beg, 
-            self.end, 
-            self.as_type(), 
-            self.value
-        )
+        match self.value {
+            TokenValue::Other => {
+                write!(
+                    f,
+                    "{:?} @{:?}",
+                    self.kind,
+                    self.span,
+                )
+            }
+            _ => {
+                write!(
+                    f,
+                    "{:?}({}) @{:?}",
+                    self.kind,
+                    self.value,
+                    self.span,
+                )
+
+            }
+        }
+
     }
 }
 
@@ -92,18 +107,18 @@ impl Debug for Token {
 fn oct2int(num: String) -> (usize, bool) {
     // todo 解析int
     let value = isize::from_str_radix(&num, 8).unwrap() as usize;
-    (value, false)
+    (value, true)
 }
 
 fn hex2int(num: String) -> (usize, bool) {
     // todo 解析int
     let value = isize::from_str_radix(&num[2..], 16).unwrap() as usize; // 去除0x部分
-    (value, false)
+    (value, true)
 }
 fn str2int(num: String) -> (usize, bool) {
     // todo 解析int
     let value = num.as_str().parse::<isize>().unwrap() as usize;
-    (value, false)
+    (value, true)
 }
 
 fn str2float(num: String) -> f64 {

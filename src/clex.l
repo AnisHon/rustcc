@@ -24,109 +24,109 @@ WHITESPACE              \s+
 
 %%
 
-auto 	                { return KeywordAuto.into(); }
-break 	                { return KeywordBreak.into(); }
-case 	                { return KeywordCase.into(); }
-char 	                { return KeywordChar.into(); }
-const 	                { return KeywordConst.into(); }
-continue 	            { return KeywordContinue.into(); }
-default 	            { return KeywordDefault.into(); }
-do 	                    { return KeywordDo.into(); }
-double 	                { return KeywordDouble.into(); }
-else 	                { return KeywordElse.into(); }
-enum 	                { return KeywordEnum.into(); }
-extern 	                { return KeywordExtern.into(); }
-float 	                { return KeywordFloat.into(); }
-for 	                { return KeywordFor.into(); }
-goto 	                { return KeywordGoto.into(); }
-if 	                    { return KeywordIf.into(); }
-int 	                { return KeywordInt.into(); }
-long 	                { return KeywordLong.into(); }
-register    	        { return KeywordRegister.into(); }
-return 	                { return KeywordReturn.into(); }
-short 	                { return KeywordShort.into(); }
-signed 	                { return KeywordSigned.into(); }
-sizeof 	                { return KeywordSizeof.into(); }
-static 	                { return KeywordStatic.into(); }
-struct 	                { return KeywordStruct.into(); }
-switch 	                { return KeywordSwitch.into(); }
-typedef 	            { return KeywordTypedef.into(); }
-union 	                { return KeywordUnion.into(); }
-unsigned    	        { return KeywordUnsigned.into(); }
-void        	        { return KeywordVoid.into(); }
-volatile    	        { return KeywordVolatile.into(); }
-while 	                { return KeywordWhile.into(); }
+auto 	                { return Some(KeywordAuto as usize); }
+break 	                { return Some(KeywordBreak as usize); }
+case 	                { return Some(KeywordCase as usize); }
+char 	                { return Some(KeywordChar as usize); }
+const 	                { return Some(KeywordConst as usize); }
+continue 	            { return Some(KeywordContinue as usize); }
+default 	            { return Some(KeywordDefault as usize); }
+do 	                    { return Some(KeywordDo as usize); }
+double 	                { return Some(KeywordDouble as usize); }
+else 	                { return Some(KeywordElse as usize); }
+enum 	                { return Some(KeywordEnum as usize); }
+extern 	                { return Some(KeywordExtern as usize); }
+float 	                { return Some(KeywordFloat as usize); }
+for 	                { return Some(KeywordFor as usize); }
+goto 	                { return Some(KeywordGoto as usize); }
+if 	                    { return Some(KeywordIf as usize); }
+int 	                { return Some(KeywordInt as usize); }
+long 	                { return Some(KeywordLong as usize); }
+register    	        { return Some(KeywordRegister as usize); }
+return 	                { return Some(KeywordReturn as usize); }
+short 	                { return Some(KeywordShort as usize); }
+signed 	                { return Some(KeywordSigned as usize); }
+sizeof 	                { return Some(KeywordSizeof as usize); }
+static 	                { return Some(KeywordStatic as usize); }
+struct 	                { return Some(KeywordStruct as usize); }
+switch 	                { return Some(KeywordSwitch as usize); }
+typedef 	            { return Some(KeywordTypedef as usize); }
+union 	                { return Some(KeywordUnion as usize); }
+unsigned    	        { return Some(KeywordUnsigned as usize); }
+void        	        { return Some(KeywordVoid as usize); }
+volatile    	        { return Some(KeywordVolatile as usize); }
+while 	                { return Some(KeywordWhile as usize); }
 
 
-"..." 	                { return OpEllipsis.into(); }
-"->" 	                { return OpArrow.into(); }
-"++" 	                { return OpInc.into(); }
-"--" 	                { return OpDec.into(); }
+"..." 	                { return Some(OpEllipsis as usize); }
+"->" 	                { return Some(OpArrow as usize); }
+"++" 	                { return Some(OpInc as usize); }
+"--" 	                { return Some(OpDec as usize); }
 
 
-"+=" 	                { return OpAddAssign.into(); }
-"-=" 	                { return OpSubAssign.into(); }
-"*=" 	                { return OpMulAssign.into(); }
-"/=" 	                { return OpDivAssign.into(); }
-"%=" 	                { return OpModAssign.into(); }
-"<<=" 	                { return OpLShiftAssign.into(); }
-">>=" 	                { return OpRShiftAssign.into(); }
-"&=" 	                { return OpAndAssign.into(); }
-"^=" 	                { return OpXorAssign.into(); }
-"|=" 	                { return OpOrAssign.into(); }
+"+=" 	                { return Some(OpAddAssign as usize); }
+"-=" 	                { return Some(OpSubAssign as usize); }
+"*=" 	                { return Some(OpMulAssign as usize); }
+"/=" 	                { return Some(OpDivAssign as usize); }
+"%=" 	                { return Some(OpModAssign as usize); }
+"<<=" 	                { return Some(OpLShiftAssign as usize); }
+">>=" 	                { return Some(OpRShiftAssign as usize); }
+"&=" 	                { return Some(OpAndAssign as usize); }
+"^=" 	                { return Some(OpXorAssign as usize); }
+"|=" 	                { return Some(OpOrAssign as usize); }
 
 
-"==" 	                { return OpEq.into(); }
-"!=" 	                { return OpNe.into(); }
-">=" 	                { return OpGe.into(); }
-"<=" 	                { return OpLe.into(); }
-"&&" 	                { return OpAnd.into(); }
-"||" 	                { return OpOr.into(); }
-"<<" 	                { return OpLShift.into(); }
-">>" 	                { return OpRShift.into(); }
+"==" 	                { return Some(OpEq as usize); }
+"!=" 	                { return Some(OpNe as usize); }
+">=" 	                { return Some(OpGe as usize); }
+"<=" 	                { return Some(OpLe as usize); }
+"&&" 	                { return Some(OpAnd as usize); }
+"||" 	                { return Some(OpOr as usize); }
+"<<" 	                { return Some(OpLShift as usize); }
+">>" 	                { return Some(OpRShift as usize); }
 
 
-"+"                     { return '+'.into(); }
-"-"                     { return '-'.into(); }
-"*"                     { return '*'.into(); }
-"/"                     { return '/'.into(); }
-"%"                     { return '%'.into(); }
-"!"                     { return '!'.into(); }
-"&"                     { return '&'.into(); }
-"|"                     { return '|'.into(); }
-"^"                     { return '^'.into(); }
-"~"                     { return '~'.into(); }
-"="                     { return '='.into(); }
-">"                     { return '>'.into(); }
-"<"                     { return '<'.into(); }
+"+"                     { return Some('+' as usize); }
+"-"                     { return Some('-' as usize); }
+"*"                     { return Some('*' as usize); }
+"/"                     { return Some('/' as usize); }
+"%"                     { return Some('%' as usize); }
+"!"                     { return Some('!' as usize); }
+"&"                     { return Some('&' as usize); }
+"|"                     { return Some('|' as usize); }
+"^"                     { return Some('^' as usize); }
+"~"                     { return Some('~' as usize); }
+"="                     { return Some('=' as usize); }
+">"                     { return Some('>' as usize); }
+"<"                     { return Some('<' as usize); }
 
 
-"("                     { return '('.into(); }
-")"                     { return ')'.into(); }
-"{"                     { return LParen.into(); }
-"}"                     { return RParen.into(); }
-"["                     { return '['.into(); }
-"]"                     { return ']'.into(); }
-";"                     { return ';'.into(); }
-","                     { return ','.into(); }
-"."                     { return '.'.into(); }
-"?"                     { return '?'.into(); }
-":"                     { return ':'.into(); }
+"("                     { return Some('(' as usize); }
+")"                     { return Some(')' as usize); }
+"{"                     { return Some('{' as usize); }
+"}"                     { return Some('}' as usize); }
+"["                     { return Some('[' as usize); }
+"]"                     { return Some(']' as usize); }
+";"                     { return Some(';' as usize); }
+","                     { return Some(',' as usize); }
+"."                     { return Some('.' as usize); }
+"?"                     { return Some('?' as usize); }
+":"                     { return Some(':' as usize); }
 
-{ID}                    { return ID.into(); }
+{ID}                    { return Some(ID as usize); }
 
-{HEX}                   { return Hex.into(); }
-{OCT}                   { return Oct.into(); }
-{INT}                   { return Int.into(); }
-{FLOAT}                 { return Float.into(); }
+{HEX}                   { return Some(Hex as usize); }
+{OCT}                   { return Some(Oct as usize); }
+{INT}                   { return Some(Int as usize); }
+{FLOAT}                 { return Some(Float as usize); }
 
-{STRING_LITERAL}        { return StringLiteral.into(); }
-{CHARACTER_CONSTANT}    { return CharacterConstant.into(); }
+{STRING_LITERAL}        { return Some(StringLiteral as usize); }
+{CHARACTER_CONSTANT}    { return Some(CharacterConstant as usize); }
 
-"/*"                    { lex.set_mode(LexMode::BlockCommon); }
-"//"                    { lex.set_mode(LexMode::LineCommon); }
+"/*"                    { lex.set_mode(LexMode::BlockComment); }
+"//"                    { lex.set_mode(LexMode::LineComment); }
 
-{WHITESPACE}            {}
+{WHITESPACE}            { lex.set_mode(LexMode::WhileSpace); }
 
 %%
 

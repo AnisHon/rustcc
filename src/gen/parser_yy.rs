@@ -1,5 +1,6 @@
+#![allow(clippy::useless_conversion)]
+use LRAction::*;
 use crate::parser::cst::*;
-
 
 
 /// vector deconstruct into vars
@@ -2128,7 +2129,7 @@ static EXPR_IDS: [usize; 218] = [
 ];
 
 /// token_id -> token content (terminal name)
-pub static TOKEN_CONTENTS: [&str; 318] = [
+pub static TOKEN_CONTENTS: [Option<&str>; 318] = [
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, 
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, Some("'!'"), 
     None, None, None, Some("'%'"), Some("'&'"), None, Some("'('"), Some("')'"), Some("'*'"), Some("'+'"), 
@@ -2165,17 +2166,20 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
     let row_id = ACTION_ROW_ID[state];
     let base = ACTION_BASE[row_id];
     if base.is_none() {
-        return LRAction::Error
+        return Error
     }
 
     let idx = base.unwrap() + token;
 
-    let check = ACTION_CHECK[idx]?;
+    let check = match ACTION_CHECK[idx] {
+        None => return Error,
+        Some(x) => x
+    };
 
     if check == row_id {
         ACTION_NEXT[idx].clone()
     } else {
-        LRAction::Error
+        Error
     }
 }
 
@@ -2185,7 +2189,7 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     let rule_id = EXPR_IDS[prod_id];
     let base = GOTO_BASE[row_id]?;
 
-    let idx = base.unwrap() + rule_id;
+    let idx = base + rule_id;
 
     let check = GOTO_CHECK[idx]?;
 
@@ -2196,8 +2200,10 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     }
 }
 
+
 /// action_code[state](params)
 pub fn exec_action(rule: usize, arguments: Vec<SemanticValue>) -> SemanticValue {
+    #![allow(clippy::needless_late_init)]
     let value: SemanticValue;
     match rule {
         0 => {
@@ -2482,7 +2488,7 @@ pub fn exec_action(rule: usize, arguments: Vec<SemanticValue>) -> SemanticValue 
         }
         70 => {
             destruct_vec!(arguments, _arg1, _arg2);
-            value = Pointer::make_pointer(SemanticValue::None, _arg3.into());
+            value = Pointer::make_pointer(SemanticValue::None, _arg2.into());
         }
         71 => {
             destruct_vec!(arguments, _arg1, _arg2, _arg3);
@@ -3071,8 +3077,7 @@ pub fn exec_action(rule: usize, arguments: Vec<SemanticValue>) -> SemanticValue 
         217 => {
             destruct_vec!(arguments, _arg1, _arg2);
             value = TypeName::make_type_name(_arg1.into(), _arg2.into());
-        }_ => { value = SemanticValue::default()
-        }
+        }_ => { value = SemanticValue::default() }
     };
     value
 }

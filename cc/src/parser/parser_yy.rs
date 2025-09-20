@@ -2,6 +2,7 @@
 use crate::parser::cst::*;
 use LRAction::*;
 
+
 /// vector deconstruct into vars
 macro_rules! destruct_vec {
     ($vec:expr, $($var:ident),*) => {
@@ -20,6 +21,7 @@ pub enum LRAction {
     Accept(usize),
     Error
 }
+
 
 /// action matrix -> base next check
 static ACTION_BASE: [Option<usize>; 348] = [
@@ -2166,7 +2168,7 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
     if base.is_none() {
         return Error
     }
-
+    
     let idx = base.unwrap() + token;
 
     let check = match ACTION_CHECK[idx] {
@@ -2197,6 +2199,7 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
         None
     }
 }
+
 
 /// action_code[state](params)
 pub fn exec_action(rule: usize, arguments: Vec<SemanticValue>) -> SemanticValue {

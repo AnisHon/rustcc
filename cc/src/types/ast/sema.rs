@@ -3,12 +3,12 @@
 //! Sema函数会做语义检查，类型检查，错误处理 和 错误恢复
 //!
 
-use crate::types::lex::token_kind::TokenKind;
 use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclaratorChunk, TypeQual};
 use crate::types::ast::parser_node::ParserNode;
-use crate::types::span::{Span, UnwrapSpan};
 use crate::types::lex::token::Token;
+use crate::types::lex::token_kind::TokenKind;
+use crate::types::span::UnwrapSpan;
 use std::mem;
 
 impl TranslationUnit {
@@ -85,7 +85,7 @@ impl Statement {
     }
 
     pub fn make_expression(expr: Option<Box<Expression>>, semi: Token) -> ParserNode {
-        let span = Span::from_token(&semi);
+        let span = semi.span;
         let span = expr.as_ref().map(|x| span.merge(&x.span)).unwrap_or(span);
 
         let kind = StatementKind::Expression(expr);
@@ -93,7 +93,7 @@ impl Statement {
     }
 
     pub fn make_if(if_token: Token, cond: Expression, then_stmt: Statement, else_stmt: Option<Statement>) -> ParserNode {
-        let span = Span::from_token(&if_token);
+        let span = if_token.span;
         let span = match &else_stmt {
             None => span,
             Some(x) => span.merge(&x.span)
@@ -104,17 +104,17 @@ impl Statement {
     }
 
     pub fn make_switch(switch_token: Token, cond: Expression, body: Statement) -> ParserNode {
-        let span = Span::from_token(&switch_token).merge(&body.span);
+        let span = switch_token.span.merge(&body.span);
         let kind = StatementKind::Switch { cond: Box::new(cond), body: Box::new(body) };
         Statement::new(kind, span).into()
     }
     pub fn make_while(while_token: Token, cond: Expression, body: Statement, rparen: Option<Token>) -> ParserNode {
-        let span = Span::from_token(&while_token).merge(&body.span);
+        let span = while_token.span.merge(&body.span);
         let span = match rparen {
             None => span,
-            Some(x) => Span::from_token(&x).merge(&span)
+            Some(x) => x.span.merge(&span)
         };
-        let kind = match while_token.as_type() {
+        let kind = match while_token.kind {
             TokenKind::KeywordWhile => StatementKind::While { cond: Box::new(cond), body: Box::new(body) },
             TokenKind::KeywordDo => StatementKind::DoWhile { cond: Box::new(cond), body: Box::new(body) },
             _ => unreachable!()
@@ -123,15 +123,15 @@ impl Statement {
     }
 
     pub fn make_for(for_token: Token, init_opt: Option<Expression>, cond_opt: Option<Expression>, step_opt: Option<Expression>, body: Statement) -> ParserNode {
-        let span = Span::from_token(&for_token).merge(&body.span);
+        let span = for_token.span.merge(&body.span);
         let kind = StatementKind::For { init: init_opt.map(Box::new), cond: cond_opt.map(Box::new), step: step_opt.map(Box::new), body: Box::new(body) };
         Statement::new(kind, span).into()
     }
 
     /// 第一个token是goto
     pub fn make_goto(goto: Token, label: Token) -> ParserNode {
-        let goto_span = Span::from_token(&goto);
-        let label_span = Span::from_token(&label);
+        let goto_span = goto.span;
+        let label_span = label.span;
 
         let span = goto_span.merge(&label_span);
         let label = label.value.into_string().unwrap();
@@ -141,8 +141,8 @@ impl Statement {
 
 
     pub fn make_continue_break(token: Token) -> ParserNode {
-        let span = Span::from_token(&token);
-        let kind = match token.as_type() {
+        let span = token.span;
+        let kind = match token.kind {
             TokenKind::KeywordContinue => StatementKind::Continue,
             TokenKind::KeywordBreak => StatementKind::Break,
             _ => unreachable!()
@@ -153,7 +153,7 @@ impl Statement {
 
     /// 第一个token是return
     pub fn make_return(ret: Token, expr: Option<Expression>) -> ParserNode {
-        let ret_span = Span::from_token(&ret);
+        let ret_span = ret.span;
         let span = match &expr {
             None => ret_span,
             Some(expr) => ret_span.merge(&expr.span)
@@ -173,7 +173,7 @@ impl Expression {
     }
 
     pub fn make_id(token: Token) -> ParserNode {
-        let span = Span::from_token(&token);
+        let span = token.span;
         let name = token.value.into_string().unwrap();
         let kind = ExpressionKind::Id { name, decl_ref: None };
         Box::new(Expression::new(kind, None, span)).into()
@@ -181,21 +181,21 @@ impl Expression {
 
     /// 最后的token是 arr[...] <-这个字符，用来精确确定位置
     pub fn make_array_access(base: Expression, index: Expression, token: Token) -> ParserNode {
-        let span = base.span.merge(&Span::from_token(&token));
+        let span = base.span.merge(&token.span);
         let kind = ExpressionKind::ArrayAccess { base: Box::new(base), index: Box::new(index) };
         Box::new(Expression::new(kind, None, span)).into()
     }
 
     /// 最后的token是 foo(...) <-这个字符，用来精确确定位置
     pub fn make_call(func: Expression, args: Vec<Expression>, token: Token) -> ParserNode {
-        let span = func.span.merge(&Span::from_token(&token));
+        let span = func.span.merge(&token.span);
         let kind = ExpressionKind::Call {func: Box::new(func), args};
 
         Box::new(Expression::new(kind, None, span)).into()
     }
 
     pub fn make_field_access(base: Expression, field: Token) -> ParserNode {
-        let span = base.span.merge(&Span::from_token(&field));
+        let span = base.span.merge(&field.span);
         let field = field.value.into_string().unwrap();
         let kind = ExpressionKind::FieldAccess { base: Box::new(base), field };
 
@@ -203,7 +203,7 @@ impl Expression {
     }
 
     pub fn make_arrow(base: Expression, field: Token) -> ParserNode {
-        let span = base.span.merge(&Span::from_token(&field));
+        let span = base.span.merge(&field.span);
         let field = field.value.into_string().unwrap();
         let kind = ExpressionKind::Arrow { base: Box::new(base), field };
 
@@ -219,9 +219,9 @@ impl Expression {
     /// post: 是否是后置
     ///
     pub fn make_update(expr: Expression, token: Token, post: bool) -> ParserNode {
-        let span = Span::from_token(&token).merge(&expr.span);
+        let span = token.span.merge(&expr.span);
 
-        let kind = match (token.as_type(), post) {
+        let kind = match (token.kind, post) {
             (TokenKind::OpDec, true) => ExpressionKind::PostDec,
             (TokenKind::OpDec, false) => ExpressionKind::PreDec,
             (TokenKind::OpInc, true) => ExpressionKind::PostInc,
@@ -234,10 +234,10 @@ impl Expression {
     }
 
     pub fn make_unary(token: Token, expr: Expression) -> ParserNode {
-        let token_span = Span::from_token(&token);
+        let token_span = token.span;
         let span = token_span.merge(&expr.span);
 
-        let kind = match token.as_type() {
+        let kind = match token.kind {
             TokenKind::OpBitand => UnaryOpKind::AddressOf,
             TokenKind::OpTimes => UnaryOpKind::Deref,
             TokenKind::OpPlus => UnaryOpKind::Plus,
@@ -265,7 +265,7 @@ impl Expression {
 
     /// 第一个token是sizeof的值 -> sizeof(type) <- 第二个是第二个括号
     pub fn make_sizeof_type(sizeof: Token, typ: Type, rparen: Token) -> ParserNode {
-        let span = Span::from_token(&sizeof).merge(&Span::from_token(&rparen));
+        let span = sizeof.span.merge(&rparen.span);
         let kind = ExpressionKind::SizeofType(Box::new(typ));
 
         Box::new(Expression::new(kind, None, span)).into()
@@ -274,7 +274,7 @@ impl Expression {
 
     /// 第一个token 是类型转换的第一个括号-> (X)X
     pub fn make_cast(token: Token, typ: Type, expr: Expression) -> ParserNode {
-        let span = Span::from_token(&token).merge(&expr.span);
+        let span = token.span.merge(&expr.span);
         let kind = ExpressionKind::Cast { ty: Box::new(typ), expr: Box::new(expr) };
 
         Box::new(Expression::new(kind, None, span)).into()
@@ -282,7 +282,7 @@ impl Expression {
 
     pub fn make_binary(lhs: Expression, token: Token, rhs: Expression) -> ParserNode {
         let span = lhs.span.merge(&rhs.span);
-        let span_token = Span::from_token(&token);
+        let span_token = token.span;
 
 
         let op_kind: BinaryOpKind = token.try_into().unwrap();
@@ -309,7 +309,7 @@ impl Expression {
         if lhs.is_rvalue() {
             panic!("Cannot assign to rvalue");
         }
-        let span_token = Span::from_token(&token);
+        let span_token = token.span;
 
         let op_kind: AssignOpKind = token.try_into().unwrap();
         let span = lhs.span.merge(&rhs.span);
@@ -334,7 +334,7 @@ impl Constant {
 
     pub fn insert_str(mut constant: Constant, token: Token) -> ParserNode {
         let token_str = token.value.as_string().unwrap();
-        let token_span = Span::from_token(&token);
+        let token_span = token.span;
         let string = match &mut constant.kind {
             ConstantKind::String(str) => str,
             _ => unreachable!(),
