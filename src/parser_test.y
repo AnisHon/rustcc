@@ -411,7 +411,7 @@ postfix_expression
     ;
 
 argument_expression_list_opt
-    : /* empty */               {$$ = SemanticValue::ArgumentExpressionListOpt(None)}
+    : /* empty */               {$$ = SemanticValue::ArgumentExpressionListOpt(None);}
     | argument_expression_list  {$$ = make_argument_expression_list_opt($1);}
     ;
 
@@ -478,7 +478,7 @@ equality_expression
 
 and_expression
     : and_expression '&' equality_expression              {$$ = AndExpression::make_and($1, $3);}
-    | equality_expression                                       {$$ = AndExpression::make_eq($1)}
+    | equality_expression                                       {$$ = AndExpression::make_eq($1);}
     ;
 
 exclusive_or_expression
@@ -508,7 +508,7 @@ conditional_expression
 
 assignment_expression
     : conditional_expression                                        {$$ = AssignmentExpression::make_conditional($1);}
-    | unary_expression assignment_operator assignment_expression    {$$ = AssignmentExpression::make_assign($1, $2, $3)}
+    | unary_expression assignment_operator assignment_expression    {$$ = AssignmentExpression::make_assign($1, $2, $3);}
     ;
 
 assignment_operator

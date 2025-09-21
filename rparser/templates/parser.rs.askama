@@ -55,6 +55,33 @@ static EXPR_IDS: [usize; {{ expr_ids_sz }}] = {{ expr_ids }};
 /// token_id -> token content (terminal name)
 pub static TOKEN_CONTENTS: [Option<&str>; {{ token_contents_sz }}] = {{ token_contents }};
 
+
+{%- macro parameter() -%}
+    _arguments: Vec<{{ typename }}>,{%- for item in params %} {{ item }},{%- endfor -%}
+{%- endmacro -%}
+
+type ActionHandler = fn({%- call parameter() -%}) -> {{ typename }};
+
+pub static ACTION_CODES: [Option<ActionHandler>;{{ action_codes.len() }}] = [
+{%- for item in action_codes %}
+    {%- match item -%}
+        {%- when Some(code) %}
+    Some(|{%- call parameter() -%}| {     // {{ loop.index0 }}
+        let value;
+        {%- if !arguments[loop.index0].is_empty() %}
+        destruct_vec!(_arguments, {{ arguments[loop.index0] }});
+        {%- endif %}
+        {{ code }}
+        value
+    }),
+        {%- when none %}
+    None,
+   {%- endmatch -%}
+{%- endfor %}
+];
+
+
+
 /// action_table[state][token]
 pub fn get_action(state: usize, token: usize) -> LRAction {
     let row_id = ACTION_ROW_ID[state];
@@ -94,25 +121,5 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     }
 }
 
-
-/// action_code[state](params)
-pub fn exec_action(rule: usize, arguments: Vec<{{ typename }}>) -> {{ typename }} {
-    #![allow(clippy::needless_late_init)]
-    let {{ value_name }}: {{ typename }};
-    match rule {
-        {%- for item in action_codes -%}
-            {%- match item -%}
-               {%- when Some(code) %}
-        {{ loop.index0 }} => {
-            destruct_vec!(arguments, {{ arguments[loop.index0] }});
-            {{ code }}
-        }
-               {%- when none -%}
-            {%- endmatch -%}
-        {%- endfor -%}
-        _ => { {{ value_name }} = {{ typename }}::default() }
-    };
-    {{ value_name }}
-}
 
 {{ user_code }}

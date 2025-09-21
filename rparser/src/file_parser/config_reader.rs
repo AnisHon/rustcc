@@ -45,10 +45,10 @@ pub struct GrammarConfig {
     pub decl_code: String,
     pub tokens: Vec<String>,
     pub assoc: Vec<AssocType>,
+    pub params: Vec<String>,
     pub typename: String,
     pub productions: Vec<Production>,
     pub user_code: String,
-
 }
 
 /// Token结核性表类型
@@ -119,9 +119,6 @@ pub struct GrammarConfigParser {
     input: String,
 }
 
-/// %token %left/right/noassoc %type
-struct Decls(Vec<String>, Vec<AssocType>, String);
-
 impl GrammarConfigParser {
     pub fn new(input: String) -> Self {
         Self { input }
@@ -138,6 +135,7 @@ impl GrammarConfigParser {
             .flat_map(|x| x.into_inner());
 
         let mut config = GrammarConfig {
+            params: Vec::new(),
             decl_code: String::new(),
             typename: String::new(),
             tokens: Vec::new(),
@@ -155,16 +153,7 @@ impl GrammarConfigParser {
                     config.decl_code = decl_code;
                 }
                 Rule::decls => {
-
-                    let Decls(
-                        token_decl,
-                        assoc_decl,
-                        type_decl
-                    ) = Self::parse_decls(pair);
-
-                    config.tokens = token_decl;
-                    config.assoc = assoc_decl;
-                    config.typename = type_decl;
+                    Self::parse_decls(pair, &mut config);
                 },
                 Rule::rules => {
                     let productions = Self::parse_rules(pair);
@@ -196,30 +185,30 @@ impl GrammarConfigParser {
     }
 
     /// 解析 decl
-    fn parse_decls(decls: Pair<Rule>) -> Decls {
-        let mut token_decls = Vec::new();
-        let mut assoc_decls = Vec::new();
-        let mut type_decl = String::new();
+    fn parse_decls(decls: Pair<Rule>, config: &mut GrammarConfig) {
 
         for decl in decls.into_inner() {
             let decl = decl.into_inner().next().unwrap();
 
             match decl.as_rule() {
                 Rule::token_decl => {
-                    token_decls.extend(Self::parse_token_decl(decl))
+                    config.tokens.extend(Self::parse_token_decl(decl))
                 },
                 Rule::assoc_decl => {
-                    assoc_decls.push(Self::parse_assoc_decl(decl))
+                    config.assoc.push(Self::parse_assoc_decl(decl))
                 },
                 Rule::type_decl => {
                     let ident = decl.into_inner().next().unwrap();
-                    type_decl.push_str(ident.as_str());
+                    config.typename.push_str(ident.as_str());
                 },
+                Rule::param_decl => {
+                    let param = decl.into_inner().next().unwrap().as_str().to_owned();
+                    config.params.push(param);
+                }
                 _ => unreachable!(),
             };
         }
-
-        Decls(token_decls, assoc_decls, type_decl)
+        
     }
 
     /// %token ...

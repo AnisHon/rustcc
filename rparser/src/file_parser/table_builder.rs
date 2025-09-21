@@ -86,21 +86,6 @@ impl LRTableBuilder {
         let token_sz = self.token_meta.len();
         let state_sz = item_set_map.len();
 
-        for x in item_set_map.get(&236).unwrap().core_set.iter() {
-            println!("{:?}", self.config.productions[x.rule.0].name);
-        }
-        for (from, symbol, to) in transition_table.iter() {
-            if *from != 236 {
-                continue
-            }
-
-            match symbol {
-                Symbol::Terminal(x) => {
-                    println!("{from:?} --'{x}'-> {to}")
-                }
-                _ => {}
-            }
-        }
 
         // LALR1表 [state;token] -> [state][token] ，多出一个是结束符，默认为Error
         let mut action_table = vec![vec![LRAction::Error; token_sz + 1]; state_sz];

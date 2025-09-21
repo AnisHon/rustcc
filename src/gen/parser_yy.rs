@@ -2159,7 +2159,1308 @@ pub static TOKEN_CONTENTS: [Option<&str>; 318] = [
     Some("KEYWORD_IF"), Some("KEYWORD_ELSE"), Some("KEYWORD_SWITCH"), Some("KEYWORD_WHILE"), Some("KEYWORD_DO"), 
     Some("KEYWORD_FOR"), Some("KEYWORD_GOTO"), Some("KEYWORD_CONTINUE"), Some("KEYWORD_BREAK"), Some("KEYWORD_RETURN"), 
     Some("OP_ELLIPSIS"), 
+];type ActionHandler = fn(_arguments: Vec<SemanticValue>,) -> SemanticValue;
+
+pub static ACTION_CODES: [Option<ActionHandler>;218] = [
+    Some(|_arguments: Vec<SemanticValue>,| {     // 0
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TranslationUnit::make_single(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 1
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = TranslationUnit::make_multi(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 2
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = ExternalDeclaration::make_function_definition(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 3
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = ExternalDeclaration::make_declaration(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 4
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = FunctionDefinition::make_with_specifiers(_arg1.into(), _arg2.into(), _arg3.into(), _arg4.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 5
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = FunctionDefinition::make_without_specifiers(_arg1.into(), _arg2.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 6
+        let value;
+        value = SemanticValue::DeclarationListOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 7
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_declaration_list_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 8
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = DeclarationList::make_decl_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 9
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = DeclarationList::insert(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 10
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = Declaration::make_declaration(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 11
+        let value;
+        value = SemanticValue::InitDeclaratorListOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 12
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_init_declarator_list_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 13
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = InitDeclaratorList::make_init_decl_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 14
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = InitDeclaratorList::insert(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 15
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = InitDeclarator::make_plain(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 16
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = InitDeclarator::make_initialized(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 17
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = DeclarationSpecifiers::make_storage_class(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 18
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = DeclarationSpecifiers::make_type_specifier(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 19
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = DeclarationSpecifiers::make_type_qualifier(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 20
+        let value;
+        value = SemanticValue::DeclarationSpecifiersOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 21
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_declarator_list_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 22
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = StorageClassSpecifier::make_typedef(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 23
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = StorageClassSpecifier::make_extern(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 24
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = StorageClassSpecifier::make_static(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 25
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = StorageClassSpecifier::make_auto(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 26
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = StorageClassSpecifier::make_register(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 27
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_void(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 28
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_char(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 29
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_short(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 30
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_int(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 31
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_long(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 32
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_signed(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 33
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_unsigned(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 34
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_float(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 35
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_double(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 36
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_struct(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 37
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_enum(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 38
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeSpecifier::make_type_name(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 39
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeQualifier::make_const(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 40
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = TypeQualifier::make_volatile(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 41
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
+        value = StructOrUnionSpecifier::make_defined(_arg1.into(), _arg2.into(), _arg4.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 42
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = StructOrUnionSpecifier::make_named(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 43
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = StructOrUnion::make_struct(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 44
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = StructOrUnion::make_union(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 45
+        let value;
+        value = SemanticValue::IdentifierOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 46
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_identifier_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 47
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_struct_declaration_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 48
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = insert_struct_declaration_list(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 49
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = StructDeclaration::make_struct_declaration(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 50
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = SpecifierQualifierList::make_type_specifier(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 51
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = SpecifierQualifierList::make_type_qualifier(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 52
+        let value;
+        value = SemanticValue::SpecifierQualifierListOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 53
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_specifier_qualifier_list_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 54
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_struct_declarator_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 55
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = insert_struct_declarator_list(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 56
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = StructDeclarator::make_declarator(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 57
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = StructDeclarator::make_bitfield(SemanticValue::None, _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 58
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = StructDeclarator::make_bitfield(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 59
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
+        value = EnumSpecifier::make_defined(_arg2.into(), _arg4.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 60
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = EnumSpecifier::make_named(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 61
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_enumerator_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 62
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = insert_enumerator_list(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 63
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Enumerator::make_plain(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 64
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = Enumerator::make_with_value(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 65
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = Declarator::make_declarator(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 66
+        let value;
+        value = SemanticValue::PointerOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 67
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_pointer_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 68
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Pointer::make_pointer(SemanticValue::None, SemanticValue::None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 69
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = Pointer::make_pointer(_arg2.into(), SemanticValue::None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 70
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = Pointer::make_pointer(SemanticValue::None, _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 71
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = Pointer::make_pointer(_arg2.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 72
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_type_qualifier_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 73
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = insert_type_qualifier_list(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 74
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = DirectDeclarator::make_id(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 75
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = DirectDeclarator::make_paren(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 76
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = DirectDeclarator::make_array(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 77
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = DirectDeclarator::make_func_params(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 78
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = DirectDeclarator::make_func_identifiers(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 79
+        let value;
+        value = SemanticValue::ConstantExpressionOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 80
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_constant_expression_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 81
+        let value;
+        value = SemanticValue::IdentifierListOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 82
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_identifier_list_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 83
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = IdentifierList::make_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 84
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = IdentifierList::insert(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 85
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = ParameterTypeList::make_params(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 86
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = ParameterTypeList::make_variadic(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 87
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_parameter_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 88
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = insert_parameter_list(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 89
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = ParameterDeclaration::make_declarator(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 90
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = ParameterDeclaration::make_abstract(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 91
+        let value;
+        value = SemanticValue::AbstractDeclaratorOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 92
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_abstract_declarator_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 93
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AbstractDeclarator::make_pointer(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 94
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = AbstractDeclarator::make_direct(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 95
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = DirectAbstractDeclarator::make_paren(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 96
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = DirectAbstractDeclarator::make_array(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 97
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = DirectAbstractDeclarator::make_array_nested(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 98
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = DirectAbstractDeclarator::make_func(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 99
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = DirectAbstractDeclarator::make_func_nested(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 100
+        let value;
+        value = SemanticValue::ParameterTypeListOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 101
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_parameter_type_list_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 102
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Initializer::make_assignment(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 103
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = Initializer::make_list(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 104
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = Initializer::make_list(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 105
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = InitializerList::make(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 106
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = InitializerList::insert(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 107
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Statement::make_labeled(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 108
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Statement::make_compound(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 109
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Statement::make_expression(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 110
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Statement::make_selection(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 111
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Statement::make_iteration(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 112
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Statement::make_jump(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 113
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = LabeledStatement::make_label(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 114
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = LabeledStatement::make_case(_arg2.into(), _arg4.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 115
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = LabeledStatement::make_default(_arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 116
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = CompoundStatement::make_empty(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 117
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = CompoundStatement::make_expr(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 118
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_block_item(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 119
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = insert_block_item(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 120
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = BlockItem::make_declaration(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 121
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = BlockItem::make_statement(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 122
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = ExpressionStatement::make_empty(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 123
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = ExpressionStatement::make_expr(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 124
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
+        value = SelectionStatement::make_if(_arg3.into(), _arg5.into(), SemanticValue::None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 125
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7);
+        value = SelectionStatement::make_if(_arg3.into(), _arg5.into(), _arg7.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 126
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
+        value = SelectionStatement::make_switch(_arg3.into(), _arg5.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 127
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
+        value = IterationStatement::make_while(_arg3.into(), _arg5.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 128
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7);
+        value = IterationStatement::make_do_while(_arg2.into(), _arg5.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 129
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7, _arg8, _arg9);
+        value = IterationStatement::make_for(_arg3.into(), _arg5.into(), _arg7.into(), _arg9.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 130
+        let value;
+        value = SemanticValue::ExpressionOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 131
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_expression_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 132
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = JumpStatement::make_goto(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 133
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = JumpStatement::make_continue(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 134
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = JumpStatement::make_break(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 135
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = JumpStatement::make_return(SemanticValue::None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 136
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = JumpStatement::make_return(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 137
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = PrimaryExpression::make_id(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 138
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = PrimaryExpression::make_constant(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 139
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = PrimaryExpression::make_string_literal(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 140
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = PrimaryExpression::make_paren(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 141
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Constant::make_int(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 142
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Constant::make_float(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 143
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Constant::make_char(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 144
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_string(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 145
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = insert_string(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 146
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = PostfixExpression::make_primary(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 147
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = PostfixExpression::make_array(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 148
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = PostfixExpression::make_call(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 149
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = PostfixExpression::make_field(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 150
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = PostfixExpression::make_arrow(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 151
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = PostfixExpression::make_inc(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 152
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = PostfixExpression::make_dec(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 153
+        let value;
+        value = SemanticValue::ArgumentExpressionListOpt(None);
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 154
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = make_argument_expression_list_opt(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 155
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = makeargument_expression_list(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 156
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = insert_argument_expression_list(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 157
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = UnaryExpression::make_postfix(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 158
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = UnaryExpression::make_pre_inc(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 159
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = UnaryExpression::make_pre_dec(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 160
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = UnaryExpression::make_unary_op(_arg1.into(), _arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 161
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = UnaryExpression::make_sizeof_expr(_arg2.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 162
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = UnaryExpression::make_sizeof_type(_arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 163
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = UnaryOperator::address_of(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 164
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = UnaryOperator::deref(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 165
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = UnaryOperator::plus(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 166
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = UnaryOperator::minus(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 167
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = UnaryOperator::bit_not(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 168
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = UnaryOperator::not(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 169
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
+        value = CastExpression::make_cast(_arg2.into(), _arg4.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 170
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = CastExpression::make_unary(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 171
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = MultiplicativeExpression::make_mul(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 172
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = MultiplicativeExpression::make_div(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 173
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = MultiplicativeExpression::make_mod(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 174
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = MultiplicativeExpression::make_cast(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 175
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = AdditiveExpression::make_add(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 176
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = AdditiveExpression::make_sub(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 177
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AdditiveExpression::make_mul(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 178
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = ShiftExpression::make_shl(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 179
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = ShiftExpression::make_shr(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 180
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = ShiftExpression::make_add(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 181
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = RelationalExpression::make_lt(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 182
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = RelationalExpression::make_gt(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 183
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = RelationalExpression::make_le(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 184
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = RelationalExpression::make_ge(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 185
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = RelationalExpression::make_shift(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 186
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = EqualityExpression::make_eq(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 187
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = EqualityExpression::make_ne(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 188
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = EqualityExpression::make_rel(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 189
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = AndExpression::make_and(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 190
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AndExpression::make_eq(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 191
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = ExclusiveOrExpression::make_xor(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 192
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = ExclusiveOrExpression::make_and(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 193
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = InclusiveOrExpression::make_or(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 194
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = InclusiveOrExpression::make_xor(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 195
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = LogicalAndExpression::make_and(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 196
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = LogicalAndExpression::make_or(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 197
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = LogicalOrExpression::make_or(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 198
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = LogicalOrExpression::make_and(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 199
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = ConditionalExpression::make_or(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 200
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
+        value = ConditionalExpression::make_cond(_arg1.into(), _arg3.into(), _arg5.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 201
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentExpression::make_conditional(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 202
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = AssignmentExpression::make_assign(_arg1.into(), _arg2.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 203
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 204
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::mul_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 205
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::div_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 206
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::mod_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 207
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::add_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 208
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::sub_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 209
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::shl_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 210
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::shr_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 211
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::and_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 212
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::xor_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 213
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = AssignmentOperator::or_assign(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 214
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = Expression::make_single(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 215
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2, _arg3);
+        value = Expression::make_comma(_arg1.into(), _arg3.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 216
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = ConditionalExpression::make_constant(_arg1.into());
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>,| {     // 217
+        let value;
+        destruct_vec!(_arguments, _arg1, _arg2);
+        value = TypeName::make_type_name(_arg1.into(), _arg2.into());
+        value
+    }),
 ];
+
+
 
 /// action_table[state][token]
 pub fn get_action(state: usize, token: usize) -> LRAction {
@@ -2200,885 +3501,4 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     }
 }
 
-
-/// action_code[state](params)
-pub fn exec_action(rule: usize, arguments: Vec<SemanticValue>) -> SemanticValue {
-    #![allow(clippy::needless_late_init)]
-    let value: SemanticValue;
-    match rule {
-        0 => {
-            destruct_vec!(arguments, _arg1);
-            value = TranslationUnit::make_single(_arg1.into());
-        }
-        1 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = TranslationUnit::make_multi(_arg1.into(), _arg2.into());
-        }
-        2 => {
-            destruct_vec!(arguments, _arg1);
-            value = ExternalDeclaration::make_function_definition(_arg1.into());
-        }
-        3 => {
-            destruct_vec!(arguments, _arg1);
-            value = ExternalDeclaration::make_declaration(_arg1.into());
-        }
-        4 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = FunctionDefinition::make_with_specifiers(_arg1.into(), _arg2.into(), _arg3.into(), _arg4.into());
-        }
-        5 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = FunctionDefinition::make_without_specifiers(_arg1.into(), _arg2.into(), _arg3.into());
-        }
-        6 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::DeclarationListOpt(None);
-        }
-        7 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_declaration_list_opt(_arg1.into());
-        }
-        8 => {
-            destruct_vec!(arguments, _arg1);
-            value = DeclarationList::make_decl_list(_arg1.into());
-        }
-        9 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = DeclarationList::insert(_arg1.into(), _arg2.into());
-        }
-        10 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = Declaration::make_declaration(_arg1.into(), _arg2.into());
-        }
-        11 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::InitDeclaratorListOpt(None);
-        }
-        12 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_init_declarator_list_opt(_arg1.into());
-        }
-        13 => {
-            destruct_vec!(arguments, _arg1);
-            value = InitDeclaratorList::make_init_decl_list(_arg1.into());
-        }
-        14 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = InitDeclaratorList::insert(_arg1.into(), _arg3.into());
-        }
-        15 => {
-            destruct_vec!(arguments, _arg1);
-            value = InitDeclarator::make_plain(_arg1.into());
-        }
-        16 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = InitDeclarator::make_initialized(_arg1.into(), _arg3.into());
-        }
-        17 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = DeclarationSpecifiers::make_storage_class(_arg1.into(), _arg2.into());
-        }
-        18 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = DeclarationSpecifiers::make_type_specifier(_arg1.into(), _arg2.into());
-        }
-        19 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = DeclarationSpecifiers::make_type_qualifier(_arg1.into(), _arg2.into());
-        }
-        20 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::DeclarationSpecifiersOpt(None);
-        }
-        21 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_declarator_list_opt(_arg1.into());
-        }
-        22 => {
-            destruct_vec!(arguments, _arg1);
-            value = StorageClassSpecifier::make_typedef(_arg1.into());
-        }
-        23 => {
-            destruct_vec!(arguments, _arg1);
-            value = StorageClassSpecifier::make_extern(_arg1.into());
-        }
-        24 => {
-            destruct_vec!(arguments, _arg1);
-            value = StorageClassSpecifier::make_static(_arg1.into());
-        }
-        25 => {
-            destruct_vec!(arguments, _arg1);
-            value = StorageClassSpecifier::make_auto(_arg1.into());
-        }
-        26 => {
-            destruct_vec!(arguments, _arg1);
-            value = StorageClassSpecifier::make_register(_arg1.into());
-        }
-        27 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_void(_arg1.into());
-        }
-        28 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_char(_arg1.into());
-        }
-        29 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_short(_arg1.into());
-        }
-        30 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_int(_arg1.into());
-        }
-        31 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_long(_arg1.into());
-        }
-        32 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_signed(_arg1.into());
-        }
-        33 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_unsigned(_arg1.into());
-        }
-        34 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_float(_arg1.into());
-        }
-        35 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_double(_arg1.into());
-        }
-        36 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_struct(_arg1.into());
-        }
-        37 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_enum(_arg1.into());
-        }
-        38 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeSpecifier::make_type_name(_arg1.into());
-        }
-        39 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeQualifier::make_const(_arg1.into());
-        }
-        40 => {
-            destruct_vec!(arguments, _arg1);
-            value = TypeQualifier::make_volatile(_arg1.into());
-        }
-        41 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
-            value = StructOrUnionSpecifier::make_defined(_arg1.into(), _arg2.into(), _arg4.into());
-        }
-        42 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = StructOrUnionSpecifier::make_named(_arg1.into(), _arg2.into());
-        }
-        43 => {
-            destruct_vec!(arguments, _arg1);
-            value = StructOrUnion::make_struct(_arg1.into());
-        }
-        44 => {
-            destruct_vec!(arguments, _arg1);
-            value = StructOrUnion::make_union(_arg1.into());
-        }
-        45 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::IdentifierOpt(None);
-        }
-        46 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_identifier_opt(_arg1.into());
-        }
-        47 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_struct_declaration_list(_arg1.into());
-        }
-        48 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = insert_struct_declaration_list(_arg1.into(), _arg2.into());
-        }
-        49 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = StructDeclaration::make_struct_declaration(_arg1.into(), _arg2.into());
-        }
-        50 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = SpecifierQualifierList::make_type_specifier(_arg1.into(), _arg2.into());
-        }
-        51 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = SpecifierQualifierList::make_type_qualifier(_arg1.into(), _arg2.into());
-        }
-        52 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::SpecifierQualifierListOpt(None);
-        }
-        53 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_specifier_qualifier_list_opt(_arg1.into());
-        }
-        54 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_struct_declarator_list(_arg1.into());
-        }
-        55 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = insert_struct_declarator_list(_arg1.into(), _arg3.into());
-        }
-        56 => {
-            destruct_vec!(arguments, _arg1);
-            value = StructDeclarator::make_declarator(_arg1.into());
-        }
-        57 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = StructDeclarator::make_bitfield(SemanticValue::None, _arg2.into());
-        }
-        58 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = StructDeclarator::make_bitfield(_arg1.into(), _arg3.into());
-        }
-        59 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
-            value = EnumSpecifier::make_defined(_arg2.into(), _arg4.into());
-        }
-        60 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = EnumSpecifier::make_named(_arg2.into());
-        }
-        61 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_enumerator_list(_arg1.into());
-        }
-        62 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = insert_enumerator_list(_arg1.into(), _arg3.into());
-        }
-        63 => {
-            destruct_vec!(arguments, _arg1);
-            value = Enumerator::make_plain(_arg1.into());
-        }
-        64 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = Enumerator::make_with_value(_arg1.into(), _arg3.into());
-        }
-        65 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = Declarator::make_declarator(_arg1.into(), _arg2.into());
-        }
-        66 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::PointerOpt(None);
-        }
-        67 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_pointer_opt(_arg1.into());
-        }
-        68 => {
-            destruct_vec!(arguments, _arg1);
-            value = Pointer::make_pointer(SemanticValue::None, SemanticValue::None);
-        }
-        69 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = Pointer::make_pointer(_arg2.into(), SemanticValue::None);
-        }
-        70 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = Pointer::make_pointer(SemanticValue::None, _arg2.into());
-        }
-        71 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = Pointer::make_pointer(_arg2.into(), _arg3.into());
-        }
-        72 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_type_qualifier_list(_arg1.into());
-        }
-        73 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = insert_type_qualifier_list(_arg1.into(), _arg2.into());
-        }
-        74 => {
-            destruct_vec!(arguments, _arg1);
-            value = DirectDeclarator::make_id(_arg1.into());
-        }
-        75 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = DirectDeclarator::make_paren(_arg2.into());
-        }
-        76 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = DirectDeclarator::make_array(_arg1.into(), _arg3.into());
-        }
-        77 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = DirectDeclarator::make_func_params(_arg1.into(), _arg3.into());
-        }
-        78 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = DirectDeclarator::make_func_identifiers(_arg1.into(), _arg3.into());
-        }
-        79 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::ConstantExpressionOpt(None);
-        }
-        80 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_constant_expression_opt(_arg1.into());
-        }
-        81 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::IdentifierListOpt(None);
-        }
-        82 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_identifier_list_opt(_arg1.into());
-        }
-        83 => {
-            destruct_vec!(arguments, _arg1);
-            value = IdentifierList::make_list(_arg1.into());
-        }
-        84 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = IdentifierList::insert(_arg1.into(), _arg3.into());
-        }
-        85 => {
-            destruct_vec!(arguments, _arg1);
-            value = ParameterTypeList::make_params(_arg1.into());
-        }
-        86 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = ParameterTypeList::make_variadic(_arg1.into());
-        }
-        87 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_parameter_list(_arg1.into());
-        }
-        88 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = insert_parameter_list(_arg1.into(), _arg3.into());
-        }
-        89 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = ParameterDeclaration::make_declarator(_arg1.into(), _arg2.into());
-        }
-        90 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = ParameterDeclaration::make_abstract(_arg1.into(), _arg2.into());
-        }
-        91 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::AbstractDeclaratorOpt(None);
-        }
-        92 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_abstract_declarator_opt(_arg1.into());
-        }
-        93 => {
-            destruct_vec!(arguments, _arg1);
-            value = AbstractDeclarator::make_pointer(_arg1.into());
-        }
-        94 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = AbstractDeclarator::make_direct(_arg1.into(), _arg2.into());
-        }
-        95 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = DirectAbstractDeclarator::make_paren(_arg2.into());
-        }
-        96 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = DirectAbstractDeclarator::make_array(_arg2.into());
-        }
-        97 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = DirectAbstractDeclarator::make_array_nested(_arg1.into(), _arg3.into());
-        }
-        98 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = DirectAbstractDeclarator::make_func(_arg2.into());
-        }
-        99 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = DirectAbstractDeclarator::make_func_nested(_arg1.into(), _arg3.into());
-        }
-        100 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::ParameterTypeListOpt(None);
-        }
-        101 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_parameter_type_list_opt(_arg1.into());
-        }
-        102 => {
-            destruct_vec!(arguments, _arg1);
-            value = Initializer::make_assignment(_arg1.into());
-        }
-        103 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = Initializer::make_list(_arg2.into());
-        }
-        104 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = Initializer::make_list(_arg2.into());
-        }
-        105 => {
-            destruct_vec!(arguments, _arg1);
-            value = InitializerList::make(_arg1.into());
-        }
-        106 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = InitializerList::insert(_arg1.into(), _arg3.into());
-        }
-        107 => {
-            destruct_vec!(arguments, _arg1);
-            value = Statement::make_labeled(_arg1.into());
-        }
-        108 => {
-            destruct_vec!(arguments, _arg1);
-            value = Statement::make_compound(_arg1.into());
-        }
-        109 => {
-            destruct_vec!(arguments, _arg1);
-            value = Statement::make_expression(_arg1.into());
-        }
-        110 => {
-            destruct_vec!(arguments, _arg1);
-            value = Statement::make_selection(_arg1.into());
-        }
-        111 => {
-            destruct_vec!(arguments, _arg1);
-            value = Statement::make_iteration(_arg1.into());
-        }
-        112 => {
-            destruct_vec!(arguments, _arg1);
-            value = Statement::make_jump(_arg1.into());
-        }
-        113 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = LabeledStatement::make_label(_arg1.into(), _arg3.into());
-        }
-        114 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = LabeledStatement::make_case(_arg2.into(), _arg4.into());
-        }
-        115 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = LabeledStatement::make_default(_arg3.into());
-        }
-        116 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = CompoundStatement::make_empty(_arg1.into());
-        }
-        117 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = CompoundStatement::make_expr(_arg2.into());
-        }
-        118 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_block_item(_arg1.into());
-        }
-        119 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = insert_block_item(_arg1.into(), _arg2.into());
-        }
-        120 => {
-            destruct_vec!(arguments, _arg1);
-            value = BlockItem::make_declaration(_arg1.into());
-        }
-        121 => {
-            destruct_vec!(arguments, _arg1);
-            value = BlockItem::make_statement(_arg1.into());
-        }
-        122 => {
-            destruct_vec!(arguments, _arg1);
-            value = ExpressionStatement::make_empty(_arg1.into());
-        }
-        123 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = ExpressionStatement::make_expr(_arg1.into());
-        }
-        124 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
-            value = SelectionStatement::make_if(_arg3.into(), _arg5.into(), SemanticValue::None);
-        }
-        125 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7);
-            value = SelectionStatement::make_if(_arg3.into(), _arg5.into(), _arg7.into());
-        }
-        126 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
-            value = SelectionStatement::make_switch(_arg3.into(), _arg5.into());
-        }
-        127 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
-            value = IterationStatement::make_while(_arg3.into(), _arg5.into());
-        }
-        128 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7);
-            value = IterationStatement::make_do_while(_arg2.into(), _arg5.into());
-        }
-        129 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7, _arg8, _arg9);
-            value = IterationStatement::make_for(_arg3.into(), _arg5.into(), _arg7.into(), _arg9.into());
-        }
-        130 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::ExpressionOpt(None);
-        }
-        131 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_expression_opt(_arg1.into());
-        }
-        132 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = JumpStatement::make_goto(_arg2.into());
-        }
-        133 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = JumpStatement::make_continue(_arg1.into());
-        }
-        134 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = JumpStatement::make_break(_arg1.into());
-        }
-        135 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = JumpStatement::make_return(SemanticValue::None);
-        }
-        136 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = JumpStatement::make_return(_arg2.into());
-        }
-        137 => {
-            destruct_vec!(arguments, _arg1);
-            value = PrimaryExpression::make_id(_arg1.into());
-        }
-        138 => {
-            destruct_vec!(arguments, _arg1);
-            value = PrimaryExpression::make_constant(_arg1.into());
-        }
-        139 => {
-            destruct_vec!(arguments, _arg1);
-            value = PrimaryExpression::make_string_literal(_arg1.into());
-        }
-        140 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = PrimaryExpression::make_paren(_arg2.into());
-        }
-        141 => {
-            destruct_vec!(arguments, _arg1);
-            value = Constant::make_int(_arg1.into());
-        }
-        142 => {
-            destruct_vec!(arguments, _arg1);
-            value = Constant::make_float(_arg1.into());
-        }
-        143 => {
-            destruct_vec!(arguments, _arg1);
-            value = Constant::make_char(_arg1.into());
-        }
-        144 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_string(_arg1.into());
-        }
-        145 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = insert_string(_arg1.into(), _arg2.into());
-        }
-        146 => {
-            destruct_vec!(arguments, _arg1);
-            value = PostfixExpression::make_primary(_arg1.into());
-        }
-        147 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = PostfixExpression::make_array(_arg1.into(), _arg3.into());
-        }
-        148 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = PostfixExpression::make_call(_arg1.into(), _arg3.into());
-        }
-        149 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = PostfixExpression::make_field(_arg1.into(), _arg3.into());
-        }
-        150 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = PostfixExpression::make_arrow(_arg1.into(), _arg3.into());
-        }
-        151 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = PostfixExpression::make_inc(_arg1.into());
-        }
-        152 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = PostfixExpression::make_dec(_arg1.into());
-        }
-        153 => {
-            destruct_vec!(arguments, );
-            value = SemanticValue::ArgumentExpressionListOpt(None)
-        }
-        154 => {
-            destruct_vec!(arguments, _arg1);
-            value = make_argument_expression_list_opt(_arg1.into());
-        }
-        155 => {
-            destruct_vec!(arguments, _arg1);
-            value = makeargument_expression_list(_arg1.into());
-        }
-        156 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = insert_argument_expression_list(_arg1.into(), _arg3.into());
-        }
-        157 => {
-            destruct_vec!(arguments, _arg1);
-            value = UnaryExpression::make_postfix(_arg1.into());
-        }
-        158 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = UnaryExpression::make_pre_inc(_arg2.into());
-        }
-        159 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = UnaryExpression::make_pre_dec(_arg2.into());
-        }
-        160 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = UnaryExpression::make_unary_op(_arg1.into(), _arg2.into());
-        }
-        161 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = UnaryExpression::make_sizeof_expr(_arg2.into());
-        }
-        162 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = UnaryExpression::make_sizeof_type(_arg3.into());
-        }
-        163 => {
-            destruct_vec!(arguments, _arg1);
-            value = UnaryOperator::address_of(_arg1.into());
-        }
-        164 => {
-            destruct_vec!(arguments, _arg1);
-            value = UnaryOperator::deref(_arg1.into());
-        }
-        165 => {
-            destruct_vec!(arguments, _arg1);
-            value = UnaryOperator::plus(_arg1.into());
-        }
-        166 => {
-            destruct_vec!(arguments, _arg1);
-            value = UnaryOperator::minus(_arg1.into());
-        }
-        167 => {
-            destruct_vec!(arguments, _arg1);
-            value = UnaryOperator::bit_not(_arg1.into());
-        }
-        168 => {
-            destruct_vec!(arguments, _arg1);
-            value = UnaryOperator::not(_arg1.into());
-        }
-        169 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4);
-            value = CastExpression::make_cast(_arg2.into(), _arg4.into());
-        }
-        170 => {
-            destruct_vec!(arguments, _arg1);
-            value = CastExpression::make_unary(_arg1.into());
-        }
-        171 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = MultiplicativeExpression::make_mul(_arg1.into(), _arg3.into());
-        }
-        172 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = MultiplicativeExpression::make_div(_arg1.into(), _arg3.into());
-        }
-        173 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = MultiplicativeExpression::make_mod(_arg1.into(), _arg3.into());
-        }
-        174 => {
-            destruct_vec!(arguments, _arg1);
-            value = MultiplicativeExpression::make_cast(_arg1.into());
-        }
-        175 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = AdditiveExpression::make_add(_arg1.into(), _arg3.into());
-        }
-        176 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = AdditiveExpression::make_sub(_arg1.into(), _arg3.into());
-        }
-        177 => {
-            destruct_vec!(arguments, _arg1);
-            value = AdditiveExpression::make_mul(_arg1.into());
-        }
-        178 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = ShiftExpression::make_shl(_arg1.into(), _arg3.into());
-        }
-        179 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = ShiftExpression::make_shr(_arg1.into(), _arg3.into());
-        }
-        180 => {
-            destruct_vec!(arguments, _arg1);
-            value = ShiftExpression::make_add(_arg1.into());
-        }
-        181 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = RelationalExpression::make_lt(_arg1.into(), _arg3.into());
-        }
-        182 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = RelationalExpression::make_gt(_arg1.into(), _arg3.into());
-        }
-        183 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = RelationalExpression::make_le(_arg1.into(), _arg3.into());
-        }
-        184 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = RelationalExpression::make_ge(_arg1.into(), _arg3.into());
-        }
-        185 => {
-            destruct_vec!(arguments, _arg1);
-            value = RelationalExpression::make_shift(_arg1.into());
-        }
-        186 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = EqualityExpression::make_eq(_arg1.into(), _arg3.into());
-        }
-        187 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = EqualityExpression::make_ne(_arg1.into(), _arg3.into());
-        }
-        188 => {
-            destruct_vec!(arguments, _arg1);
-            value = EqualityExpression::make_rel(_arg1.into());
-        }
-        189 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = AndExpression::make_and(_arg1.into(), _arg3.into());
-        }
-        190 => {
-            destruct_vec!(arguments, _arg1);
-            value = AndExpression::make_eq(_arg1.into())
-        }
-        191 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = ExclusiveOrExpression::make_xor(_arg1.into(), _arg3.into());
-        }
-        192 => {
-            destruct_vec!(arguments, _arg1);
-            value = ExclusiveOrExpression::make_and(_arg1.into());
-        }
-        193 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = InclusiveOrExpression::make_or(_arg1.into(), _arg3.into());
-        }
-        194 => {
-            destruct_vec!(arguments, _arg1);
-            value = InclusiveOrExpression::make_xor(_arg1.into());
-        }
-        195 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = LogicalAndExpression::make_and(_arg1.into(), _arg3.into());
-        }
-        196 => {
-            destruct_vec!(arguments, _arg1);
-            value = LogicalAndExpression::make_or(_arg1.into());
-        }
-        197 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = LogicalOrExpression::make_or(_arg1.into(), _arg3.into());
-        }
-        198 => {
-            destruct_vec!(arguments, _arg1);
-            value = LogicalOrExpression::make_and(_arg1.into());
-        }
-        199 => {
-            destruct_vec!(arguments, _arg1);
-            value = ConditionalExpression::make_or(_arg1.into());
-        }
-        200 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
-            value = ConditionalExpression::make_cond(_arg1.into(), _arg3.into(), _arg5.into());
-        }
-        201 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentExpression::make_conditional(_arg1.into());
-        }
-        202 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = AssignmentExpression::make_assign(_arg1.into(), _arg2.into(), _arg3.into())
-        }
-        203 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::assign(_arg1.into());
-        }
-        204 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::mul_assign(_arg1.into());
-        }
-        205 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::div_assign(_arg1.into());
-        }
-        206 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::mod_assign(_arg1.into());
-        }
-        207 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::add_assign(_arg1.into());
-        }
-        208 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::sub_assign(_arg1.into());
-        }
-        209 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::shl_assign(_arg1.into());
-        }
-        210 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::shr_assign(_arg1.into());
-        }
-        211 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::and_assign(_arg1.into());
-        }
-        212 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::xor_assign(_arg1.into());
-        }
-        213 => {
-            destruct_vec!(arguments, _arg1);
-            value = AssignmentOperator::or_assign(_arg1.into());
-        }
-        214 => {
-            destruct_vec!(arguments, _arg1);
-            value = Expression::make_single(_arg1.into());
-        }
-        215 => {
-            destruct_vec!(arguments, _arg1, _arg2, _arg3);
-            value = Expression::make_comma(_arg1.into(), _arg3.into());
-        }
-        216 => {
-            destruct_vec!(arguments, _arg1);
-            value = ConditionalExpression::make_constant(_arg1.into());
-        }
-        217 => {
-            destruct_vec!(arguments, _arg1, _arg2);
-            value = TypeName::make_type_name(_arg1.into(), _arg2.into());
-        }_ => { value = SemanticValue::default() }
-    };
-    value
-}
 

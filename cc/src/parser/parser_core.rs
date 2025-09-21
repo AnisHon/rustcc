@@ -1,7 +1,7 @@
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::parser::cst::DirectDeclarator::Paren;
 use crate::parser::cst::{DeclarationSpecifiers, DirectDeclarator, InitDeclarator, SemanticValue, StorageClassSpecifier, TranslationUnit};
-use crate::parser::parser_yy::{exec_action, get_action, get_goto, LRAction, EXPR_LENS, EXPR_NAMES, INIT_STATE};
+use crate::parser::parser_yy::{ACTION_CODES, get_action, get_goto, LRAction, EXPR_LENS, EXPR_NAMES, INIT_STATE};
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::TokenKind;
 use crate::types::symbol_table::SymbolTable;
@@ -16,7 +16,6 @@ use std::rc::Rc;
 pub struct Parser<I, ValueType = SemanticValue>
 where
     I: Iterator<Item = Token>,
-
 {
     iter: Peekable<I>,
     state_stack: Vec<usize>,        // 状态栈
@@ -76,18 +75,28 @@ where
         let expr_len = EXPR_LENS[expr];
         let pop_idx = self.state_stack.len() - expr_len;
 
-        self.state_stack.drain(pop_idx..); // 推出 状态栈
+        let _ = self.state_stack.split_off(pop_idx); // 推出 状态栈
         let state = *self.state_stack.last().unwrap(); // 当前状态
         self.state_stack.push(get_goto(state, expr).unwrap()); // 压入状态栈
 
-        let values: Vec<_> = self.value_stack.drain(pop_idx..).collect(); // 推出 语义栈
-        let value = exec_action(expr, values); // 执行语义
+        let values: Vec<_> = self.value_stack.split_off(pop_idx); // 推出 语义栈
+
+        let value = self.exec_action(expr, values);
+
+        // 执行语义
         self.register_typedef(&value)   // 检查typedef
             .map_err(|err| err.with_name(EXPR_NAMES[expr]))?; // 补充name信息
         self.value_stack.push(value); // 压入语义栈
 
         self.last_reduced = expr; // 追踪上一个规约
         Ok(())
+    }
+
+    fn exec_action(&self, expr: usize, argument: Vec<SemanticValue>) -> SemanticValue {
+        match ACTION_CODES[expr] {
+            None => SemanticValue::default(),
+            Some(handler) => handler(argument)
+        }
     }
 
     /// 定义是否是typedef
@@ -209,8 +218,4 @@ where
     }
 
 }
-
-
-
-
 

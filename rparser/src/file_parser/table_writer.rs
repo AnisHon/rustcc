@@ -25,6 +25,7 @@ pub struct ParserTemplate<'a> {
     user_code: &'a str,
     value_name: &'static str,
     typename: String,
+    params: &'a [String],
     init_state: usize,
     end_symbol: usize,
     action_base: String,
@@ -181,6 +182,7 @@ impl TableWriter {
             end_symbol,
             typename,
             value_name: VALUE_NAME,
+            params: &self.builder.config.params,
             action_base,
             action_base_sz,
             action_next,
@@ -231,7 +233,7 @@ impl TableWriter {
 
         let template = LexerDeclTemplate { decls };
         let rendered = template.render().unwrap();
-        // fs::write(self.decl_path.clone(), rendered).unwrap();
+        fs::write(self.decl_path.clone(), rendered).unwrap();
         // println!("{}", rendered);
     }
 

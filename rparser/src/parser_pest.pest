@@ -10,9 +10,15 @@ decl_code = { "%{" ~ (!"%}" ~ ANY)* ~ "%}" }
 
 decls      = { decl* }
 decl       = { token_decl | assoc_decl | type_decl }
+
+param_decl = { "%param" ~ "{" ~ param_content ~ "}"}
+param_content = { (!"}" ~ ANY)+ }
+
 token_decl = { "%token" ~ ident+ }
+
 assoc_type = { "left" | "right" | "nonassoc" }
 assoc_decl = { ("%" ~ assoc_type) ~ symbol+ }
+
 type_decl  = { "%type" ~ ident }
 
 rules                = { rule_decl* }
