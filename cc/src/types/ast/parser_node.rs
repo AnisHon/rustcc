@@ -35,7 +35,7 @@ pub enum ParserNode {
     BlockItemNode(BlockItem),
     StatementNode(Statement),
     ExpressionNode(Box<Expression>),
-    ExpressionListNode(Vec<Expression>),
+    ExpressionListNode(ExpressionList),
     ConstantNode(Constant),
     DeclSpecNode(Box<DeclSpec>),
     DeclaratorNode(Declarator),
@@ -46,19 +46,27 @@ pub enum ParserNode {
     TypeQualListNode(Vec<TypeQual>),
     StructOrUnionSpecNode(Box<StructOrUnionSpec>),
     StructMemberNode(Box<StructMember>),
-    StructMemberListNode(Vec<StructMember>),
+    StructMemberNodeList(StructMemberList),
     StructDeclaratorNode(StructDeclarator),
-    StructDeclaratorListNode(SepList<StructDeclarator>),
+    StructDeclaratorNodeList(StructDeclaratorList),
     EnumSpecNode(Box<EnumSpec>),
     EnumListNode(SepList<Enumerator>),
     EnumeratorNode(Enumerator),
     TokenNode(Token),
-    TokenListNode(SepList<Token>),
+    TokenListNode(IdentList),
     ParamListNode(Box<ParamList>),
     #[enum_auto_ignore]
     #[default]
     None
 }
+
+type IdentList = SepList<Token>;
+
+type ExpressionList = Vec<Expression>;
+
+type StructMemberList = Vec<StructMember>;
+
+type StructDeclaratorList = SepList<StructDeclarator>;
 
 pub fn make_ident_list(ident_list: Option<SepList<Token>>, comma: Option<Token>, ident: Token) -> ParserNode {
     let mut ident_list = ident_list.unwrap_or_default();

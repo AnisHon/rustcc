@@ -1,3 +1,12 @@
+%{
+use crate::types::ast::ast_nodes::*;
+use crate::types::ast::decl_info::*;
+use crate::types::ast::parser_node::*;
+use crate::types::ast::sema::*;
+use crate::types::ast::temp::*;
+use crate::types::ast::struct_info::*;
+
+%}
 /*
  * C89 (ANSI C) grammar for Bison/Yacc — grammar + precedence only.
  *
@@ -49,19 +58,19 @@
 
 /* ====== Precedence & associativity ======
    From lowest to highest precedence. */
-%left COMMA
-%right OP_ASSIGN OP_ADD_ASSIGN OP_SUB_ASSIGN OP_MUL_ASSIGN OP_DIV_ASSIGN OP_MOD_ASSIGN OP_L_SHIFT_ASSIGN OP_R_SHIFT_ASSIGN OP_AND_ASSIGN OP_XOR_ASSIGN OP_OR_ASSIGN
-%right QUESTION COLON             /* conditional operator is right-associative */
+%left ','
+%right '=' OP_ADD_ASSIGN OP_SUB_ASSIGN OP_MUL_ASSIGN OP_DIV_ASSIGN OP_MOD_ASSIGN OP_L_SHIFT_ASSIGN OP_R_SHIFT_ASSIGN OP_AND_ASSIGN OP_XOR_ASSIGN OP_OR_ASSIGN
+%right '?' ':'             /* conditional operator is right-associative */
 %left OP_OR                /* || */
 %left OP_AND               /* && */
-%left OP_BITOR                  /* bitwise OR */
-%left OP_XOR                  /* bitwise XOR */
-%left OP_BITAND                  /* bitwise AND */
+%left '|'                  /* bitwise OR */
+%left '^'                  /* bitwise XOR */
+%left '&'                  /* bitwise AND */
 %left OP_EQ OP_NE          /* == != */
-%left OP_LT OP_GT OP_LE OP_GE  /* < > <= >= */
+%left '<' '>' OP_LE OP_GE  /* < > <= >= */
 %left OP_L_SHIFT OP_R_SHIFT     /* << >> */
-%left OP_PLUS OP_MINUS
-%left OP_TIMES OP_DIVIDE OP_MOD
+%left '+' '-'
+%left '*' '/' '%'
 %right OP_INC OP_DEC KEYWORD_SIZEOF
 
 /* Dangling else resolution */
@@ -93,14 +102,14 @@ declaration_list_opt
     ;
 
 declaration_list
-    : declaration                   {$$ = }
-    | declaration_list declaration  {$$ = }
+    : declaration                   {$$ = ;}
+    | declaration_list declaration  {$$ = ;}
     ;
 
 /* 6.7 Declarations */
 
 declaration
-    : declaration_specifiers init_declarator_list_opt SEMICOLON {$$ = }
+    : declaration_specifiers init_declarator_list_opt ';' {$$ = }
     ;
 
 init_declarator_list_opt
@@ -110,12 +119,12 @@ init_declarator_list_opt
 
 init_declarator_list
     : init_declarator                               {$$ = }
-    | init_declarator_list COMMA init_declarator    {$$ = }
+    | init_declarator_list ',' init_declarator      {$$ = }
     ;
 
 init_declarator
-    : declarator                        {$$ = }
-    | declarator OP_ASSIGN initializer  {$$ = }
+    : declarator                    {$$ = ;}
+    | declarator '=' initializer    {$$ = ;}
     ;
 
 /* specifiers and qualifiers */
@@ -160,8 +169,8 @@ type_qualifier
     ;
 
 struct_or_union_specifier
-    : struct_or_union identifier_opt LBRACE struct_declaration_list RBRACE  {$$ = StructOrUnionSpec::make_decl($1, $2, $3, $4, $5);}
-    | struct_or_union ID                                                    {$$ = StructOrUnionSpec::make($1, $2);}
+    : struct_or_union identifier_opt '{' struct_declaration_list '}'  {$$ = StructOrUnionSpec::make_decl($1, $2, $3, $4, $5);}
+    | struct_or_union ID                                              {$$ = StructOrUnionSpec::make($1, $2);}
     ;
 
 struct_or_union
@@ -180,7 +189,7 @@ struct_declaration_list
     ;
 
 struct_declaration
-    : specifier_qualifier_list struct_declarator_list SEMICOLON {$$ = }
+    : specifier_qualifier_list struct_declarator_list ';' {$$ = }
     ;
 
 specifier_qualifier_list
@@ -194,29 +203,29 @@ specifier_qualifier_list_opt
     ;
 
 struct_declarator_list
-    : struct_declarator                                 {$$ = StructMember::make_list(None, $1);}
-    | struct_declarator_list COMMA struct_declarator    {$$ = StructMember::make_list(Some($1), $2, $3);}
+    : struct_declarator                               {$$ = StructMember::make_list(None, $1);}
+    | struct_declarator_list ',' struct_declarator    {$$ = StructMember::make_list(Some($1), $2, $3);}
     ;
 
 struct_declarator
-    : declarator                            {$$ = StructDeclarator::make(Some($1), None);}
-    | COLON constant_expression             {$$ = StructDeclarator::make(None, Some($2));}
-    | declarator COLON constant_expression  {$$ = StructDeclarator::make(Some($1), Sone($3));}
+    : declarator                          {$$ = StructDeclarator::make(Some($1), None);}
+    | ':' constant_expression             {$$ = StructDeclarator::make(None, Some($2));}
+    | declarator ':' constant_expression  {$$ = StructDeclarator::make(Some($1), Sone($3));}
     ;
 
 enum_specifier
-    : KEYWORD_ENUM identifier_opt LBRACE enumerator_list RBRACE {$$ = EnumSpec::make_detail($1, $2, $3, $4, $5);}
-    | KEYWORD_ENUM ID                                           {$$ = EnumSpec::make_simple($1, $2);}
+    : KEYWORD_ENUM identifier_opt '{' enumerator_list '}' {$$ = EnumSpec::make_detail($1, $2, $3, $4, $5);}
+    | KEYWORD_ENUM ID                                     {$$ = EnumSpec::make_simple($1, $2);}
     ;
 
 enumerator_list
-    : enumerator                        {$$ = Enumerator::make_list($1);}
-    | enumerator_list COMMA enumerator  {$$ = Enumerator::append_list($1, $2, $3);}
+    : enumerator                      {$$ = Enumerator::make_list($1);}
+    | enumerator_list ',' enumerator  {$$ = Enumerator::append_list($1, $2, $3);}
     ;
 
 enumerator
-    : ID                                {$$ = Enumerator::make($1, None);}
-    | ID OP_ASSIGN constant_expression  {$$ = Enumerator::make($1, Some($3));}
+    : ID                          {$$ = Enumerator::make($1, None);}
+    | ID '=' constant_expression  {$$ = Enumerator::make($1, Some($3));}
     ;
 
 /* declarators */
@@ -231,10 +240,10 @@ pointer_opt
     ;
 
 pointer
-    : OP_TIMES                              {$$ = DeclaratorChunk::make_pointer($1, None, None);}
-    | OP_TIMES type_qualifier_list          {$$ = DeclaratorChunk::make_pointer($1, Some($2), None);}
-    | OP_TIMES pointer                      {$$ = DeclaratorChunk::make_pointer($1, None, Some($3));}
-    | OP_TIMES type_qualifier_list pointer  {$$ = DeclaratorChunk::make_pointer($1, Some($2), Some($3));}
+    : '*'                              {$$ = DeclaratorChunk::make_pointer($1, None, None);}
+    | '*' type_qualifier_list          {$$ = DeclaratorChunk::make_pointer($1, Some($2), None);}
+    | '*' pointer                      {$$ = DeclaratorChunk::make_pointer($1, None, Some($3));}
+    | '*' type_qualifier_list pointer  {$$ = DeclaratorChunk::make_pointer($1, Some($2), Some($3));}
     ;
 
 type_qualifier_list
@@ -243,11 +252,11 @@ type_qualifier_list
     ;
 /* 最后的那个是老式声明 */
 direct_declarator
-    : ID                                                            {$$ = Declarator::make($1);}
-    | LPAREN declarator RPAREN                                      {$$ = Declarator::add_span($1, $2, $3);}
-    | direct_declarator LBRACKET constant_expression_opt RBRACKET   {$$ = Declarator::make_array(Some($1), $2, $3, $4);}
-    | direct_declarator LPAREN parameter_type_list RPAREN           {$$ = Declarator::make_function(Some($1), $2, $3, $4);}
-    | direct_declarator LPAREN identifier_list_opt RPAREN           {$$ = Declarator::make_old_function($1, $2, $3, $4);}
+    : ID                                                {$$ = Declarator::make($1);}
+    | '(' declarator ')'                                {$$ = Declarator::add_span($1, $2, $3);}
+    | direct_declarator '[' constant_expression_opt ']' {$$ = Declarator::make_array(Some($1), $2, $3, $4);}
+    | direct_declarator '(' parameter_type_list ')'     {$$ = Declarator::make_function(Some($1), $2, $3, $4);}
+    | direct_declarator '(' identifier_list_opt ')'     {$$ = Declarator::make_old_function($1, $2, $3, $4);}
     ;
 
 constant_expression_opt
@@ -262,17 +271,17 @@ identifier_list_opt
 
 identifier_list
     : ID                        {$$ = make_ident_list(None, $1, None);}
-    | identifier_list COMMA ID  {$$ = make_ident_list(Some($1), Some($2), $3);}
+    | identifier_list ',' ID    {$$ = make_ident_list(Some($1), Some($2), $3);}
     ;
 
 parameter_type_list
     : parameter_list                    {$$ = $1;}
-    | parameter_list COMMA OP_ELLIPSIS  {$$ = ParamList::set_variadic($1, $2);}
+    | parameter_list ',' OP_ELLIPSIS    {$$ = ParamList::set_variadic($1, $2);}
     ;
 
 parameter_list
-    : parameter_declaration                         {$$ = ParamList::make_list($1);}
-    | parameter_list COMMA parameter_declaration    {$$ = ParamList::append_list($1, $2, $3);}
+    : parameter_declaration                     {$$ = ParamList::make_list($1);}
+    | parameter_list ',' parameter_declaration  {$$ = ParamList::append_list($1, $2, $3);}
     ;
 
 parameter_declaration
@@ -291,11 +300,11 @@ abstract_declarator
     ;
 
 direct_abstract_declarator
-    : LPAREN abstract_declarator RPAREN                                     {$$ = Declarator::add_span($1, $2, $3);}
-    | LBRACKET constant_expression_opt RBRACKET                             {$$ = Declarator::make_array(None, $1, $2, $3);}
-    | direct_abstract_declarator LBRACKET constant_expression_opt RBRACKET  {$$ = Declarator::make_array(Some($1), $2, $3, $4);}
-    | LPAREN parameter_type_list_opt RPAREN                                 {$$ = Declarator::make_function(None, $1, $2, $3);}
-    | direct_abstract_declarator LPAREN parameter_type_list_opt RPAREN      {$$ = Declarator::make_function(Some($1), $2, $3, $4);}
+    : '(' abstract_declarator ')'                                 {$$ = Declarator::add_span($1, $2, $3);}
+    | '[' constant_expression_opt ']'                             {$$ = Declarator::make_array(None, $1, $2, $3);}
+    | direct_abstract_declarator '[' constant_expression_opt ']'  {$$ = Declarator::make_array(Some($1), $2, $3, $4);}
+    | '(' parameter_type_list_opt ')'                             {$$ = Declarator::make_function(None, $1, $2, $3);}
+    | direct_abstract_declarator '(' parameter_type_list_opt ')'  {$$ = Declarator::make_function(Some($1), $2, $3, $4);}
     ;
 
 parameter_type_list_opt
@@ -305,14 +314,14 @@ parameter_type_list_opt
 
 /* Initializers (C89) */
 initializer
-    : assignment_expression                 {$$ = }
-    | LBRACE initializer_list RBRACE        {$$ = }
-    | LBRACE initializer_list COMMA RBRACE  {$$ = }  /* trailing comma is widely accepted; tighten if needed */
+    : assignment_expression         {$$ = }
+    | '{' initializer_list '}'      {$$ = }
+    | '{' initializer_list ',' '}'  {$$ = }  /* trailing comma is widely accepted; tighten if needed */
     ;
 
 initializer_list
-    : initializer                           {$$ = }
-    | initializer_list COMMA initializer    {$$ = }
+    : initializer                       {$$ = }
+    | initializer_list ',' initializer  {$$ = }
     ;
 
 /* 6.8 Statements */
@@ -326,14 +335,14 @@ statement
     ;
 
 labeled_statement
-    : ID COLON statement                                {$$ = LabeledStatement::make_label($1, $3);}
-    | KEYWORD_CASE constant_expression COLON statement  {$$ = LabeledStatement::make_case($2, $4);}
-    | KEYWORD_DEFAULT COLON statement                   {$$ = LabeledStatement::make_default($3);}
+    : ID ':' statement                                {$$ = LabeledStatement::make_label($1, $3);}
+    | KEYWORD_CASE constant_expression ':' statement  {$$ = LabeledStatement::make_case($2, $4);}
+    | KEYWORD_DEFAULT ':' statement                   {$$ = LabeledStatement::make_default($3);}
     ;
 
 compound_statement
-    : LBRACE RBRACE                 {$$ = }
-    | LBRACE block_item_list RBRACE {$$ = }
+    : '{' '}'                 {$$ = }
+    | '{' block_item_list '}' {$$ = }
     ;
 
 block_item_list
@@ -347,20 +356,20 @@ block_item
     ;
 
 expression_statement
-    : SEMICOLON             {$$ = Statement::make_expression(None);}
-    | expression SEMICOLON  {$$ = Statement::make_expression(Some($1));}
+    : ';'             {$$ = Statement::make_expression(None);}
+    | expression ';'  {$$ = Statement::make_expression(Some($1));}
     ;
 
 selection_statement
-    : KEYWORD_IF LPAREN expression RPAREN statement                         {$$ = Statement::make_if($1, $3, $5, None);} %prec nonassoc
-    | KEYWORD_IF LPAREN expression RPAREN statement KEYWORD_ELSE statement  {$$ = Statement::make_if($1, $3, $5, Some($7));}
-    | KEYWORD_SWITCH LPAREN expression RPAREN statement                     {$$ = Statement::make_switch($1, $3, $5);}
+    : KEYWORD_IF '(' expression ')' statement                         {$$ = Statement::make_if($1, $3, $5, None);} %prec nonassoc
+    | KEYWORD_IF '(' expression ')' statement KEYWORD_ELSE statement  {$$ = Statement::make_if($1, $3, $5, Some($7));}
+    | KEYWORD_SWITCH '(' expression ')' statement                     {$$ = Statement::make_switch($1, $3, $5);}
     ;
 
 iteration_statement
-    : KEYWORD_WHILE LPAREN expression RPAREN statement                                                      {$$ = Statement::make_while($1, $3, $5, None);}
-    | KEYWORD_DO statement KEYWORD_WHILE LPAREN expression RPAREN SEMICOLON                                 {$$ = Statement::make_while($1, $2, $5, Some($6));}
-    | KEYWORD_FOR LPAREN expression_opt SEMICOLON expression_opt SEMICOLON expression_opt RPAREN statement  {$$ = Statement::make_for($1, $3, $5, $7, $9);}
+    : KEYWORD_WHILE '(' expression ')' statement                                          {$$ = Statement::make_while($1, $3, $5, None);}
+    | KEYWORD_DO statement KEYWORD_WHILE '(' expression ')' ';'                           {$$ = Statement::make_while($1, $2, $5, Some($6));}
+    | KEYWORD_FOR '(' expression_opt ';' expression_opt ';' expression_opt ')' statement  {$$ = Statement::make_for($1, $3, $5, $7, $9);}
     ;
 
 expression_opt
@@ -369,19 +378,19 @@ expression_opt
     ;
 
 jump_statement
-    : KEYWORD_GOTO ID SEMICOLON             {$$ = Statement::make_goto($1, $2);}
-    | KEYWORD_CONTINUE SEMICOLON            {$$ = Statement::make_continue_break($1);}
-    | KEYWORD_BREAK SEMICOLON               {$$ = Statement::make_continue_break($1);}
-    | KEYWORD_RETURN SEMICOLON              {$$ = Statement::make_return($1, None);}
-    | KEYWORD_RETURN expression SEMICOLON   {$$ = Statement::make_return($1, $2);}
+    : KEYWORD_GOTO ID ';'             {$$ = Statement::make_goto($1, $2);}
+    | KEYWORD_CONTINUE ';'            {$$ = Statement::make_continue_break($1);}
+    | KEYWORD_BREAK ';'               {$$ = Statement::make_continue_break($1);}
+    | KEYWORD_RETURN ';'              {$$ = Statement::make_return($1, None);}
+    | KEYWORD_RETURN expression ';'   {$$ = Statement::make_return($1, $2);}
     ;
 
 /* 6.5 Expressions */
 primary_expression
-    : ID                        {$$ = Expression::make_id($1);}
-    | constant                  {$$ = Expression::make_literal($1);}
-    | string                    {$$ = Expression::make_literal($1);}
-    | LPAREN expression RPAREN  {$$ = $2;}
+    : ID                  {$$ = Expression::make_id($1);}
+    | constant            {$$ = Expression::make_literal($1);}
+    | string              {$$ = Expression::make_literal($1);}
+    | '(' expression ')'  {$$ = $2;}
     ;
 
 constant
@@ -397,13 +406,13 @@ string
     ;
 
 postfix_expression
-    : primary_expression                                            {$$ = $1;}
-    | postfix_expression LBRACKET expression RBRACKET               {$$ = Expression::make_array_access($1, $3, $4);}
-    | postfix_expression LPAREN argument_expression_list_opt RPAREN {$$ = Expression::make_call($1, $3, $4);}
-    | postfix_expression DOT ID                                     {$$ = Expression::make_field($1, $3);}
-    | postfix_expression OP_ARROW ID                                {$$ = Expression::make_arrow($1, $3);}
-    | postfix_expression OP_INC                                     {$$ = Expression::make_update($1, $2, true);}
-    | postfix_expression OP_DEC                                     {$$ = Expression::make_update($1, $2, true);}
+    : primary_expression                                        {$$ = $1;}
+    | postfix_expression '[' expression ']'                     {$$ = Expression::make_array_access($1, $3, $4);}
+    | postfix_expression '(' argument_expression_list_opt ')'   {$$ = Expression::make_call($1, $3, $4);}
+    | postfix_expression '.' ID                                 {$$ = Expression::make_field($1, $3);}
+    | postfix_expression OP_ARROW ID                            {$$ = Expression::make_arrow($1, $3);}
+    | postfix_expression OP_INC                                 {$$ = Expression::make_update($1, $2, true);}
+    | postfix_expression OP_DEC                                 {$$ = Expression::make_update($1, $2, true);}
     ;
 
 argument_expression_list_opt
@@ -413,93 +422,93 @@ argument_expression_list_opt
 
 argument_expression_list
     : assignment_expression                                 {$$ = }
-    | argument_expression_list COMMA assignment_expression  {$$ = }
+    | argument_expression_list ',' assignment_expression    {$$ = }
     ;
 
 unary_expression
-    : postfix_expression                        {$$ = $1;}
-    | OP_INC unary_expression                   {$$ = Expression::make_update($2, $1, false);}
-    | OP_DEC unary_expression                   {$$ = Expression::make_update($2, $1, true);}
-    | unary_operator cast_expression            {$$ = Expression::make_unary($1, $2);}
-    | KEYWORD_SIZEOF unary_expression           {$$ = Expression::make_sizeof_expr($1, $2);}
-    | KEYWORD_SIZEOF LPAREN type_name RPAREN    {$$ = Expression::make_sizeof_type($1, $3, $4);}
+    : postfix_expression                {$$ = $1;}
+    | OP_INC unary_expression           {$$ = Expression::make_update($2, $1, false);}
+    | OP_DEC unary_expression           {$$ = Expression::make_update($2, $1, true);}
+    | unary_operator cast_expression    {$$ = Expression::make_unary($1, $2);}
+    | KEYWORD_SIZEOF unary_expression   {$$ = Expression::make_sizeof_expr($1, $2);}
+    | KEYWORD_SIZEOF '(' type_name ')'  {$$ = Expression::make_sizeof_type($1, $3, $4);}
     ;
 
 unary_operator
-    : OP_BITAND             {$$ = $1;}
-    | OP_TIMES              {$$ = $1;}
-    | OP_PLUS               {$$ = $1;}      %prec right
-    | OP_MINUS              {$$ = $1;}      %prec right
-    | OP_BIT_NOT            {$$ = $1;}
-    | OP_NOT                {$$ = $1;}
+    : '&'   {$$ = $1;}
+    | '*'   {$$ = $1;}
+    | '+'   {$$ = $1;}      %prec right
+    | '-'   {$$ = $1;}      %prec right
+    | '~'   {$$ = $1;}
+    | '!'   {$$ = $1;}
     ;
 
 cast_expression
-    : LPAREN type_name RPAREN cast_expression       {$$ = Expression::make_cast($1, $2, $4);}
-    | unary_expression                              {$$ = $1;}
+    : '(' type_name ')' cast_expression {$$ = Expression::make_cast($1, $2, $4);}
+    | unary_expression                  {$$ = $1;}
     ;
 
 multiplicative_expression
-    : multiplicative_expression OP_TIMES cast_expression        {$$ = Expression::make_binary($1, $2, $3);}
-    | multiplicative_expression OP_DIVIDE cast_expression       {$$ = Expression::make_binary($1, $2, $3);}
-    | multiplicative_expression OP_MOD cast_expression          {$$ = Expression::make_binary($1, $2, $3);}
-    | cast_expression                                           {$$ = $1;}
+    : multiplicative_expression '*' cast_expression     {$$ = Expression::make_binary($1, $2, $3);}
+    | multiplicative_expression '/' cast_expression     {$$ = Expression::make_binary($1, $2, $3);}
+    | multiplicative_expression '%' cast_expression     {$$ = Expression::make_binary($1, $2, $3);}
+    | cast_expression                                   {$$ = $1;}
     ;
 
 additive_expression
-    : additive_expression OP_PLUS multiplicative_expression     {$$ = Expression::make_binary($1, $2, $3);}
-    | additive_expression OP_MINUS multiplicative_expression    {$$ = Expression::make_binary($1, $2, $3);}
-    | multiplicative_expression                                 {$$ = $1;}
+    : additive_expression '+' multiplicative_expression     {$$ = Expression::make_binary($1, $2, $3);}
+    | additive_expression '-' multiplicative_expression     {$$ = Expression::make_binary($1, $2, $3);}
+    | multiplicative_expression                             {$$ = $1;}
     ;
 
 shift_expression
-    : shift_expression OP_L_SHIFT additive_expression           {$$ = Expression::make_binary($1, $2, $3);}
-    | shift_expression OP_R_SHIFT additive_expression           {$$ = Expression::make_binary($1, $2, $3);}
-    | additive_expression                                       {$$ = $1;}
+    : shift_expression OP_L_SHIFT additive_expression       {$$ = Expression::make_binary($1, $2, $3);}
+    | shift_expression OP_R_SHIFT additive_expression       {$$ = Expression::make_binary($1, $2, $3);}
+    | additive_expression                                   {$$ = $1;}
     ;
 
 relational_expression
-    : relational_expression OP_LT shift_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | relational_expression OP_GT shift_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | relational_expression OP_LE shift_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | relational_expression OP_GE shift_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | shift_expression                                          {$$ = $1;}
+    : relational_expression '<' shift_expression            {$$ = Expression::make_binary($1, $2, $3);}
+    | relational_expression '>' shift_expression            {$$ = Expression::make_binary($1, $2, $3);}
+    | relational_expression OP_LE shift_expression          {$$ = Expression::make_binary($1, $2, $3);}
+    | relational_expression OP_GE shift_expression          {$$ = Expression::make_binary($1, $2, $3);}
+    | shift_expression                                      {$$ = $1;}
     ;
 
 equality_expression
-    : equality_expression OP_EQ relational_expression           {$$ = Expression::make_binary($1, $2, $3);}
-    | equality_expression OP_NE relational_expression           {$$ = Expression::make_binary($1, $2, $3);}
-    | relational_expression                                     {$$ = $1;}
+    : equality_expression OP_EQ relational_expression       {$$ = Expression::make_binary($1, $2, $3);}
+    | equality_expression OP_NE relational_expression       {$$ = Expression::make_binary($1, $2, $3);}
+    | relational_expression                                 {$$ = $1;}
     ;
 
 and_expression
-    : and_expression OP_BITAND equality_expression              {$$ = Expression::make_binary($1, $2, $3);}
-    | equality_expression                                       {$$ = $1;}
+    : and_expression '&' equality_expression                {$$ = Expression::make_binary($1, $2, $3);}
+    | equality_expression                                   {$$ = $1;}
     ;
 
 exclusive_or_expression
-    : exclusive_or_expression OP_XOR and_expression             {$$ = Expression::make_binary($1, $2, $3);}
-    | and_expression                                            {$$ = $1;}
+    : exclusive_or_expression '^' and_expression            {$$ = Expression::make_binary($1, $2, $3);}
+    | and_expression                                        {$$ = $1;}
     ;
 
 inclusive_or_expression
-    : inclusive_or_expression OP_BITOR exclusive_or_expression  {$$ = Expression::make_binary($1, $2, $3);}
-    | exclusive_or_expression                                   {$$ = $1;}
+    : inclusive_or_expression '|' exclusive_or_expression   {$$ = Expression::make_binary($1, $2, $3);}
+    | exclusive_or_expression                               {$$ = $1;}
     ;
 
 logical_and_expression
-    : logical_and_expression OP_AND inclusive_or_expression     {$$ = Expression::make_binary($1, $2, $3);}
-    | inclusive_or_expression                                   {$$ = $1;}
+    : logical_and_expression OP_AND inclusive_or_expression {$$ = Expression::make_binary($1, $2, $3);}
+    | inclusive_or_expression                               {$$ = $1;}
     ;
 
 logical_or_expression
-    : logical_or_expression OP_OR logical_and_expression        {$$ = Expression::make_binary($1, $2, $3);}
-    | logical_and_expression                                    {$$ = $1;}
+    : logical_or_expression OP_OR logical_and_expression    {$$ = Expression::make_binary($1, $2, $3);}
+    | logical_and_expression                                {$$ = $1;}
     ;
 
 conditional_expression
-    : logical_or_expression                                                     {$$ = $1;}
-    | logical_or_expression QUESTION expression COLON conditional_expression    {$$ = Expression::make_conditional($1, $3, $5);}
+    : logical_or_expression                                             {$$ = $1;}
+    | logical_or_expression '?' expression ':' conditional_expression   {$$ = Expression::make_conditional($1, $3, $5);}
     ;
 
 assignment_expression
@@ -508,22 +517,22 @@ assignment_expression
     ;
 
 assignment_operator
-    : OP_ASSIGN                 {$$ = $1;}
-    | OP_MUL_ASSIGN             {$$ = $1;}
-    | OP_DIV_ASSIGN             {$$ = $1;}
-    | OP_MOD_ASSIGN             {$$ = $1;}
-    | OP_ADD_ASSIGN             {$$ = $1;}
-    | OP_SUB_ASSIGN             {$$ = $1;}
-    | OP_L_SHIFT_ASSIGN         {$$ = $1;}
-    | OP_R_SHIFT_ASSIGN         {$$ = $1;}
-    | OP_AND_ASSIGN             {$$ = $1;}
-    | OP_XOR_ASSIGN             {$$ = $1;}
-    | OP_OR_ASSIGN              {$$ = $1;}
+    : '='                   {$$ = $1;}
+    | OP_MUL_ASSIGN         {$$ = $1;}
+    | OP_DIV_ASSIGN         {$$ = $1;}
+    | OP_MOD_ASSIGN         {$$ = $1;}
+    | OP_ADD_ASSIGN         {$$ = $1;}
+    | OP_SUB_ASSIGN         {$$ = $1;}
+    | OP_L_SHIFT_ASSIGN     {$$ = $1;}
+    | OP_R_SHIFT_ASSIGN     {$$ = $1;}
+    | OP_AND_ASSIGN         {$$ = $1;}
+    | OP_XOR_ASSIGN         {$$ = $1;}
+    | OP_OR_ASSIGN          {$$ = $1;}
     ;
 
 expression
     : assignment_expression                     {$$ = $1;}
-    | expression COMMA assignment_expression    {$$ = Expression::make_comma($1, $3);}
+    | expression ',' assignment_expression      {$$ = Expression::make_comma($1, $3);}
     ;
 
 constant_expression
@@ -537,9 +546,3 @@ type_name
     ;
 
 %%
-use crate::types::ast::ast_nodes::*;
-use crate::types::ast::decl_info::*;
-use crate::types::ast::parser_node::*;
-use crate::types::ast::sema::*;
-use crate::types::ast::temp::*;
-use crate::types::ast::struct_info::*;
