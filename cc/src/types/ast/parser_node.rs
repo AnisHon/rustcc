@@ -7,25 +7,20 @@
 //!
 
 use crate::types::ast::ast_nodes::*;
-use crate::types::ast::decl_info::{CompleteDecl, DeclSpec, Declarator, DeclaratorChunk, ParamList, TypeQual, TypeSpec};
-use crate::types::ast::struct_info::{EnumSpec, Enumerator, StructDeclarator, StructMember, StructOrUnionSpec};
+use crate::types::ast::decl_info::{CompleteDecl, DeclChunkList, DeclSpec, Declarator, ParamList, PointerChunkList, TypeQual, TypeSpec};
+use crate::types::ast::struct_info::{EnumList, EnumSpec, Enumerator, StructDeclarator, StructDeclaratorList, StructMember, StructMemberList, StructOrUnionSpec};
 use crate::types::lex::token::Token;
 use crate::types::span::SepList;
 use macros::{EnumAutoFrom, EnumAutoInto, EnumAutoIntoOption};
-
-
-// =============================
-// 宏定义
-// =============================
 
 #[derive(Debug)]
 #[derive(EnumAutoInto, EnumAutoFrom, EnumAutoIntoOption, Default)]
 pub enum ParserNode {
     TranslationUnitNode(TranslationUnit),
-    ExternalDeclarationNode(Box<ExternalDeclaration>),
+    ExternalDeclarationNode(ExternalDeclaration),
     FunctionDefinitionNode(Box<FunctionDefinition>),
     DeclarationNode(Box<Declaration>),
-    TypeNode(Box<Type>),
+    TypeNode(Type),
     StorageClassNode(StorageClass),
     QualifiersNode(Qualifiers),
     FieldNode(Box<Field>),
@@ -35,30 +30,39 @@ pub enum ParserNode {
     BlockItemNode(BlockItem),
     StatementNode(Statement),
     ExpressionNode(Box<Expression>),
-    ExpressionListNode(Vec<Expression>),
+    ExpressionListNode(ExpressionList),
     ConstantNode(Constant),
-    DeclSpecNode(Box<DeclSpec>),
+    DeclSpecNode(DeclSpec),
     DeclaratorNode(Declarator),
     CompleteDeclNode(Box<CompleteDecl>),
-    DeclChunkList(Vec<DeclaratorChunk>),
+    DeclChunkListNode(DeclChunkList),
+    PointerChunkListNode(PointerChunkList),
     TypeSpecNode(TypeSpec),
     TypeQualNode(TypeQual),
     TypeQualListNode(Vec<TypeQual>),
     StructOrUnionSpecNode(Box<StructOrUnionSpec>),
-    StructMemberNode(Box<StructMember>),
-    StructMemberListNode(Vec<StructMember>),
+    StructMemberNode(StructMember),
+    StructMemberNodeList(StructMemberList),
     StructDeclaratorNode(StructDeclarator),
-    StructDeclaratorListNode(SepList<StructDeclarator>),
+    StructDeclaratorNodeList(StructDeclaratorList),
     EnumSpecNode(Box<EnumSpec>),
-    EnumListNode(SepList<Enumerator>),
+    EnumListNode(EnumList),
     EnumeratorNode(Enumerator),
     TokenNode(Token),
-    TokenListNode(SepList<Token>),
-    ParamListNode(Box<ParamList>),
+    TokenListNode(IdentList),
+    ParamListNode(ParamList),
     #[enum_auto_ignore]
     #[default]
     None
 }
+
+pub type IdentList = SepList<Token>;
+
+
+
+
+
+
 
 pub fn make_ident_list(ident_list: Option<SepList<Token>>, comma: Option<Token>, ident: Token) -> ParserNode {
     let mut ident_list = ident_list.unwrap_or_default();

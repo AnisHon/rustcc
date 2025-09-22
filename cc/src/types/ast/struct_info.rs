@@ -9,6 +9,12 @@ use crate::types::ast::parser_node::ParserNode;
 use crate::types::span::{Delim, SepList, Span};
 use crate::types::lex::token::Token;
 
+pub type StructMemberList = Vec<StructMember>;
+pub type StructDeclaratorList = SepList<StructDeclarator>;
+
+pub type EnumList = SepList<Enumerator>;
+
+
 #[derive(Debug, Clone)]
 pub enum StructKind {
     Struct(Span),

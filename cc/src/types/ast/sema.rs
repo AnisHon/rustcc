@@ -4,7 +4,7 @@
 //!
 
 use crate::types::ast::ast_nodes::*;
-use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclaratorChunk, TypeQual};
+use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclChunk, TypeQual};
 use crate::types::ast::parser_node::ParserNode;
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::TokenKind;
@@ -24,7 +24,7 @@ impl TranslationUnit {
 
 impl Type {
 
-    pub fn make_type(_chunk: Vec<DeclaratorChunk>) -> Self {
+    pub fn make_type(_chunk: Vec<DeclChunk>) -> Self {
         todo!() // todo 未实现
     }
 }
@@ -350,41 +350,41 @@ impl Constant {
 
 
 impl Declaration {
-    pub fn make_decl(decl_spec: DeclSpec, declarator: Declarator, init: Option<Initializer>) -> ParserNode {
-        let span = declarator.span.merge(&declarator.span);
-        let mut qualifiers = Qualifiers::default();
-
-        for qual in decl_spec.type_quals {
-            qualifiers.set(qual);
-        }
-
-        let mut storage: Option<StorageClass> = None;
-
-        for x in decl_spec.storage_class {
-            if storage.is_none() {
-                storage = Some(x);
-            } else {
-                let origin = storage.as_mut().unwrap();
-                let new = &x;
-                if mem::discriminant(origin) == mem::discriminant(new) { // 如果是同一类就是duplicate
-                    panic!("duplicate '{:?}' specifier", x)
-                } else {
-                    panic!("'{:?}' specifier conflicts with '{:?}'", origin, new)
-                }
-
-            }
-        }
-
-
-        let decl = Self {
-            name: declarator.name.unwrap(), //
-            ty: Type::make_type(declarator.chunks),
-            storage,
-            qualifiers,
-            init,
-            span
-        };
-        Box::new(decl).into()
-
-    }
+    // pub fn make_decl(decl_spec: DeclSpec, declarator: Declarator, init: Option<Initializer>) -> ParserNode {
+    //     let span = declarator.span.merge(&declarator.span);
+    //     let mut qualifiers = Qualifiers::default();
+    //
+    //     for qual in decl_spec.type_quals {
+    //         qualifiers.set(qual);
+    //     }
+    //
+    //     let mut storage: Option<StorageClass> = None;
+    //
+    //     for x in decl_spec.storage_class {
+    //         if storage.is_none() {
+    //             storage = Some(x);
+    //         } else {
+    //             let origin = storage.as_mut().unwrap();
+    //             let new = &x;
+    //             if mem::discriminant(origin) == mem::discriminant(new) { // 如果是同一类就是duplicate
+    //                 panic!("duplicate '{:?}' specifier", x)
+    //             } else {
+    //                 panic!("'{:?}' specifier conflicts with '{:?}'", origin, new)
+    //             }
+    //
+    //         }
+    //     }
+    //
+    //
+    //     let decl = Self {
+    //         name: declarator.name.unwrap(), //
+    //         ty: Type::make_type(declarator.chunks),
+    //         storage,
+    //         qualifiers,
+    //         init,
+    //         span
+    //     };
+    //     Box::new(decl).into()
+    //
+    // }
 }

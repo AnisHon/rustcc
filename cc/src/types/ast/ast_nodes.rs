@@ -8,6 +8,8 @@ use std::rc::Rc;
 use crate::types::lex::token::{Token, TokenValue};
 use crate::types::lex::token_kind::TokenKind;
 
+pub type ExpressionList = Vec<Expression>;
+
 /// 顶层翻译单元
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {
@@ -26,7 +28,7 @@ impl UnwrapSpan for TranslationUnit {
 /// 外部声明：函数或变量
 #[derive(Debug, Clone)]
 pub enum ExternalDeclaration {
-    Function(FunctionDefinition),
+    Function(Box<FunctionDefinition>),
     Declaration(DeclStmt),
 }
 
@@ -44,7 +46,7 @@ impl UnwrapSpan for ExternalDeclaration {
 #[derive(Debug, Clone)]
 pub struct FunctionDefinition {
     pub name: String,
-    pub ret_ty: Box<Type>,
+    pub ret_ty: Type,
     pub params: Vec<Parameter>,
     pub is_variadic: bool,
     pub body: Option<Box<Block>>, // None for extern declarations

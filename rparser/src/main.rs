@@ -6,7 +6,7 @@ pub fn get_path(path: &str) -> String {
 }
 fn main() {
 
-    let input = include_str!("../../src/parser_test.y");
+    let input = include_str!("../../src/parser.y");
     
 
     let builder = LRTableBuilder::new(TableType::LALR1, input.to_string());

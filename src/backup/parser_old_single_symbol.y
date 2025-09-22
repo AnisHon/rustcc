@@ -114,12 +114,12 @@ init_declarator_list_opt
 
 init_declarator_list
     : init_declarator                               {$$ = InitDeclaratorList::make_init_decl_list($1);}
-    | init_declarator_list ',' init_declarator    {$$ = InitDeclaratorList::insert($1, $3);}
+    | init_declarator_list ',' init_declarator      {$$ = InitDeclaratorList::insert($1, $3);}
     ;
 
 init_declarator
-    : declarator                        {$$ = InitDeclarator::make_plain($1);}
-    | declarator '=' initializer  {$$ = InitDeclarator::make_initialized($1, $3);}
+    : declarator                    {$$ = InitDeclarator::make_plain($1);}
+    | declarator '=' initializer    {$$ = InitDeclarator::make_initialized($1, $3);}
     ;
 
 /* specifiers and qualifiers */
@@ -164,8 +164,8 @@ type_qualifier
     ;
 
 struct_or_union_specifier
-    : struct_or_union identifier_opt '{' struct_declaration_list '}'  {$$ = StructOrUnionSpecifier::make_defined($1, $2, $4);}
-    | struct_or_union ID                                                    {$$ = StructOrUnionSpecifier::make_named($1, $2);}
+    : struct_or_union identifier_opt '{' struct_declaration_list '}'    {$$ = StructOrUnionSpecifier::make_defined($1, $2, $4);}
+    | struct_or_union ID                                                {$$ = StructOrUnionSpecifier::make_named($1, $2);}
     ;
 
 struct_or_union
@@ -199,28 +199,28 @@ specifier_qualifier_list_opt
 
 struct_declarator_list
     : struct_declarator                                 {$$ = make_struct_declarator_list($1);}
-    | struct_declarator_list ',' struct_declarator    {$$ = insert_struct_declarator_list($1, $3);}
+    | struct_declarator_list ',' struct_declarator      {$$ = insert_struct_declarator_list($1, $3);}
     ;
 
 struct_declarator
     : declarator                            {$$ = StructDeclarator::make_declarator($1);}
-    | ':' constant_expression             {$$ = StructDeclarator::make_bitfield(SemanticValue::None, $2);}
-    | declarator ':' constant_expression  {$$ = StructDeclarator::make_bitfield($1, $3);}
+    | ':' constant_expression               {$$ = StructDeclarator::make_bitfield(SemanticValue::None, $2);}
+    | declarator ':' constant_expression    {$$ = StructDeclarator::make_bitfield($1, $3);}
     ;
 
 enum_specifier
-    : KEYWORD_ENUM identifier_opt '{' enumerator_list '}' {$$ = EnumSpecifier::make_defined($2, $4);}
-    | KEYWORD_ENUM ID                                           {$$ = EnumSpecifier::make_named($2);}
+    : KEYWORD_ENUM identifier_opt '{' enumerator_list '}'   {$$ = EnumSpecifier::make_defined($2, $4);}
+    | KEYWORD_ENUM ID                                       {$$ = EnumSpecifier::make_named($2);}
     ;
 
 enumerator_list
     : enumerator                        {$$ = make_enumerator_list($1);}
-    | enumerator_list ',' enumerator  {$$ = insert_enumerator_list($1, $3);}
+    | enumerator_list ',' enumerator    {$$ = insert_enumerator_list($1, $3);}
     ;
 
 enumerator
-    : ID                                {$$ = Enumerator::make_plain($1);}
-    | ID '=' constant_expression  {$$ = Enumerator::make_with_value($1, $3);}
+    : ID                            {$$ = Enumerator::make_plain($1);}
+    | ID '=' constant_expression    {$$ = Enumerator::make_with_value($1, $3);}
     ;
 
 /* declarators */
@@ -247,11 +247,11 @@ type_qualifier_list
     ;
 
 direct_declarator
-    : ID                                                            {$$ = DirectDeclarator::make_id($1);}
-    | '(' declarator ')'                                      {$$ = DirectDeclarator::make_paren($2);}
+    : ID                                                {$$ = DirectDeclarator::make_id($1);}
+    | '(' declarator ')'                                {$$ = DirectDeclarator::make_paren($2);}
     | direct_declarator '[' constant_expression_opt ']' {$$ = DirectDeclarator::make_array($1, $3);}
-    | direct_declarator '(' parameter_type_list ')'           {$$ = DirectDeclarator::make_func_params($1, $3);}
-    | direct_declarator '(' identifier_list_opt ')'           {$$ = DirectDeclarator::make_func_identifiers($1, $3);}
+    | direct_declarator '(' parameter_type_list ')'     {$$ = DirectDeclarator::make_func_params($1, $3);}
+    | direct_declarator '(' identifier_list_opt ')'     {$$ = DirectDeclarator::make_func_identifiers($1, $3);}
     ;
 
 constant_expression_opt
@@ -266,17 +266,17 @@ identifier_list_opt
 
 identifier_list
     : ID                        {$$ = IdentifierList::make_list($1);}
-    | identifier_list ',' ID  {$$ = IdentifierList::insert($1, $3);}
+    | identifier_list ',' ID    {$$ = IdentifierList::insert($1, $3);}
     ;
 
 parameter_type_list
     : parameter_list                    {$$ = ParameterTypeList::make_params($1);}
-    | parameter_list ',' OP_ELLIPSIS  {$$ = ParameterTypeList::make_variadic($1);}
+    | parameter_list ',' OP_ELLIPSIS    {$$ = ParameterTypeList::make_variadic($1);}
     ;
 
 parameter_list
-    : parameter_declaration                         {$$ = make_parameter_list($1);}
-    | parameter_list ',' parameter_declaration    {$$ = insert_parameter_list($1, $3);}
+    : parameter_declaration                     {$$ = make_parameter_list($1);}
+    | parameter_list ',' parameter_declaration  {$$ = insert_parameter_list($1, $3);}
     ;
 
 parameter_declaration
@@ -295,11 +295,11 @@ abstract_declarator
     ;
 
 direct_abstract_declarator
-    : '(' abstract_declarator ')'                                     {$$ = DirectAbstractDeclarator::make_paren($2);}
-    | '[' constant_expression_opt ']'                             {$$ = DirectAbstractDeclarator::make_array($2);}
-    | direct_abstract_declarator '[' constant_expression_opt ']'  {$$ = DirectAbstractDeclarator::make_array_nested($1, $3);}
-    | '(' parameter_type_list_opt ')'                                 {$$ = DirectAbstractDeclarator::make_func($2);}
-    | direct_abstract_declarator '(' parameter_type_list_opt ')'      {$$ = DirectAbstractDeclarator::make_func_nested($1, $3);}
+    : '(' abstract_declarator ')'                                   {$$ = DirectAbstractDeclarator::make_paren($2);}
+    | '[' constant_expression_opt ']'                               {$$ = DirectAbstractDeclarator::make_array($2);}
+    | direct_abstract_declarator '[' constant_expression_opt ']'    {$$ = DirectAbstractDeclarator::make_array_nested($1, $3);}
+    | '(' parameter_type_list_opt ')'                               {$$ = DirectAbstractDeclarator::make_func($2);}
+    | direct_abstract_declarator '(' parameter_type_list_opt ')'    {$$ = DirectAbstractDeclarator::make_func_nested($1, $3);}
     ;
 
 parameter_type_list_opt
@@ -309,14 +309,14 @@ parameter_type_list_opt
 
 /* Initializers (C89) */
 initializer
-    : assignment_expression                 {$$ = Initializer::make_assignment($1);}
-    | '{' initializer_list '}'        {$$ = Initializer::make_list($2);}
+    : assignment_expression         {$$ = Initializer::make_assignment($1);}
+    | '{' initializer_list '}'      {$$ = Initializer::make_list($2);}
     | '{' initializer_list ',' '}'  {$$ = Initializer::make_list($2);}  /* trailing comma is widely accepted; tighten if needed */
     ;
 
 initializer_list
-    : initializer                           {$$ = InitializerList::make($1);}
-    | initializer_list ',' initializer    {$$ = InitializerList::insert($1, $3);}
+    : initializer                       {$$ = InitializerList::make($1);}
+    | initializer_list ',' initializer  {$$ = InitializerList::insert($1, $3);}
     ;
 
 /* 6.8 Statements */
@@ -362,9 +362,9 @@ selection_statement
     ;
 
 iteration_statement
-    : KEYWORD_WHILE '(' expression ')' statement                                                      {$$ = IterationStatement::make_while($3, $5);}
-    | KEYWORD_DO statement KEYWORD_WHILE '(' expression ')' ';'                                 {$$ = IterationStatement::make_do_while($2, $5);}
-    | KEYWORD_FOR '(' expression_opt ';' expression_opt ';' expression_opt ')' statement  {$$ = IterationStatement::make_for($3, $5, $7, $9);}
+    : KEYWORD_WHILE '(' expression ')' statement                                            {$$ = IterationStatement::make_while($3, $5);}
+    | KEYWORD_DO statement KEYWORD_WHILE '(' expression ')' ';'                             {$$ = IterationStatement::make_do_while($2, $5);}
+    | KEYWORD_FOR '(' expression_opt ';' expression_opt ';' expression_opt ')' statement    {$$ = IterationStatement::make_for($3, $5, $7, $9);}
     ;
 
 expression_opt
@@ -382,10 +382,10 @@ jump_statement
 
 /* 6.5 Expressions */
 primary_expression
-    : ID                        {$$ = PrimaryExpression::make_id($1);}
-    | constant                  {$$ = PrimaryExpression::make_constant($1);}
-    | string                    {$$ = PrimaryExpression::make_string_literal($1);}
-    | '(' expression ')'  {$$ = PrimaryExpression::make_paren($2);}
+    : ID                    {$$ = PrimaryExpression::make_id($1);}
+    | constant              {$$ = PrimaryExpression::make_constant($1);}
+    | string                {$$ = PrimaryExpression::make_string_literal($1);}
+    | '(' expression ')'    {$$ = PrimaryExpression::make_paren($2);}
     ;
 
 constant
@@ -401,13 +401,13 @@ string
     ;
 
 postfix_expression
-    : primary_expression                                            {$$ = PostfixExpression::make_primary($1);}
-    | postfix_expression '[' expression ']'               {$$ = PostfixExpression::make_array($1, $3);}
-    | postfix_expression '(' argument_expression_list_opt ')' {$$ = PostfixExpression::make_call($1, $3);}
-    | postfix_expression '.' ID                                     {$$ = PostfixExpression::make_field($1, $3);}
-    | postfix_expression OP_ARROW ID                                {$$ = PostfixExpression::make_arrow($1, $3);}
-    | postfix_expression OP_INC                                     {$$ = PostfixExpression::make_inc($1);}
-    | postfix_expression OP_DEC                                     {$$ = PostfixExpression::make_dec($1);}
+    : primary_expression                                        {$$ = PostfixExpression::make_primary($1);}
+    | postfix_expression '[' expression ']'                     {$$ = PostfixExpression::make_array($1, $3);}
+    | postfix_expression '(' argument_expression_list_opt ')'   {$$ = PostfixExpression::make_call($1, $3);}
+    | postfix_expression '.' ID                                 {$$ = PostfixExpression::make_field($1, $3);}
+    | postfix_expression OP_ARROW ID                            {$$ = PostfixExpression::make_arrow($1, $3);}
+    | postfix_expression OP_INC                                 {$$ = PostfixExpression::make_inc($1);}
+    | postfix_expression OP_DEC                                 {$$ = PostfixExpression::make_dec($1);}
     ;
 
 argument_expression_list_opt
@@ -417,78 +417,78 @@ argument_expression_list_opt
 
 argument_expression_list
     : assignment_expression                                 {$$ = makeargument_expression_list($1);}
-    | argument_expression_list ',' assignment_expression  {$$ = insert_argument_expression_list($1, $3);}
+    | argument_expression_list ',' assignment_expression    {$$ = insert_argument_expression_list($1, $3);}
     ;
 
 unary_expression
-    : postfix_expression                        {$$ = UnaryExpression::make_postfix($1);}
-    | OP_INC unary_expression                   {$$ = UnaryExpression::make_pre_inc($2);}
-    | OP_DEC unary_expression                   {$$ = UnaryExpression::make_pre_dec($2);}
-    | unary_operator cast_expression            {$$ = UnaryExpression::make_unary_op($1, $2);}
-    | KEYWORD_SIZEOF unary_expression           {$$ = UnaryExpression::make_sizeof_expr($2);}
-    | KEYWORD_SIZEOF '(' type_name ')'    {$$ = UnaryExpression::make_sizeof_type($3);}
+    : postfix_expression                {$$ = UnaryExpression::make_postfix($1);}
+    | OP_INC unary_expression           {$$ = UnaryExpression::make_pre_inc($2);}
+    | OP_DEC unary_expression           {$$ = UnaryExpression::make_pre_dec($2);}
+    | unary_operator cast_expression    {$$ = UnaryExpression::make_unary_op($1, $2);}
+    | KEYWORD_SIZEOF unary_expression   {$$ = UnaryExpression::make_sizeof_expr($2);}
+    | KEYWORD_SIZEOF '(' type_name ')'  {$$ = UnaryExpression::make_sizeof_type($3);}
     ;
 
 unary_operator
-    : '&'             {$$ = UnaryOperator::address_of($1);}
-    | '*'              {$$ = UnaryOperator::deref($1);}
-    | '+'               {$$ = UnaryOperator::plus($1);}    %prec right
-    | '-'              {$$ = UnaryOperator::minus($1);}   %prec right
-    | '~'            {$$ = UnaryOperator::bit_not($1);}
-    | '!'                {$$ = UnaryOperator::not($1);}
+    : '&'   {$$ = UnaryOperator::address_of($1);}
+    | '*'   {$$ = UnaryOperator::deref($1);}
+    | '+'   {$$ = UnaryOperator::plus($1);}         %prec right
+    | '-'   {$$ = UnaryOperator::minus($1);}        %prec right
+    | '~'   {$$ = UnaryOperator::bit_not($1);}
+    | '!'   {$$ = UnaryOperator::not($1);}
     ;
 
 cast_expression
-    : '(' type_name ')' cast_expression       {$$ = CastExpression::make_cast($2, $4);}
-    | unary_expression                              {$$ = CastExpression::make_unary($1);}
+    : '(' type_name ')' cast_expression {$$ = CastExpression::make_cast($2, $4);}
+    | unary_expression                  {$$ = CastExpression::make_unary($1);}
     ;
 
 multiplicative_expression
-    : multiplicative_expression '*' cast_expression        {$$ = MultiplicativeExpression::make_mul($1, $3);}
-    | multiplicative_expression '/' cast_expression       {$$ = MultiplicativeExpression::make_div($1, $3);}
-    | multiplicative_expression '%' cast_expression          {$$ = MultiplicativeExpression::make_mod($1, $3);}
-    | cast_expression                                           {$$ = MultiplicativeExpression::make_cast($1);}
+    : multiplicative_expression '*' cast_expression {$$ = MultiplicativeExpression::make_mul($1, $3);}
+    | multiplicative_expression '/' cast_expression {$$ = MultiplicativeExpression::make_div($1, $3);}
+    | multiplicative_expression '%' cast_expression {$$ = MultiplicativeExpression::make_mod($1, $3);}
+    | cast_expression                               {$$ = MultiplicativeExpression::make_cast($1);}
     ;
 
 additive_expression
-    : additive_expression '+' multiplicative_expression     {$$ = AdditiveExpression::make_add($1, $3);}
-    | additive_expression '-' multiplicative_expression    {$$ = AdditiveExpression::make_sub($1, $3);}
-    | multiplicative_expression                                 {$$ = AdditiveExpression::make_mul($1);}
+    : additive_expression '+' multiplicative_expression {$$ = AdditiveExpression::make_add($1, $3);}
+    | additive_expression '-' multiplicative_expression {$$ = AdditiveExpression::make_sub($1, $3);}
+    | multiplicative_expression                         {$$ = AdditiveExpression::make_mul($1);}
     ;
 
 shift_expression
-    : shift_expression OP_L_SHIFT additive_expression           {$$ = ShiftExpression::make_shl($1, $3);}
-    | shift_expression OP_R_SHIFT additive_expression           {$$ = ShiftExpression::make_shr($1, $3);}
-    | additive_expression                                       {$$ = ShiftExpression::make_add($1);}
+    : shift_expression OP_L_SHIFT additive_expression   {$$ = ShiftExpression::make_shl($1, $3);}
+    | shift_expression OP_R_SHIFT additive_expression   {$$ = ShiftExpression::make_shr($1, $3);}
+    | additive_expression                               {$$ = ShiftExpression::make_add($1);}
     ;
 
 relational_expression
-    : relational_expression '<' shift_expression              {$$ = RelationalExpression::make_lt($1, $3);}
-    | relational_expression '>' shift_expression              {$$ = RelationalExpression::make_gt($1, $3);}
-    | relational_expression OP_LE shift_expression              {$$ = RelationalExpression::make_le($1, $3);}
-    | relational_expression OP_GE shift_expression              {$$ = RelationalExpression::make_ge($1, $3);}
-    | shift_expression                                          {$$ = RelationalExpression::make_shift($1);}
+    : relational_expression '<' shift_expression    {$$ = RelationalExpression::make_lt($1, $3);}
+    | relational_expression '>' shift_expression    {$$ = RelationalExpression::make_gt($1, $3);}
+    | relational_expression OP_LE shift_expression  {$$ = RelationalExpression::make_le($1, $3);}
+    | relational_expression OP_GE shift_expression  {$$ = RelationalExpression::make_ge($1, $3);}
+    | shift_expression                              {$$ = RelationalExpression::make_shift($1);}
     ;
 
 equality_expression
-    : equality_expression OP_EQ relational_expression           {$$ = EqualityExpression::make_eq($1, $3);}
-    | equality_expression OP_NE relational_expression           {$$ = EqualityExpression::make_ne($1, $3);}
-    | relational_expression                                     {$$ = EqualityExpression::make_rel($1);}
+    : equality_expression OP_EQ relational_expression   {$$ = EqualityExpression::make_eq($1, $3);}
+    | equality_expression OP_NE relational_expression   {$$ = EqualityExpression::make_ne($1, $3);}
+    | relational_expression                             {$$ = EqualityExpression::make_rel($1);}
     ;
 
 and_expression
-    : and_expression '&' equality_expression              {$$ = AndExpression::make_and($1, $3);}
-    | equality_expression                                       {$$ = AndExpression::make_eq($1);}
+    : and_expression '&' equality_expression    {$$ = AndExpression::make_and($1, $3);}
+    | equality_expression                       {$$ = AndExpression::make_eq($1);}
     ;
 
 exclusive_or_expression
-    : exclusive_or_expression '^' and_expression             {$$ = ExclusiveOrExpression::make_xor($1, $3);}
-    | and_expression                                            {$$ = ExclusiveOrExpression::make_and($1);}
+    : exclusive_or_expression '^' and_expression    {$$ = ExclusiveOrExpression::make_xor($1, $3);}
+    | and_expression                                {$$ = ExclusiveOrExpression::make_and($1);}
     ;
 
 inclusive_or_expression
-    : inclusive_or_expression '|' exclusive_or_expression  {$$ = InclusiveOrExpression::make_or($1, $3);}
-    | exclusive_or_expression                                   {$$ = InclusiveOrExpression::make_xor($1);}
+    : inclusive_or_expression '|' exclusive_or_expression   {$$ = InclusiveOrExpression::make_or($1, $3);}
+    | exclusive_or_expression                               {$$ = InclusiveOrExpression::make_xor($1);}
     ;
 
 logical_and_expression
@@ -502,8 +502,8 @@ logical_or_expression
     ;
 
 conditional_expression
-    : logical_or_expression                                                     {$$ = ConditionalExpression::make_or($1);}
-    | logical_or_expression '?' expression ':' conditional_expression    {$$ = ConditionalExpression::make_cond($1, $3, $5);}
+    : logical_or_expression                                             {$$ = ConditionalExpression::make_or($1);}
+    | logical_or_expression '?' expression ':' conditional_expression   {$$ = ConditionalExpression::make_cond($1, $3, $5);}
     ;
 
 assignment_expression
@@ -512,26 +512,26 @@ assignment_expression
     ;
 
 assignment_operator
-    : '='                 {$$ = AssignmentOperator::assign($1);}
-    | OP_MUL_ASSIGN             {$$ = AssignmentOperator::mul_assign($1);}
-    | OP_DIV_ASSIGN             {$$ = AssignmentOperator::div_assign($1);}
-    | OP_MOD_ASSIGN             {$$ = AssignmentOperator::mod_assign($1);}
-    | OP_ADD_ASSIGN             {$$ = AssignmentOperator::add_assign($1);}
-    | OP_SUB_ASSIGN             {$$ = AssignmentOperator::sub_assign($1);}
-    | OP_L_SHIFT_ASSIGN         {$$ = AssignmentOperator::shl_assign($1);}
-    | OP_R_SHIFT_ASSIGN         {$$ = AssignmentOperator::shr_assign($1);}
-    | OP_AND_ASSIGN             {$$ = AssignmentOperator::and_assign($1);}
-    | OP_XOR_ASSIGN             {$$ = AssignmentOperator::xor_assign($1);}
-    | OP_OR_ASSIGN              {$$ = AssignmentOperator::or_assign($1);}
+    : '='               {$$ = AssignmentOperator::assign($1);}
+    | OP_MUL_ASSIGN     {$$ = AssignmentOperator::mul_assign($1);}
+    | OP_DIV_ASSIGN     {$$ = AssignmentOperator::div_assign($1);}
+    | OP_MOD_ASSIGN     {$$ = AssignmentOperator::mod_assign($1);}
+    | OP_ADD_ASSIGN     {$$ = AssignmentOperator::add_assign($1);}
+    | OP_SUB_ASSIGN     {$$ = AssignmentOperator::sub_assign($1);}
+    | OP_L_SHIFT_ASSIGN {$$ = AssignmentOperator::shl_assign($1);}
+    | OP_R_SHIFT_ASSIGN {$$ = AssignmentOperator::shr_assign($1);}
+    | OP_AND_ASSIGN     {$$ = AssignmentOperator::and_assign($1);}
+    | OP_XOR_ASSIGN     {$$ = AssignmentOperator::xor_assign($1);}
+    | OP_OR_ASSIGN      {$$ = AssignmentOperator::or_assign($1);}
     ;
 
 expression
-    : assignment_expression                     {$$ = Expression::make_single($1);}
-    | expression ',' assignment_expression    {$$ = Expression::make_comma($1, $3);}
+    : assignment_expression                 {$$ = Expression::make_single($1);}
+    | expression ',' assignment_expression  {$$ = Expression::make_comma($1, $3);}
     ;
 
 constant_expression
-    : conditional_expression                    {$$ = ConditionalExpression::make_constant($1);}
+    : conditional_expression    {$$ = ConditionalExpression::make_constant($1);}
     ;
 
 /* 6.7.6 Type names (for casts/sizeof) */
