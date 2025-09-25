@@ -135,7 +135,7 @@ impl DeclSpec {
         }
     }
 
-    pub fn make_storage(spec: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn push_storage(spec: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
         let span = spec.span;
         let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
         let spec = match spec.kind {
@@ -153,7 +153,7 @@ impl DeclSpec {
         decl_spec.into()
     }
 
-    pub fn make_qual(qual: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn push_qual(qual: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
         let span = qual.span;
         let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
 
@@ -168,7 +168,7 @@ impl DeclSpec {
         decl_spec.into()
     }
 
-    pub fn make_spec(spec: TypeSpec, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn push_spec(spec: TypeSpec, decl_spec: Option<DeclSpec>) -> ParserNode {
         let span = spec.unwrap_span();
         let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
 

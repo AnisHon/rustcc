@@ -91,33 +91,37 @@ impl StructMember {
 
 #[derive(Debug, Clone)]
 pub struct StructDeclarator {
-    pub declarator: Option<Box<Declarator>>,
+    pub declarator: Option<Declarator>,
     pub bit_field: Option<Box<Expression>>,
     pub span: Span,
 }
 
 impl StructDeclarator {
-    pub fn make(declarator: Option<Declarator>,  bit_field: Option<Expression>) -> ParserNode {
-        assert!(!(declarator.is_none() && bit_field.is_none())); // 不能同时None，这不对
+
+    pub fn make(declarator: Option<Declarator>, colon: Option<Token>, bit_field: Option<Expression>) -> ParserNode {
+        assert!(!(declarator.is_none() && bit_field.is_none())); // 不能同时None
 
         let span = match (&declarator, &bit_field) {
             (Some(declarator), Some(bit_field)) => declarator.span.merge(&bit_field.span),
-            (None, Some(bit_field)) => bit_field.span,
+            (None, Some(bit_field)) => colon.unwrap().span.merge(&bit_field.span),
             (Some(declarator), None) => declarator.span,
             (_, _) => unreachable!()
         };
 
         Self {
-            declarator: declarator.map(Box::new),
+            declarator,
             bit_field: bit_field.map(Box::new),
             span
         }.into()
     }
 
-    pub fn make_list(list: Option<SepList<StructDeclarator>>, comma: Token, struct_declarator: StructDeclarator) -> ParserNode {
-        let mut list = list.unwrap_or_default();
-        list.push_item(struct_declarator);
-        list.push_sep(comma.span);
+    pub fn make_list(struct_declarator: StructDeclarator) -> ParserNode {
+        SepList::new(struct_declarator).into()
+    }
+    
+    pub fn push(mut list: SepList<StructDeclarator>, comma: Token, struct_declarator: StructDeclarator) -> ParserNode {
+        list.list.push(struct_declarator);
+        list.sep.push(comma.span);
         list.into()
     }
 }
@@ -132,7 +136,8 @@ pub struct EnumSpec {
 }
 
 impl EnumSpec {
-    pub fn make_detail(keyword_enum: Token, name: Option<Token>, lbrace: Token, enums: SepList<Enumerator>, rbrace: Token) -> ParserNode {
+    /// 匿名（也可能有名字）
+    pub fn make_anon(keyword_enum: Token, name: Option<Token>, lbrace: Token, enums: SepList<Enumerator>, rbrace: Token) -> ParserNode {
         let span = Span::from_tokens(vec![&keyword_enum, &rbrace]);
 
         let name = name.map(|x| x.value.into_string().unwrap());
@@ -145,7 +150,8 @@ impl EnumSpec {
         Box::new(enum_spec).into()
     }
 
-    pub fn make_simple(keyword_enum: Token, name: Token) -> ParserNode {
+    /// 具名枚举
+    pub fn make_named(keyword_enum: Token, name: Token) -> ParserNode {
         let span = Span::from_tokens(vec![&keyword_enum, &name]);
         let name = name.value.into_string().unwrap();
         let enum_spec = Self {
@@ -171,7 +177,7 @@ impl Enumerator {
         let enums = SepList::new(enumerator);
         enums.into()
     }
-    pub fn append_list(enums: SepList<Enumerator>, comma: Token, enumerator: Enumerator) -> ParserNode {
+    pub fn push(enums: EnumList, comma: Token, enumerator: Enumerator) -> ParserNode {
         let mut enums = enums;
         enums.push_item(enumerator);
         enums.push_sep(comma.span);

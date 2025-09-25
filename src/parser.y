@@ -130,9 +130,9 @@ init_declarator
 /* specifiers and qualifiers */
 
 declaration_specifiers
-    : storage_class_specifier declaration_specifiers_opt    {$$ = DeclSpec::make_storage($1, $2);}
-    | type_specifier        declaration_specifiers_opt      {$$ = DeclSpec::make_spec($1, $2);}
-    | type_qualifier        declaration_specifiers_opt      {$$ = DeclSpec::make_qual($1, $2);}
+    : storage_class_specifier declaration_specifiers_opt    {$$ = DeclSpec::push_storage($1, $2);}
+    | type_specifier        declaration_specifiers_opt      {$$ = DeclSpec::push_spec($1, $2);}
+    | type_qualifier        declaration_specifiers_opt      {$$ = DeclSpec::push_qual($1, $2);}
     ;
 
 declaration_specifiers_opt
@@ -193,8 +193,8 @@ struct_declaration
     ;
 
 specifier_qualifier_list
-    : type_specifier specifier_qualifier_list_opt   {$$ = DeclSpec::make_spec($1, $2);}
-    | type_qualifier specifier_qualifier_list_opt   {$$ = DeclSpec::make_qual($1, $2);}
+    : type_specifier specifier_qualifier_list_opt   {$$ = DeclSpec::push_spec($1, $2);}
+    | type_qualifier specifier_qualifier_list_opt   {$$ = DeclSpec::push_qual($1, $2);}
     ;
 
 specifier_qualifier_list_opt
@@ -203,24 +203,24 @@ specifier_qualifier_list_opt
     ;
 
 struct_declarator_list
-    : struct_declarator                               {$$ = StructMember::make_list(None, $1);}
-    | struct_declarator_list ',' struct_declarator    {$$ = StructMember::make_list(Some($1), $2, $3);}
+    : struct_declarator                               {$$ = StructMember::make_list($1);}
+    | struct_declarator_list ',' struct_declarator    {$$ = StructMember::push($1, $2, $3);}
     ;
 
 struct_declarator
-    : declarator                          {$$ = StructDeclarator::make(Some($1), None);}
-    | ':' constant_expression             {$$ = StructDeclarator::make(None, Some($2));}
-    | declarator ':' constant_expression  {$$ = StructDeclarator::make(Some($1), Sone($3));}
+    : declarator                          {$$ = StructDeclarator::make(Some($1), None, None);}
+    | ':' constant_expression             {$$ = StructDeclarator::make(None, $1, Some($2));}
+    | declarator ':' constant_expression  {$$ = StructDeclarator::make(Some($1), $2, Some($3));}
     ;
 
 enum_specifier
-    : KEYWORD_ENUM identifier_opt '{' enumerator_list '}' {$$ = EnumSpec::make_detail($1, $2, $3, $4, $5);}
-    | KEYWORD_ENUM ID                                     {$$ = EnumSpec::make_simple($1, $2);}
+    : KEYWORD_ENUM identifier_opt '{' enumerator_list '}' {$$ = EnumSpec::make_anon($1, $2, $3, $4, $5);}
+    | KEYWORD_ENUM ID                                     {$$ = EnumSpec::make_named($1, $2);}
     ;
 
 enumerator_list
     : enumerator                      {$$ = Enumerator::make_list($1);}
-    | enumerator_list ',' enumerator  {$$ = Enumerator::append_list($1, $2, $3);}
+    | enumerator_list ',' enumerator  {$$ = Enumerator::push($1, $2, $3);}
     ;
 
 enumerator
