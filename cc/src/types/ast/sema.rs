@@ -10,6 +10,7 @@ use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::TokenKind;
 use crate::types::span::UnwrapSpan;
 use std::mem;
+use crate::types::ast::initializer::InitDeclarator;
 
 impl TranslationUnit {
     pub fn make_translation_unit(ext_decl: ExternalDeclaration) -> ParserNode {
@@ -21,6 +22,38 @@ impl TranslationUnit {
         translation_unit.ext_decls.push(ext_decl);
     }
 }
+
+impl FunctionDefinition {
+    pub fn make(
+        decl_spec: Option<DeclSpec>,
+        declarator: Declarator,
+        decl_list: Option<DeclList>,  // 老式类型声明
+        stmt: CompoundStatement
+    ) -> ParserNode {
+        todo!() // 函数定义
+    }
+}
+
+impl BlockItem {
+    
+    pub fn make_decl(decl: DeclStmt) -> ParserNode {
+        Self::Declaration(decl).into()
+    }
+    
+    pub fn make_stmt(stmt: Statement) -> ParserNode {
+        Self::Statement(stmt).into()
+    }
+    
+    pub fn make_list(block_item: BlockItem) -> ParserNode {
+        BlockItemList::from([block_item]).into()
+    }
+    
+    pub fn push(mut list: BlockItemList, block_item: BlockItem) -> ParserNode {
+        list.push(block_item);
+        list.into()
+    }
+}
+
 
 impl Type {
 
@@ -65,12 +98,24 @@ impl Default for Qualifiers {
     }
 }
 
+impl CompoundStatement {
+    pub fn make(lbrace: Token, list: Option<BlockItemList>, rbrace: Token) -> CompoundStatement {
+        Self {
+            lbrace: lbrace.span,
+            list,
+            rbrace: rbrace.span
+        }
+    }
+}
 
 impl Statement {
     /// constexpr应该会被归并成为一个常量表达式，最终被计算
     pub fn make_case(constexpr: Expression, stmt: Statement) -> ParserNode {
         let (constant, span) = match constexpr.kind {
-            ExpressionKind::Literal(constant, span) => (constant, span),
+            ExpressionKind::Literal(constant) => {
+                let span = constant.span;
+                (constant, span)
+            },
             _ => unreachable!()
         };
 
@@ -162,13 +207,19 @@ impl Statement {
         let kind = StatementKind::Return(expr.map(Box::new));
         Statement::new(kind, span).into()
     }
+
+    pub fn make_compound(stmt: CompoundStatement) -> ParserNode {
+        let span = stmt.unwrap_span();
+        let kind = StatementKind::Compound(stmt);
+        Statement::new(kind, span).into()
+    }
 }
 
 impl Expression {
 
     pub fn make_literal(constant: Constant) -> ParserNode {
         let span = constant.span;
-        let kind = ExpressionKind::Literal(constant, span);
+        let kind = ExpressionKind::Literal(constant);
         Box::new(Expression::new(kind, None, span)).into()
     }
 
@@ -264,20 +315,15 @@ impl Expression {
     }
 
     /// 第一个token是sizeof的值 -> sizeof(type) <- 第二个是第二个括号
-    pub fn make_sizeof_type(sizeof: Token, typ: Type, rparen: Token) -> ParserNode {
-        let span = sizeof.span.merge(&rparen.span);
-        let kind = ExpressionKind::SizeofType(Box::new(typ));
-
-        Box::new(Expression::new(kind, None, span)).into()
+    pub fn make_sizeof_type(typ: Type, rparen: Token) -> ParserNode {
+        todo!()
     }
 
 
     /// 第一个token 是类型转换的第一个括号-> (X)X
     pub fn make_cast(token: Token, typ: Type, expr: Expression) -> ParserNode {
-        let span = token.span.merge(&expr.span);
-        let kind = ExpressionKind::Cast { ty: Box::new(typ), expr: Box::new(expr) };
-
-        Box::new(Expression::new(kind, None, span)).into()
+        todo!();
+       
     }
 
     pub fn make_binary(lhs: Expression, token: Token, rhs: Expression) -> ParserNode {
@@ -324,7 +370,6 @@ impl Expression {
         exprs.into()
     }
 
-
 }
 
 impl Constant {
@@ -349,42 +394,18 @@ impl Constant {
 
 
 
-impl Declaration {
-    // pub fn make_decl(decl_spec: DeclSpec, declarator: Declarator, init: Option<Initializer>) -> ParserNode {
-    //     let span = declarator.span.merge(&declarator.span);
-    //     let mut qualifiers = Qualifiers::default();
-    //
-    //     for qual in decl_spec.type_quals {
-    //         qualifiers.set(qual);
-    //     }
-    //
-    //     let mut storage: Option<StorageClass> = None;
-    //
-    //     for x in decl_spec.storage_class {
-    //         if storage.is_none() {
-    //             storage = Some(x);
-    //         } else {
-    //             let origin = storage.as_mut().unwrap();
-    //             let new = &x;
-    //             if mem::discriminant(origin) == mem::discriminant(new) { // 如果是同一类就是duplicate
-    //                 panic!("duplicate '{:?}' specifier", x)
-    //             } else {
-    //                 panic!("'{:?}' specifier conflicts with '{:?}'", origin, new)
-    //             }
-    //
-    //         }
-    //     }
-    //
-    //
-    //     let decl = Self {
-    //         name: declarator.name.unwrap(), //
-    //         ty: Type::make_type(declarator.chunks),
-    //         storage,
-    //         qualifiers,
-    //         init,
-    //         span
-    //     };
-    //     Box::new(decl).into()
-    //
-    // }
+impl Decl {
+    pub fn make(decl_spec: DeclSpec, init_decl: InitDeclarator, semi: Token) -> ParserNode {
+        todo!()
+    }
+
+    pub fn make_list(decl: Box<Decl>) -> ParserNode {
+        DeclList::from([decl]).into()
+    }
+
+    pub fn push(mut decl_list: DeclList, decl: Box<Decl>) -> ParserNode {
+        decl_list.push(decl);
+        decl_list.into()
+    }
+
 }

@@ -15,6 +15,10 @@ pub type StructDeclaratorList = SepList<StructDeclarator>;
 pub type EnumList = SepList<Enumerator>;
 
 
+pub enum StructDecl {
+    
+}
+
 #[derive(Debug, Clone)]
 pub enum StructKind {
     Struct(Span),

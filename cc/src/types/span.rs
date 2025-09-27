@@ -84,7 +84,9 @@ impl<T> SepList<T> {
     pub fn new(item: T) -> Self {
         Self { list: vec![item], sep: Vec::new() }
     }
-
+    
+    pub fn push(&mut self, sep: Span, item: T) {}
+    
     pub fn push_item(&mut self, item: T) {
         self.list.push(item);
     }

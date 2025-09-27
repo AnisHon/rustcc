@@ -1,12 +1,3 @@
-%{
-use crate::types::ast::ast_nodes::*;
-use crate::types::ast::decl_info::*;
-use crate::types::ast::parser_node::*;
-use crate::types::ast::sema::*;
-use crate::types::ast::temp::*;
-use crate::types::ast::struct_info::*;
-
-%}
 /*
  * C89 (ANSI C) grammar for Bison/Yacc — grammar + precedence only.
  *
@@ -17,6 +8,17 @@ use crate::types::ast::struct_info::*;
  * 4) No extensions (no long long, restrict, inline, // comments, C99 initializers, etc.).
  * 5) Old-style (K&R) parameter declarations are accepted.
  */
+
+%{
+use crate::types::ast::ast_nodes::*;
+use crate::types::ast::decl_info::*;
+use crate::types::ast::parser_node::*;
+use crate::types::ast::sema::*;
+use crate::types::ast::temp::*;
+use crate::types::ast::struct_info::*;
+use crate::types::ast::initializer::*;
+
+%}
 
 %type ParserNode
 
@@ -92,24 +94,24 @@ external_declaration
 
 /* 6.9.1 Function definition (C89 allows old-style parameter decls) */
 function_definition
-    : declaration_specifiers declarator declaration_list_opt compound_statement     {$$ = }
-    | declarator declaration_list_opt compound_statement                            {$$ = }
+    : declaration_specifiers declarator declaration_list_opt compound_statement     { $$ = FunctionDefinition::make(Some($1), $2, $3, $4); }
+    | declarator declaration_list_opt compound_statement                            { $$ = FunctionDefinition::make(None, $1, $2, $3); }
     ;
 
 declaration_list_opt
-    : /* empty */       {$$ = ParserNode::None;}
-    | declaration_list  {$$ = }
+    : /* empty */       { $$ = ParserNode::None; }
+    | declaration_list  { $$ = $1; }
     ;
 
 declaration_list
-    : declaration                   {$$ = ;}
-    | declaration_list declaration  {$$ = ;}
+    : declaration                   { $$ = Decl::make_list($1); }
+    | declaration_list declaration  { $$ = Decl::push($1, $2); }
     ;
 
 /* 6.7 Declarations */
 
 declaration
-    : declaration_specifiers init_declarator_list_opt ';' {$$ = }
+    : declaration_specifiers init_declarator_list_opt ';' { $$ = Decl::make($1, $2, $3) }
     ;
 
 init_declarator_list_opt
@@ -118,13 +120,13 @@ init_declarator_list_opt
     ;
 
 init_declarator_list
-    : init_declarator                               {$$ = }
-    | init_declarator_list ',' init_declarator      {$$ = }
+    : init_declarator                               { $$ = InitDeclarator::make_list($1); }
+    | init_declarator_list ',' init_declarator      { $$ = InitDeclarator::push($1, $2, $3); }
     ;
 
 init_declarator
-    : declarator                    {$$ = ;}
-    | declarator '=' initializer    {$$ = ;}
+    : declarator                    { $$ = InitDeclarator::make($1, None, None); }
+    | declarator '=' initializer    { $$ = InitDeclarator::($1, Some($2), Some($3)); }
     ;
 
 /* specifiers and qualifiers */
@@ -149,18 +151,18 @@ storage_class_specifier
     ;
 
 type_specifier
-    : KEYWORD_VOID              {$$ = TypeSpec::make_simple($1);}
-    | KEYWORD_CHAR              {$$ = TypeSpec::make_simple($1);}
-    | KEYWORD_SHORT             {$$ = TypeSpec::make_simple($1);}
-    | KEYWORD_INT               {$$ = TypeSpec::make_simple($1);}
-    | KEYWORD_LONG              {$$ = TypeSpec::make_simple($1);}
-    | KEYWORD_SIGNED            {$$ = TypeSpec::make_simple($1);}
-    | KEYWORD_UNSIGNED          {$$ = TypeSpec::make_simple($1);}
-    | KEYWORD_FLOAT             {$$ = TypeSpec::make_simple($1);}
-    | KEYWORD_DOUBLE            {$$ = TypeSpec::make_simple($1);}
+    : KEYWORD_VOID              {$$ = TypeSpec::make($1);}
+    | KEYWORD_CHAR              {$$ = TypeSpec::make($1);}
+    | KEYWORD_SHORT             {$$ = TypeSpec::make($1);}
+    | KEYWORD_INT               {$$ = TypeSpec::make($1);}
+    | KEYWORD_LONG              {$$ = TypeSpec::make($1);}
+    | KEYWORD_SIGNED            {$$ = TypeSpec::make($1);}
+    | KEYWORD_UNSIGNED          {$$ = TypeSpec::make($1);}
+    | KEYWORD_FLOAT             {$$ = TypeSpec::make($1);}
+    | KEYWORD_DOUBLE            {$$ = TypeSpec::make($1);}
     | struct_or_union_specifier {$$ = TypeSpec::make_struct_or_union($1);}
     | enum_specifier            {$$ = TypeSpec::make_enum($1);}
-    | TYPE_NAME                 {$$ = TypeSpec::make_simple($1);}      /* resolved by lexer using typedef table */
+    | TYPE_NAME                 {$$ = TypeSpec::make($1);}      /* resolved by lexer using typedef table */
     ;
 
 type_qualifier
@@ -314,14 +316,14 @@ parameter_type_list_opt
 
 /* Initializers (C89) */
 initializer
-    : assignment_expression         {$$ = }
-    | '{' initializer_list '}'      {$$ = }
-    | '{' initializer_list ',' '}'  {$$ = }  /* trailing comma is widely accepted; tighten if needed */
+    : assignment_expression         { $$ = InitInfo::make_expr($1); }
+    | '{' initializer_list '}'      { $$ = InitInfo::make_init_list($1, $2, None, $3) }
+    | '{' initializer_list ',' '}'  { $$ = InitInfo::make_init_list($1, $2, Some($3), $4) }  /* trailing comma is widely accepted; tighten if needed */
     ;
 
 initializer_list
-    : initializer                       {$$ = }
-    | initializer_list ',' initializer  {$$ = }
+    : initializer                       { $$ = InitInfo::make_list($1); }
+    | initializer_list ',' initializer  { $$ = InitInfo::push($1, $2, $3); }
     ;
 
 /* 6.8 Statements */
@@ -341,18 +343,18 @@ labeled_statement
     ;
 
 compound_statement
-    : '{' '}'                 {$$ = }
-    | '{' block_item_list '}' {$$ = }
+    : '{' '}'                 { $$ = CompoundStatement::make($1, None, $2); }
+    | '{' block_item_list '}' { $$ = CompoundStatement::make($1, Some($2), $3); }
     ;
 
 block_item_list
-    : block_item                    {$$ = }
-    | block_item_list block_item    {$$ = }
+    : block_item                    { $$ = BlockItem::make($1); }
+    | block_item_list block_item    { $$ = BlockItem::push($1, $2); }
     ;
 
 block_item
-    : declaration   {$$ = }
-    | statement     {$$ = }
+    : declaration   { $$ = BlockItem::make_decl($1); }
+    | statement     { $$ = BlockItem::make_stmt($1); }
     ;
 
 expression_statement
@@ -416,13 +418,13 @@ postfix_expression
     ;
 
 argument_expression_list_opt
-    : /* empty */               {$$ = ParserNode::None;}
-    | argument_expression_list  {$$ = }
+    : /* empty */               { $$ = ParserNode::None; }
+    | argument_expression_list  { $$ = $1; }
     ;
 
 argument_expression_list
-    : assignment_expression                                 {$$ = }
-    | argument_expression_list ',' assignment_expression    {$$ = }
+    : assignment_expression                                 { $$ = $1; }
+    | argument_expression_list ',' assignment_expression    { $$ = Expression::make_assign($1, $2, $3); }
     ;
 
 unary_expression

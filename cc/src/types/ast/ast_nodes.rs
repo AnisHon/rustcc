@@ -49,19 +49,21 @@ pub struct FunctionDefinition {
     pub ret_ty: Type,
     pub params: Vec<Parameter>,
     pub is_variadic: bool,
-    pub body: Option<Box<Block>>, // None for extern declarations
+    pub body: Option<Box<BlockItemList>>, // None for extern declarations
     pub span: Span,
 }
 
 #[derive(Clone, Debug)]
 pub struct DeclStmt {
-    pub decls: Vec<Declaration>,
+    pub decls: Vec<Decl>,
     pub span: Span,
 }
 
+pub type DeclList = Vec<Box<Decl>>;
+
 // 变量声明
 #[derive(Debug, Clone)]
-pub struct Declaration {
+pub struct Decl {
     pub name: String,
     pub ty: Type,
     pub storage: Option<StorageClass>,
@@ -200,16 +202,26 @@ pub enum Initializer {
 }
 
 /// 语句块
-#[derive(Debug, Clone)]
-pub struct Block {
-    pub items: Vec<BlockItem>,
-}
+pub type BlockItemList = Vec<BlockItem>;
 
 
 #[derive(Debug, Clone)]
 pub enum BlockItem {
     Declaration(DeclStmt),
     Statement(Statement),
+}
+
+#[derive(Debug, Clone)]
+pub struct CompoundStatement {
+    pub lbrace: Span,
+    pub list: Option<Vec<BlockItem>>,
+    pub rbrace: Span,
+}
+
+impl UnwrapSpan for CompoundStatement {
+    fn unwrap_span(&self) -> Span {
+        self.rbrace.merge(&self.lbrace)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -239,7 +251,7 @@ pub enum StatementKind {
     Default {
         stmt: Box<Statement>,
     },
-    Block(Box<Block>),
+    Block(Box<BlockItemList>),
     Expression(Option<Box<Expression>>),
     If {
         cond: Box<Expression>,
@@ -270,6 +282,7 @@ pub enum StatementKind {
     Continue,
     Break,
     Return(Option<Box<Expression>>),
+    Compound(CompoundStatement),
 }
 // 表达式
 #[derive(Debug, Clone)]
@@ -308,7 +321,7 @@ impl Expression {
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum ExpressionKind {
-    Literal(Constant, Span),
+    Literal(Constant),
     Id { // decl_ref 指向符号表索引
         name: String,
         decl_ref: Option<Rc<Symbol>>

@@ -12,6 +12,7 @@ use crate::types::ast::struct_info::{EnumList, EnumSpec, Enumerator, StructDecla
 use crate::types::lex::token::Token;
 use crate::types::span::SepList;
 use macros::{EnumAutoFrom, EnumAutoInto, EnumAutoIntoOption};
+use crate::types::ast::initializer::{InitDeclList, InitDeclarator, InitInfo, InitList};
 
 #[derive(Debug)]
 #[derive(EnumAutoInto, EnumAutoFrom, EnumAutoIntoOption, Default)]
@@ -19,16 +20,18 @@ pub enum ParserNode {
     TranslationUnitNode(TranslationUnit),
     ExternalDeclarationNode(ExternalDeclaration),
     FunctionDefinitionNode(Box<FunctionDefinition>),
-    DeclarationNode(Box<Declaration>),
+    DeclNode(Box<Decl>),
+    DeclListNode(DeclList),
     TypeNode(Type),
     StorageClassNode(StorageClass),
     QualifiersNode(Qualifiers),
     FieldNode(Box<Field>),
     ParameterNode(Box<Parameter>),
     InitializerNode(Initializer),
-    BlockNode(Block),
+    BlockNode(BlockItemList),
     BlockItemNode(BlockItem),
     StatementNode(Statement),
+    CompoundStatementNode(CompoundStatement),
     ExpressionNode(Box<Expression>),
     ExpressionListNode(ExpressionList),
     ConstantNode(Constant),
@@ -51,6 +54,10 @@ pub enum ParserNode {
     TokenNode(Token),
     TokenListNode(IdentList),
     ParamListNode(ParamList),
+    InitInfoNode(InitInfo),
+    InitListNode(InitList),
+    InitDeclaratorNode(InitDeclarator),
+    InitDeclListNode(InitDeclList),
     #[enum_auto_ignore]
     #[default]
     None

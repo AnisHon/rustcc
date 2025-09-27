@@ -39,7 +39,7 @@ pub enum TypeSpec {
 }
 
 impl TypeSpec {
-    pub fn make_simple(token: Token) -> ParserNode {
+    pub fn make(token: Token) -> ParserNode {
         let span = token.span;
         let result = match token.kind {
             TokenKind::KeywordVoid => TypeSpec::Void(span),
@@ -309,7 +309,7 @@ impl DeclChunk {
         
         let asm = match &size {
             Some(x) => match x.kind {
-                ExpressionKind::Literal(_, _) => ArraySizeModifier::Normal,
+                ExpressionKind::Literal(_) => ArraySizeModifier::Normal,
                 _ => panic!("VLA 未实现")
             }
             None => ArraySizeModifier::Static
