@@ -9,15 +9,39 @@ use crate::types::ast::parser_node::ParserNode;
 use crate::types::span::{Delim, SepList, Span};
 use crate::types::lex::token::Token;
 
-pub type StructMemberList = Vec<StructMember>;
+pub type StructDeclList = Vec<StructDecl>;
+
 pub type StructDeclaratorList = SepList<StructDeclarator>;
 
 pub type EnumList = SepList<Enumerator>;
 
-
-pub enum StructDecl {
-    
+#[derive(Debug, Clone)]
+pub struct StructDecl {
+    pub spec_qual: DeclSpec,
+    pub list: StructDeclaratorList,
+    pub span: Span
 }
+
+impl StructDecl {
+    pub fn make(spec_qual: DeclSpec, list: StructDeclaratorList, semi: Token) -> ParserNode {
+        let span = semi.span.merge(&spec_qual.span);
+        Box::new(Self {
+            spec_qual,
+            list,
+            span,
+        }).into()
+    }
+
+    pub fn make_list(struct_decl: StructDecl) -> ParserNode {
+        StructDeclList::from([struct_decl]).into()
+    }
+
+    pub fn push(mut list: StructDeclList, struct_decl: StructDecl) -> ParserNode {
+        list.push(struct_decl);
+        list.into()
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub enum StructKind {
@@ -27,15 +51,17 @@ pub enum StructKind {
 
 /// 结构体
 #[derive(Debug, Clone)]
-pub struct StructOrUnionSpec {
+pub struct StructUnionSpec {
     pub kind: StructKind,       // struct 或 union
     pub name: Option<String>,   // 可能是匿名 struct
-    pub members: Option<Delim<Vec<StructMember>>>,     // 如果有 { ... } 就填，否则 None
+    pub members: Option<Delim<StructDeclList>>,     // 如果有 { ... } 就填，否则 None
     pub span: Span,
 }
 
-impl StructOrUnionSpec {
-    pub fn make(kind: Token, name: Token) -> ParserNode {
+impl StructUnionSpec {
+
+    /// struct ID
+    pub fn make_decl(kind: Token, name: Token) -> ParserNode {
         let kind_span = kind.span;
         let span = kind_span.merge(&name.span);
         let name = name.value.into_string().unwrap();
@@ -53,7 +79,9 @@ impl StructOrUnionSpec {
         };
         Box::new(result).into()
     }
-    pub fn make_decl(kind: Token, name: Option<Token>, lparen: Token, members: Vec<StructMember>, rparen: Token) -> ParserNode {
+
+    /// struct ID? { ... }
+    pub fn make_def(kind: Token, name: Option<Token>, lparen: Token, members: StructDeclList, rparen: Token) -> ParserNode {
         let kind_span = kind.span;
         let span = kind_span.merge(&rparen.span);
 
@@ -76,23 +104,6 @@ impl StructOrUnionSpec {
 
 }
 
-
-
-#[derive(Debug, Clone)]
-pub struct StructMember {
-    pub decl_spec: Box<DeclSpec>,
-    pub declarators: SepList<StructDeclarator>,
-    pub span: Span,
-}
-
-impl StructMember {
-    pub fn make_list(list: Option<Vec<StructMember>>, member: StructMember) -> ParserNode {
-        let mut list = list.unwrap_or_default();
-        list.push(member);
-        list.into()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct StructDeclarator {
     pub declarator: Option<Declarator>,
@@ -102,7 +113,7 @@ pub struct StructDeclarator {
 
 impl StructDeclarator {
 
-    pub fn make(declarator: Option<Declarator>, colon: Option<Token>, bit_field: Option<Expression>) -> ParserNode {
+    pub fn make(declarator: Option<Declarator>, colon: Option<Token>, bit_field: Option<Box<Expression>>) -> ParserNode {
         assert!(!(declarator.is_none() && bit_field.is_none())); // 不能同时None
 
         let span = match (&declarator, &bit_field) {
@@ -114,7 +125,7 @@ impl StructDeclarator {
 
         Self {
             declarator,
-            bit_field: bit_field.map(Box::new),
+            bit_field,
             span
         }.into()
     }
@@ -123,9 +134,8 @@ impl StructDeclarator {
         SepList::new(struct_declarator).into()
     }
     
-    pub fn push(mut list: SepList<StructDeclarator>, comma: Token, struct_declarator: StructDeclarator) -> ParserNode {
-        list.list.push(struct_declarator);
-        list.sep.push(comma.span);
+    pub fn push(mut list: StructDeclaratorList, comma: Token, struct_declarator: StructDeclarator) -> ParserNode {
+        list.push(comma.span, struct_declarator);
         list.into()
     }
 }
@@ -203,4 +213,19 @@ impl Enumerator {
     }
 
 
+}
+
+#[derive(Debug, Clone)]
+pub struct CompleteDecl {
+    pub decl_spec: DeclSpec,
+    pub declarator: Option<Declarator>,
+}
+
+impl CompleteDecl {
+    pub fn make(decl_spec: DeclSpec, declarator: Option<Declarator>) -> ParserNode {
+        Box::new(Self {
+            decl_spec,
+            declarator,
+        }).into()
+    }
 }

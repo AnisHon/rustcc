@@ -15,9 +15,9 @@ use crate::types::ast::decl_info::*;
 use crate::types::ast::parser_node::*;
 use crate::types::ast::sema::*;
 use crate::types::ast::temp::*;
-use crate::types::ast::struct_info::*;
+use crate::types::ast::struct_union_info::*;
 use crate::types::ast::initializer::*;
-
+use crate::types::ast::func_info::*
 %}
 
 %type ParserNode
@@ -171,8 +171,8 @@ type_qualifier
     ;
 
 struct_or_union_specifier
-    : struct_or_union identifier_opt '{' struct_declaration_list '}'  {$$ = StructOrUnionSpec::make_decl($1, $2, $3, $4, $5);}
-    | struct_or_union ID                                              {$$ = StructOrUnionSpec::make($1, $2);}
+    : struct_or_union identifier_opt '{' struct_declaration_list '}'  {$$ = StructUnionSpec::make_def($1, $2, $3, $4, $5);}
+    | struct_or_union ID                                              {$$ = StructUnionSpec::make_decl($1, $2);}
     ;
 
 struct_or_union
@@ -186,17 +186,17 @@ identifier_opt
     ;
 
 struct_declaration_list
-    : struct_declaration                            {$$ = StructMember::make_list(None, $1);}
-    | struct_declaration_list struct_declaration    {$$ = StructMember::make_list(Some($1), $2);}
+    : struct_declaration                            {$$ = StructDecl::make_list(None, $1);}
+    | struct_declaration_list struct_declaration    {$$ = StructDecl::push(Some($1), $2);}
     ;
 
 struct_declaration
-    : specifier_qualifier_list struct_declarator_list ';' {$$ = }
+    : specifier_qualifier_list struct_declarator_list ';' { $$ = StructDecl::make($1, $2, $3); }
     ;
 
 specifier_qualifier_list
-    : type_specifier specifier_qualifier_list_opt   {$$ = DeclSpec::push_spec($1, $2);}
-    | type_qualifier specifier_qualifier_list_opt   {$$ = DeclSpec::push_qual($1, $2);}
+    : type_specifier specifier_qualifier_list_opt   { $$ = DeclSpec::push_spec($1, $2); }
+    | type_qualifier specifier_qualifier_list_opt   { $$ = DeclSpec::push_qual($1, $2); }
     ;
 
 specifier_qualifier_list_opt
@@ -205,14 +205,14 @@ specifier_qualifier_list_opt
     ;
 
 struct_declarator_list
-    : struct_declarator                               {$$ = StructMember::make_list($1);}
-    | struct_declarator_list ',' struct_declarator    {$$ = StructMember::push($1, $2, $3);}
+    : struct_declarator                               { $$ = StructDeclarator::make_list($1); }
+    | struct_declarator_list ',' struct_declarator    { $$ = StructDeclarator::push($1, $2, $3); }
     ;
 
 struct_declarator
-    : declarator                          {$$ = StructDeclarator::make(Some($1), None, None);}
-    | ':' constant_expression             {$$ = StructDeclarator::make(None, $1, Some($2));}
-    | declarator ':' constant_expression  {$$ = StructDeclarator::make(Some($1), $2, Some($3));}
+    : declarator                          { $$ = StructDeclarator::make(Some($1), None, None); }
+    | ':' constant_expression             { $$ = StructDeclarator::make(None, Some($1), Some($2)); }
+    | declarator ':' constant_expression  { $$ = StructDeclarator::make(Some($1), Some($2), Some($3)); }
     ;
 
 enum_specifier
@@ -252,6 +252,7 @@ type_qualifier_list
     : type_qualifier                        {$$ = TypeQual::make(None, $1);}
     | type_qualifier_list type_qualifier    {$$ = TypeQual::make(Some($1), $2);}
     ;
+
 /* 最后的那个是老式声明 */
 direct_declarator
     : ID                                                { $$ = DeclChunk::make_list( DeclChunk::make_ident($1) ); }
@@ -272,23 +273,23 @@ identifier_list_opt
     ;
 
 identifier_list
-    : ID                        {$$ = make_ident_list(None, $1, None);}
-    | identifier_list ',' ID    {$$ = make_ident_list(Some($1), Some($2), $3);}
+    : ID                        {$$ = make_ident_list($1);}
+    | identifier_list ',' ID    {$$ = push_ident_list($1, $2, $3);}
     ;
 
 parameter_type_list
     : parameter_list                    {$$ = $1;}
-    | parameter_list ',' OP_ELLIPSIS    {$$ = ParamList::set_variadic($1, $2);}
+    | parameter_list ',' OP_ELLIPSIS    {$$ = ParamList::set_variadic($1, $2, $3);}
     ;
 
 parameter_list
-    : parameter_declaration                     {$$ = ParamList::make_list($1);}
-    | parameter_list ',' parameter_declaration  {$$ = ParamList::append_list($1, $2, $3);}
+    : parameter_declaration                     { $$ = ParamDecl::make_list($1); }
+    | parameter_list ',' parameter_declaration  { $$ = ParamDecl::push($1, $2, $3); }
     ;
 
 parameter_declaration
-    : declaration_specifiers declarator                 {$$ = CompleteDecl::make($1, $2, None);}
-    | declaration_specifiers abstract_declarator_opt    {$$ = CompleteDecl::make($1, $2, None);}
+    : declaration_specifiers declarator                 { $$ = ParamDecl::make($1, Some($2). true); }
+    | declaration_specifiers abstract_declarator_opt    { $$ = ParamDecl::make($1, $2, false); }
     ;
 
 abstract_declarator_opt
@@ -544,7 +545,7 @@ constant_expression
 /* 6.7.6 Type names (for casts/sizeof) */
 
 type_name
-    : specifier_qualifier_list abstract_declarator_opt  {$$ = }
+    : specifier_qualifier_list abstract_declarator_opt  { $$ = CompleteDecl::make($1, $2); }
     ;
 
 %%

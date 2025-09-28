@@ -7,11 +7,12 @@
 //!
 
 use crate::types::ast::ast_nodes::*;
-use crate::types::ast::decl_info::{CompleteDecl, DeclChunkList, DeclSpec, Declarator, ParamList, PointerChunkList, TypeQual, TypeSpec};
-use crate::types::ast::struct_info::{EnumList, EnumSpec, Enumerator, StructDeclarator, StructDeclaratorList, StructMember, StructMemberList, StructOrUnionSpec};
+use crate::types::ast::decl_info::*;
+use crate::types::ast::type_info::*;
 use crate::types::lex::token::Token;
 use crate::types::span::SepList;
 use macros::{EnumAutoFrom, EnumAutoInto, EnumAutoIntoOption};
+use crate::types::ast::func_info::{ParamDecl, ParamList};
 use crate::types::ast::initializer::{InitDeclList, InitDeclarator, InitInfo, InitList};
 
 #[derive(Debug)]
@@ -37,26 +38,27 @@ pub enum ParserNode {
     ConstantNode(Constant),
     DeclSpecNode(DeclSpec),
     DeclaratorNode(Declarator),
-    CompleteDeclNode(Box<CompleteDecl>),
     DeclChunkListNode(DeclChunkList),
     PointerChunkListNode(PointerChunkList),
     TypeSpecNode(TypeSpec),
     TypeQualNode(TypeQual),
     TypeQualListNode(Vec<TypeQual>),
-    StructOrUnionSpecNode(Box<StructOrUnionSpec>),
-    StructMemberNode(StructMember),
-    StructMemberNodeList(StructMemberList),
+    StructOrUnionSpecNode(Box<StructUnionSpec>),
+    StructMemberNode(Box<StructDecl>),
+    StructMemberNodeList(StructDeclList),
     StructDeclaratorNode(StructDeclarator),
     StructDeclaratorNodeList(StructDeclaratorList),
     EnumSpecNode(Box<EnumSpec>),
     EnumListNode(EnumList),
     EnumeratorNode(Enumerator),
+    TypeNameNode(Box<CompleteDecl>),
     TokenNode(Token),
     TokenListNode(IdentList),
+    ParamDeclNode(Box<ParamDecl>),
     ParamListNode(ParamList),
     InitInfoNode(InitInfo),
     InitListNode(InitList),
-    InitDeclaratorNode(InitDeclarator),
+    InitDeclaratorNode(Box<InitDeclarator>),
     InitDeclListNode(InitDeclList),
     #[enum_auto_ignore]
     #[default]
@@ -65,19 +67,11 @@ pub enum ParserNode {
 
 pub type IdentList = SepList<Token>;
 
+pub fn make_ident_list(ident: Token) -> ParserNode {
+    IdentList::new(ident).into()
+}
 
-
-
-
-
-
-pub fn make_ident_list(ident_list: Option<SepList<Token>>, comma: Option<Token>, ident: Token) -> ParserNode {
-    let mut ident_list = ident_list.unwrap_or_default();
-    ident_list.push_item(ident);
-
-    if let Some(x) = comma {
-        ident_list.push_sep(x.span);
-    }
-
-    ident_list.into()
+pub fn push_ident_list(mut list: IdentList, comma: Token, ident: Token) -> ParserNode {
+    list.push(comma.span, ident);
+    list.into()
 }

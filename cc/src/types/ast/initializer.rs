@@ -59,11 +59,11 @@ pub struct InitDeclarator {
 impl InitDeclarator {
     
     pub fn make(decl: Declarator, eq: Option<Token>, init: Option<InitInfo>) -> ParserNode {
-        Self {
+        Box::new(Self {
             decl,
             eq: eq.map(|x| x.span),
             init,
-        }.into()
+        }).into()
     }
     
     pub fn make_list(init: InitDeclarator) -> ParserNode {

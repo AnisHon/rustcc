@@ -11,13 +11,14 @@
 //! - `ParamInfo`:
 //!
 
-use crate::types::lex::token_kind::TokenKind;
-use crate::types::span::{Delim, SepList, Span, UnwrapSpan};
 use crate::types::ast::ast_nodes;
 use crate::types::ast::ast_nodes::{ExpressionKind, StorageClass};
+use crate::types::ast::func_info::ParamList;
 use crate::types::ast::parser_node::{IdentList, ParserNode};
-use crate::types::ast::struct_info::{EnumSpec, StructOrUnionSpec};
-use crate::types::lex::token::{Token};
+use crate::types::ast::type_info::{EnumSpec, StructUnionSpec};
+use crate::types::lex::token::Token;
+use crate::types::lex::token_kind::TokenKind;
+use crate::types::span::{Delim, Span, UnwrapSpan};
 
 pub type DeclChunkList = Vec<DeclChunk>;
 pub type PointerChunkList = Vec<PointerChunk>;
@@ -33,7 +34,7 @@ pub enum TypeSpec {
     Unsigned(Span),
     Float(Span),
     Double(Span),
-    StructOrUnion(Box<StructOrUnionSpec>),
+    StructOrUnion(Box<StructUnionSpec>),
     Enum(Box<EnumSpec>),
     TypeName(String, Span)
 }
@@ -61,7 +62,7 @@ impl TypeSpec {
         result.into()
     }
 
-    pub fn make_struct_or_union(struct_or_union_spec: Box<StructOrUnionSpec>) -> ParserNode {
+    pub fn make_struct_or_union(struct_or_union_spec: Box<StructUnionSpec>) -> ParserNode {
         TypeSpec::StructOrUnion(struct_or_union_spec).into()
     }
 
@@ -223,30 +224,6 @@ impl Declarator {
    
 }
 
-/// 组合类型就是Spec + Declarator + 初始化的一个完整的初始化组合定义 
-#[derive(Debug, Clone)]
-pub struct CompleteDecl {
-    pub spec: Box<DeclSpec>,
-    pub declarator: Declarator,
-    pub init: Option<ast_nodes::Initializer>,     // 可选初始化
-    pub span: Span,                     // 覆盖整个 declaration
-}
-
-impl CompleteDecl {
-    pub fn make(spec: Box<DeclSpec>, declarator: Declarator, init: Option<ast_nodes::Initializer>) -> ParserNode {
-        let span = spec.span.merge(&declarator.span);
-        let result = Box::new(Self {
-            spec,
-            declarator,
-            init,
-            span
-        });
-        result.into()
-    }
-    
-    
-}
-
 #[derive(Debug, Clone)]
 pub struct PointerChunk {
     pub quals: Vec<TypeQual>,
@@ -295,6 +272,7 @@ pub enum DeclChunkKind {
         asm: ArraySizeModifier, // Array类型(Normal, Static, VLA)
     },
     Function { param_list: Delim<Option<Box<ParamList>>>, },
+    KRFunction { param_list: Delim<Option<IdentList>>, },
     Ident { name: String },
     Paren ( Delim<Declarator> )
 }
@@ -331,23 +309,9 @@ impl DeclChunk {
     /// K&R 函数声明
     pub fn make_old_function(lparen: Token, ident_list: Option<IdentList>, rparen: Token) -> Self {
         let span = lparen.span.merge(&rparen.span);
-        let ident_list = ident_list.unwrap_or_default();
-        let params: Vec<_> = ident_list.list.into_iter().map(|x| {
-            let span = x.span;
-            let name = x.value.into_string().unwrap();
-            ParamInfo::Ident(name, span)
-        }).collect();
 
-
-        let param_list = ParamList {
-            is_variadic: false,
-            has_prototype: false,
-            params: SepList { list: params, sep: ident_list.sep },
-            span,
-        };
-
-        let kind = DeclChunkKind::Function {
-            param_list: Delim::new(&lparen, Some(Box::new(param_list)), &rparen)
+        let kind = DeclChunkKind::KRFunction {
+            param_list: Delim::new(&lparen, ident_list, &rparen)
         };
         
         Self::new(kind, span)
@@ -383,65 +347,4 @@ pub enum ArraySizeModifier {
     Static,     // int a[] = ...;
     VLA         // int a[*];  (VLA without size)，C89不支持
 }
-
-#[derive(Debug, Clone)]
-pub struct ParamList {
-    pub is_variadic: bool,      // 是否是可变参数
-    pub has_prototype: bool,    // 是否有原型，就是类型
-    pub params: SepList<ParamInfo>, // 参数列表
-    pub span: Span
-}
-
-impl ParamList {
-    pub fn set_variadic(mut param_list: ParamList, comma: Token) -> ParserNode {
-        let span = comma.span;
-        param_list.is_variadic = true;
-        param_list.params.sep.push(span);
-        param_list.into()
-    }
-
-    pub fn make_list(param_info: ParamInfo) -> ParserNode {
-        let span = param_info.unwrap_span();
-        Self {
-            is_variadic: false,
-            has_prototype: true,
-            params: SepList::new(param_info),
-            span,
-        }.into()
-    }
-
-    pub fn append_list(mut param_list: ParamList, comma: Token, param_info: ParamInfo) -> ParserNode {
-        let span = comma.span;
-
-        param_list.span.merge_self(&param_info.unwrap_span()); // 增大span
-        param_list.params.push_item(param_info);
-        param_list.params.push_sep(span);
-
-        param_list.into()
-    }
-}
-
-/// todo 这里两个大小差别很大，处理
-#[derive(Debug, Clone)]
-pub enum ParamInfo {
-    Ident(String, Span),
-    Decl(Box<CompleteDecl>, Span),
-}
-
-impl UnwrapSpan for ParamInfo {
-    fn unwrap_span(&self) -> Span {
-        match self {
-            ParamInfo::Ident(_, x)
-            | ParamInfo::Decl(_, x) => *x
-        }
-    }
-}
-
-
-
-
-
-
-
-
 
