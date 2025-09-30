@@ -9,7 +9,7 @@ use crate::types::ast::parser_node::ParserNode;
 use crate::types::span::{Delim, SepList, Span};
 use crate::types::lex::token::Token;
 
-pub type StructDeclList = Vec<StructDecl>;
+pub type StructDeclList = Vec<Box<StructDecl>>;
 
 pub type StructDeclaratorList = SepList<StructDeclarator>;
 
@@ -32,11 +32,11 @@ impl StructDecl {
         }).into()
     }
 
-    pub fn make_list(struct_decl: StructDecl) -> ParserNode {
+    pub fn make_list(struct_decl: Box<StructDecl>) -> ParserNode {
         StructDeclList::from([struct_decl]).into()
     }
 
-    pub fn push(mut list: StructDeclList, struct_decl: StructDecl) -> ParserNode {
+    pub fn push(mut list: StructDeclList, struct_decl: Box<StructDecl>) -> ParserNode {
         list.push(struct_decl);
         list.into()
     }
@@ -198,7 +198,7 @@ impl Enumerator {
         enums.into()
     }
 
-    pub fn make(name: Token, value: Option<Expression>) -> ParserNode {
+    pub fn make(name: Token, value: Option<Box<Expression>>) -> ParserNode {
         let span = match &value {
             None => name.span,
             Some(x) => name.span.merge(&x.span),
@@ -207,7 +207,7 @@ impl Enumerator {
         
         Self {
             name,
-            value: value.map(Box::new),
+            value,
             span,
         }.into()
     }

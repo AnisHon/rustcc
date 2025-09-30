@@ -1,5 +1,6 @@
 use crate::types::ast::decl_info::{DeclSpec, Declarator};
 use crate::types::ast::parser_node::ParserNode;
+use crate::types::ast::type_info::CompleteDecl;
 use crate::types::lex::token::Token;
 use crate::types::span::{SepList, Span, UnwrapSpan};
 
@@ -7,12 +8,12 @@ use crate::types::span::{SepList, Span, UnwrapSpan};
 pub struct ParamList {
     pub is_variadic: bool,
     pub has_prototype: bool,
-    pub list: SepList<ParamDecl>,
+    pub list: SepList<Box<ParamDecl>>,
     pub span: Span,
 }
 
 impl ParamList {
-    pub fn make_list(param_decl: ParamDecl) -> ParserNode {
+    pub fn make_list(param_decl: Box<ParamDecl>) -> ParserNode {
         let span = param_decl.unwrap_span();
         Self {
             is_variadic: false, 
@@ -22,7 +23,7 @@ impl ParamList {
         }.into()
     }
 
-    pub fn push(mut param_list: ParamList, comma: Token, param_decl: ParamDecl) -> ParserNode {
+    pub fn push(mut param_list: ParamList, comma: Token, param_decl: Box<ParamDecl>) -> ParserNode {
         // 全部都有原型才算原型
         param_list.has_prototype = param_list.has_prototype && param_decl.has_prototype;
         param_list.span.merge_self(&param_decl.unwrap_span());
@@ -41,25 +42,25 @@ impl ParamList {
 
 #[derive(Debug, Clone)]
 pub struct ParamDecl {
-    decl_spec: DeclSpec,
-    declarator: Option<Declarator>,
+    complete_decl: CompleteDecl,
     has_prototype: bool,
 }
 
 impl ParamDecl {
     pub fn make(decl_spec: DeclSpec, declarator: Option<Declarator>, has_prototype: bool) -> ParserNode {
         Box::new(Self {
-            decl_spec,
-            declarator,
+            complete_decl: CompleteDecl {decl_spec, declarator},
             has_prototype,
         }).into()
     }
+    
 }
 
 impl UnwrapSpan for ParamDecl {
     fn unwrap_span(&self) -> Span {
-        let mut span = self.decl_spec.unwrap_span();
-        if let Some(x) = &self.declarator {
+        let decl = &self.complete_decl;
+        let mut span = decl.decl_spec.unwrap_span();
+        if let Some(x) = &decl.declarator {
             span.merge_self(&x.span);
         }
         span

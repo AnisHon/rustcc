@@ -47,7 +47,7 @@ impl InitInfo {
 
 }
 
-pub type InitDeclList = SepList<InitDeclarator>;
+pub type InitDeclList = SepList<Box<InitDeclarator>>;
 
 #[derive(Debug, Clone)]
 pub struct InitDeclarator {
@@ -66,11 +66,11 @@ impl InitDeclarator {
         }).into()
     }
     
-    pub fn make_list(init: InitDeclarator) -> ParserNode {
+    pub fn make_list(init: Box<InitDeclarator>) -> ParserNode {
         InitDeclList::new(init).into()
     }
     
-    pub fn push(mut list: InitDeclList, comma: Token, init: InitDeclarator) -> ParserNode {
+    pub fn push(mut list: InitDeclList, comma: Token, init: Box<InitDeclarator>) -> ParserNode {
         list.push(comma.span, init);
         list.into()
     }

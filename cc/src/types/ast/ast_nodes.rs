@@ -8,7 +8,7 @@ use std::rc::Rc;
 use crate::types::lex::token::{Token, TokenValue};
 use crate::types::lex::token_kind::TokenKind;
 
-pub type ExpressionList = Vec<Expression>;
+pub type ExpressionList = Vec<Box<Expression>>;
 
 /// 顶层翻译单元
 #[derive(Debug, Clone)]
@@ -175,6 +175,11 @@ pub struct Qualifiers {
     // pub is_static: bool, // ?
 }
 
+impl Default for Qualifiers {
+    fn default() -> Self {
+        Self::new(false, false)
+    }
+}
 
 
 // 结构体/联合体字段
@@ -209,19 +214,6 @@ pub type BlockItemList = Vec<BlockItem>;
 pub enum BlockItem {
     Declaration(DeclStmt),
     Statement(Statement),
-}
-
-#[derive(Debug, Clone)]
-pub struct CompoundStatement {
-    pub lbrace: Span,
-    pub list: Option<Vec<BlockItem>>,
-    pub rbrace: Span,
-}
-
-impl UnwrapSpan for CompoundStatement {
-    fn unwrap_span(&self) -> Span {
-        self.rbrace.merge(&self.lbrace)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -282,7 +274,11 @@ pub enum StatementKind {
     Continue,
     Break,
     Return(Option<Box<Expression>>),
-    Compound(CompoundStatement),
+    Compound{
+        lbrace: Span,
+        list: Option<Vec<BlockItem>>,
+        rbrace: Span,
+    },
 }
 // 表达式
 #[derive(Debug, Clone)]
@@ -332,7 +328,7 @@ pub enum ExpressionKind {
     },
     Call {
         func: Box<Expression>,
-        args: Vec<Expression>
+        args: Vec<Box<Expression>>
     },
     FieldAccess {
         base: Box<Expression>,

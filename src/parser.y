@@ -14,10 +14,9 @@ use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::*;
 use crate::types::ast::parser_node::*;
 use crate::types::ast::sema::*;
-use crate::types::ast::temp::*;
-use crate::types::ast::struct_union_info::*;
+use crate::types::ast::type_info::*;
 use crate::types::ast::initializer::*;
-use crate::types::ast::func_info::*
+use crate::types::ast::func_info::*;
 %}
 
 %type ParserNode
@@ -89,7 +88,7 @@ translation_unit
 
 external_declaration
     : function_definition   {$$ = ExternalDeclaration::make_func($1);}
-    | declaration           {$$ = ExternalDeclaration::make_variable($1);}
+    | declaration           {$$ = ExternalDeclaration::make_decl($1);}
     ;
 
 /* 6.9.1 Function definition (C89 allows old-style parameter decls) */
@@ -111,22 +110,22 @@ declaration_list
 /* 6.7 Declarations */
 
 declaration
-    : declaration_specifiers init_declarator_list_opt ';' { $$ = Decl::make($1, $2, $3) }
+    : declaration_specifiers init_declarator_list_opt ';' { $$ = Decl::make($1, $2, $3); }
     ;
 
 init_declarator_list_opt
-    : /* empty */           {$$ = ParserNode::None;;}
+    : /* empty */           {$$ = ParserNode::None;}
     | init_declarator_list  {$$ = $1;}
     ;
 
 init_declarator_list
-    : init_declarator                               { $$ = InitDeclarator::make_list($1); }
-    | init_declarator_list ',' init_declarator      { $$ = InitDeclarator::push($1, $2, $3); }
+    : init_declarator                               {$$ = InitDeclarator::make_list($1); }
+    | init_declarator_list ',' init_declarator      {$$ = InitDeclarator::push($1, $2, $3); }
     ;
 
 init_declarator
-    : declarator                    { $$ = InitDeclarator::make($1, None, None); }
-    | declarator '=' initializer    { $$ = InitDeclarator::($1, Some($2), Some($3)); }
+    : declarator                    {$$ = InitDeclarator::make($1, None, None); }
+    | declarator '=' initializer    {$$ = InitDeclarator::make($1, Some($2), Some($3)); }
     ;
 
 /* specifiers and qualifiers */
@@ -186,17 +185,17 @@ identifier_opt
     ;
 
 struct_declaration_list
-    : struct_declaration                            {$$ = StructDecl::make_list(None, $1);}
-    | struct_declaration_list struct_declaration    {$$ = StructDecl::push(Some($1), $2);}
+    : struct_declaration                            {$$ = StructDecl::make_list($1);}
+    | struct_declaration_list struct_declaration    {$$ = StructDecl::push($1, $2);}
     ;
 
 struct_declaration
-    : specifier_qualifier_list struct_declarator_list ';' { $$ = StructDecl::make($1, $2, $3); }
+    : specifier_qualifier_list struct_declarator_list ';' {$$ = StructDecl::make($1, $2, $3); }
     ;
 
 specifier_qualifier_list
-    : type_specifier specifier_qualifier_list_opt   { $$ = DeclSpec::push_spec($1, $2); }
-    | type_qualifier specifier_qualifier_list_opt   { $$ = DeclSpec::push_qual($1, $2); }
+    : type_specifier specifier_qualifier_list_opt   {$$ = DeclSpec::push_spec($1, $2); }
+    | type_qualifier specifier_qualifier_list_opt   {$$ = DeclSpec::push_qual($1, $2); }
     ;
 
 specifier_qualifier_list_opt
@@ -205,14 +204,14 @@ specifier_qualifier_list_opt
     ;
 
 struct_declarator_list
-    : struct_declarator                               { $$ = StructDeclarator::make_list($1); }
-    | struct_declarator_list ',' struct_declarator    { $$ = StructDeclarator::push($1, $2, $3); }
+    : struct_declarator                               {$$ = StructDeclarator::make_list($1); }
+    | struct_declarator_list ',' struct_declarator    {$$ = StructDeclarator::push($1, $2, $3); }
     ;
 
 struct_declarator
-    : declarator                          { $$ = StructDeclarator::make(Some($1), None, None); }
-    | ':' constant_expression             { $$ = StructDeclarator::make(None, Some($1), Some($2)); }
-    | declarator ':' constant_expression  { $$ = StructDeclarator::make(Some($1), Some($2), Some($3)); }
+    : declarator                          {$$ = StructDeclarator::make(Some($1), None, None); }
+    | ':' constant_expression             {$$ = StructDeclarator::make(None, Some($1), Some($2)); }
+    | declarator ':' constant_expression  {$$ = StructDeclarator::make(Some($1), Some($2), Some($3)); }
     ;
 
 enum_specifier
@@ -233,7 +232,7 @@ enumerator
 /* declarators */
 
 declarator
-    : pointer_opt direct_declarator {$$ = Declarator::make($1, $2);}
+    : pointer_opt direct_declarator {$$ = Declarator::make($1, Some($2));}
     ;
 
 pointer_opt
@@ -255,11 +254,11 @@ type_qualifier_list
 
 /* 最后的那个是老式声明 */
 direct_declarator
-    : ID                                                { $$ = DeclChunk::make_list( DeclChunk::make_ident($1) ); }
-    | '(' declarator ')'                                { $$ = DeclChunk::make_list( DeclChunk::make_paren($1, $2, $3) ); }
-    | direct_declarator '[' constant_expression_opt ']' { $$ = DeclChunk::push( $1, DeclChunk::make_array($2, $3, $4) ); }
-    | direct_declarator '(' parameter_type_list ')'     { $$ = DeclChunk::push( $1, DeclChunk::make_function($2, $3, $4) ); }
-    | direct_declarator '(' identifier_list_opt ')'     { $$ = DeclChunk::push( $1, DeclChunk::make_old_function($2, $3, $4) ); }
+    : ID                                                {$$ = DeclChunk::make_list( DeclChunk::make_ident($1) ); }
+    | '(' declarator ')'                                {$$ = DeclChunk::make_list( DeclChunk::make_paren($1, $2, $3) ); }
+    | direct_declarator '[' constant_expression_opt ']' {$$ = DeclChunk::push( $1, DeclChunk::make_array($2, $3, $4) ); }
+    | direct_declarator '(' parameter_type_list ')'     {$$ = DeclChunk::push( $1, DeclChunk::make_function($2, $3, $4) );}
+    | direct_declarator '(' identifier_list_opt ')'     {$$ = DeclChunk::push( $1, DeclChunk::make_kr_function($2, $3, $4) ); }
     ;
 
 constant_expression_opt
@@ -283,13 +282,13 @@ parameter_type_list
     ;
 
 parameter_list
-    : parameter_declaration                     { $$ = ParamDecl::make_list($1); }
-    | parameter_list ',' parameter_declaration  { $$ = ParamDecl::push($1, $2, $3); }
+    : parameter_declaration                     {$$ = ParamList::make_list($1);}
+    | parameter_list ',' parameter_declaration  {$$ = ParamList::push($1, $2, $3);}
     ;
 
 parameter_declaration
-    : declaration_specifiers declarator                 { $$ = ParamDecl::make($1, Some($2). true); }
-    | declaration_specifiers abstract_declarator_opt    { $$ = ParamDecl::make($1, $2, false); }
+    : declaration_specifiers declarator                 {$$ = ParamDecl::make($1, Some($2), true);}
+    | declaration_specifiers abstract_declarator_opt    {$$ = ParamDecl::make($1, $2, false);}
     ;
 
 abstract_declarator_opt
@@ -298,16 +297,16 @@ abstract_declarator_opt
     ;
 
 abstract_declarator
-    : pointer                                   {$$ = Declarator::make_pointer(Some($1), Some($2));}
-    | pointer_opt direct_abstract_declarator    {$$ = Declarator::make_pointer($1, Some($2));}
+    : pointer                                   {$$ = Declarator::make(Some($1), None);}
+    | pointer_opt direct_abstract_declarator    {$$ = Declarator::make($1, Some($2));}
     ;
 
 direct_abstract_declarator
-    : '(' abstract_declarator ')'                                 {$$ = Declarator::add_span($1, $2, $3);}
-    | '[' constant_expression_opt ']'                             {$$ = Declarator::make_array(None, $1, $2, $3);}
-    | direct_abstract_declarator '[' constant_expression_opt ']'  {$$ = Declarator::make_array(Some($1), $2, $3, $4);}
-    | '(' parameter_type_list_opt ')'                             {$$ = Declarator::make_function(None, $1, $2, $3);}
-    | direct_abstract_declarator '(' parameter_type_list_opt ')'  {$$ = Declarator::make_function(Some($1), $2, $3, $4);}
+    : '(' abstract_declarator ')'                                 {$$ = DeclChunk::make_list( DeclChunk::make_paren($1, $2, $3) );}
+    | '[' constant_expression_opt ']'                             {$$ = DeclChunk::make_list( DeclChunk::make_array($1, $2, $3) );}
+    | direct_abstract_declarator '[' constant_expression_opt ']'  {$$ = DeclChunk::push( $1, DeclChunk::make_array($2, $3, $4) );}
+    | '(' parameter_type_list_opt ')'                             {$$ = DeclChunk::make_list( DeclChunk::make_function($1, $2, $3) );}
+    | direct_abstract_declarator '(' parameter_type_list_opt ')'  {$$ = DeclChunk::push( $1, DeclChunk::make_function($2, $3, $4) );}
     ;
 
 parameter_type_list_opt
@@ -317,50 +316,50 @@ parameter_type_list_opt
 
 /* Initializers (C89) */
 initializer
-    : assignment_expression         { $$ = InitInfo::make_expr($1); }
-    | '{' initializer_list '}'      { $$ = InitInfo::make_init_list($1, $2, None, $3) }
-    | '{' initializer_list ',' '}'  { $$ = InitInfo::make_init_list($1, $2, Some($3), $4) }  /* trailing comma is widely accepted; tighten if needed */
+    : assignment_expression         {$$ = InitInfo::make_expr($1);}
+    | '{' initializer_list '}'      {$$ = InitInfo::make_init_list($1, $2, None, $3);}
+    | '{' initializer_list ',' '}'  {$$ = InitInfo::make_init_list($1, $2, Some($3), $4);}  /* trailing comma is widely accepted; tighten if needed */
     ;
 
 initializer_list
-    : initializer                       { $$ = InitInfo::make_list($1); }
-    | initializer_list ',' initializer  { $$ = InitInfo::push($1, $2, $3); }
+    : initializer                       {$$ = InitInfo::make_list($1);}
+    | initializer_list ',' initializer  {$$ = InitInfo::push($1, $2, $3);}
     ;
 
 /* 6.8 Statements */
 statement
-    : labeled_statement     {$$ = Statement::make_labeled($1);}
-    | compound_statement    {$$ = Statement::make_compound($1);}
-    | expression_statement  {$$ = Statement::make_expression($1);}
-    | selection_statement   {$$ = Statement::make_selection($1);}
-    | iteration_statement   {$$ = Statement::make_iteration($1);}
-    | jump_statement        {$$ = Statement::make_jump($1);}
+    : labeled_statement     {$$ = $1;}
+    | compound_statement    {$$ = $1;}
+    | expression_statement  {$$ = $1;}
+    | selection_statement   {$$ = $1;}
+    | iteration_statement   {$$ = $1;}
+    | jump_statement        {$$ = $1;}
     ;
 
 labeled_statement
-    : ID ':' statement                                {$$ = LabeledStatement::make_label($1, $3);}
-    | KEYWORD_CASE constant_expression ':' statement  {$$ = LabeledStatement::make_case($2, $4);}
-    | KEYWORD_DEFAULT ':' statement                   {$$ = LabeledStatement::make_default($3);}
+    : ID ':' statement                                {$$ = Statement::make_label($1, $3);}
+    | KEYWORD_CASE constant_expression ':' statement  {$$ = Statement::make_case($1, $2, $4);}
+    | KEYWORD_DEFAULT ':' statement                   {$$ = Statement::make_default($1, $3);}
     ;
 
 compound_statement
-    : '{' '}'                 { $$ = CompoundStatement::make($1, None, $2); }
-    | '{' block_item_list '}' { $$ = CompoundStatement::make($1, Some($2), $3); }
+    : '{' '}'                 {$$ = Statement::make_compound($1, None, $2);}
+    | '{' block_item_list '}' {$$ = Statement::make_compound($1, Some($2), $3);}
     ;
 
 block_item_list
-    : block_item                    { $$ = BlockItem::make($1); }
-    | block_item_list block_item    { $$ = BlockItem::push($1, $2); }
+    : block_item                    {$$ = BlockItem::make_list($1);}
+    | block_item_list block_item    {$$ = BlockItem::push($1, $2);}
     ;
 
 block_item
-    : declaration   { $$ = BlockItem::make_decl($1); }
-    | statement     { $$ = BlockItem::make_stmt($1); }
+    : declaration   {$$ = BlockItem::make_decl($1);}
+    | statement     {$$ = BlockItem::make_stmt($1);}
     ;
 
 expression_statement
-    : ';'             {$$ = Statement::make_expression(None);}
-    | expression ';'  {$$ = Statement::make_expression(Some($1));}
+    : ';'             {$$ = Statement::make_expression(None, $1);}
+    | expression ';'  {$$ = Statement::make_expression(Some($1), $2);}
     ;
 
 selection_statement
@@ -412,20 +411,20 @@ postfix_expression
     : primary_expression                                        {$$ = $1;}
     | postfix_expression '[' expression ']'                     {$$ = Expression::make_array_access($1, $3, $4);}
     | postfix_expression '(' argument_expression_list_opt ')'   {$$ = Expression::make_call($1, $3, $4);}
-    | postfix_expression '.' ID                                 {$$ = Expression::make_field($1, $3);}
+    | postfix_expression '.' ID                                 {$$ = Expression::make_field_access($1, $3);}
     | postfix_expression OP_ARROW ID                            {$$ = Expression::make_arrow($1, $3);}
     | postfix_expression OP_INC                                 {$$ = Expression::make_update($1, $2, true);}
     | postfix_expression OP_DEC                                 {$$ = Expression::make_update($1, $2, true);}
     ;
 
 argument_expression_list_opt
-    : /* empty */               { $$ = ParserNode::None; }
-    | argument_expression_list  { $$ = $1; }
+    : /* empty */               {$$ = ParserNode::None;}
+    | argument_expression_list  {$$ = $1;}
     ;
 
 argument_expression_list
-    : assignment_expression                                 { $$ = $1; }
-    | argument_expression_list ',' assignment_expression    { $$ = Expression::make_assign($1, $2, $3); }
+    : assignment_expression                                 {$$ = $1;}
+    | argument_expression_list ',' assignment_expression    {$$ = Expression::make_assign($1, $2, $3);}
     ;
 
 unary_expression
@@ -434,7 +433,7 @@ unary_expression
     | OP_DEC unary_expression           {$$ = Expression::make_update($2, $1, true);}
     | unary_operator cast_expression    {$$ = Expression::make_unary($1, $2);}
     | KEYWORD_SIZEOF unary_expression   {$$ = Expression::make_sizeof_expr($1, $2);}
-    | KEYWORD_SIZEOF '(' type_name ')'  {$$ = Expression::make_sizeof_type($1, $3, $4);}
+    | KEYWORD_SIZEOF '(' type_name ')'  {$$ = Expression::make_sizeof_type($1, $2, $3, $4);}
     ;
 
 unary_operator
@@ -516,7 +515,7 @@ conditional_expression
 
 assignment_expression
     : conditional_expression                                        {$$ = $1;}
-    | unary_expression assignment_operator assignment_expression    {$$ = Expression::make_assign($1, $2, $3)}
+    | unary_expression assignment_operator assignment_expression    {$$ = Expression::make_assign($1, $2, $3);}
     ;
 
 assignment_operator
@@ -545,7 +544,7 @@ constant_expression
 /* 6.7.6 Type names (for casts/sizeof) */
 
 type_name
-    : specifier_qualifier_list abstract_declarator_opt  { $$ = CompleteDecl::make($1, $2); }
+    : specifier_qualifier_list abstract_declarator_opt  {$$ = CompleteDecl::make($1, $2);}
     ;
 
 %%

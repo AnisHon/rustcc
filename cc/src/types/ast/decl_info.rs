@@ -203,9 +203,10 @@ pub struct Declarator {
 }
 
 impl Declarator {
-    pub fn make(pointer_chunks: Option<PointerChunkList>, decl_chunks: DeclChunkList) -> ParserNode {
+    pub fn make(pointer_chunks: Option<PointerChunkList>, decl_chunks: Option<DeclChunkList>) -> ParserNode {
         let mut pointer_chunks = pointer_chunks.unwrap_or_default();
-        pointer_chunks.reverse(); // 翻转
+        let decl_chunks = decl_chunks.unwrap_or_default();
+        pointer_chunks.reverse(); // Pointer是反向的，这里需要翻转
         
         // 要么从pointer中取，没有就从decl中取
         let first = pointer_chunks.first()
@@ -307,7 +308,7 @@ impl DeclChunk {
     }
 
     /// K&R 函数声明
-    pub fn make_old_function(lparen: Token, ident_list: Option<IdentList>, rparen: Token) -> Self {
+    pub fn make_kr_function(lparen: Token, ident_list: Option<IdentList>, rparen: Token) -> Self {
         let span = lparen.span.merge(&rparen.span);
 
         let kind = DeclChunkKind::KRFunction {
