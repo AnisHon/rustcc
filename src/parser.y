@@ -12,14 +12,17 @@
 %{
 use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::*;
-use crate::types::ast::parser_node::*;
+use crate::types::ast::sematic_value::*;
 use crate::types::ast::sema::*;
 use crate::types::ast::type_info::*;
 use crate::types::ast::initializer::*;
 use crate::types::ast::func_info::*;
+use crate::types::parser_context::*;
 %}
 
-%type ParserNode
+%type SemanticValue
+
+%param { context: &mut ParserContext }
 
 /* ====== Tokens ====== */
 %token ID TYPE_NAME
@@ -98,7 +101,7 @@ function_definition
     ;
 
 declaration_list_opt
-    : /* empty */       { $$ = ParserNode::None; }
+    : /* empty */       { $$ = SemanticValue::None; }
     | declaration_list  { $$ = $1; }
     ;
 
@@ -114,7 +117,7 @@ declaration
     ;
 
 init_declarator_list_opt
-    : /* empty */           {$$ = ParserNode::None;}
+    : /* empty */           {$$ = SemanticValue::None;}
     | init_declarator_list  {$$ = $1;}
     ;
 
@@ -137,7 +140,7 @@ declaration_specifiers
     ;
 
 declaration_specifiers_opt
-    : /* empty */               {$$ = ParserNode::None;}
+    : /* empty */               {$$ = SemanticValue::None;}
     | declaration_specifiers    {$$ = $1;}
     ;
 
@@ -180,7 +183,7 @@ struct_or_union
     ;
 
 identifier_opt
-    : /* empty */   {$$ = ParserNode::None;}
+    : /* empty */   {$$ = SemanticValue::None;}
     | ID            {$$ = $1;}
     ;
 
@@ -199,7 +202,7 @@ specifier_qualifier_list
     ;
 
 specifier_qualifier_list_opt
-    : /* empty */               {$$ = ParserNode::None;}
+    : /* empty */               {$$ = SemanticValue::None;}
     | specifier_qualifier_list  {$$ = $1;}
     ;
 
@@ -236,7 +239,7 @@ declarator
     ;
 
 pointer_opt
-    : /* empty */   {$$ = ParserNode::None;}
+    : /* empty */   {$$ = SemanticValue::None;}
     | pointer       {$$ = $1;}
     ;
 
@@ -262,12 +265,12 @@ direct_declarator
     ;
 
 constant_expression_opt
-    : /* empty */           {$$ = ParserNode::None;}
+    : /* empty */           {$$ = SemanticValue::None;}
     | constant_expression   {$$ = $1;}
     ;
 
 identifier_list_opt
-    : /* empty */       {$$ = ParserNode::None;}
+    : /* empty */       {$$ = SemanticValue::None;}
     | identifier_list   {$$ = $1;}
     ;
 
@@ -292,7 +295,7 @@ parameter_declaration
     ;
 
 abstract_declarator_opt
-    : /* empty */           {$$ = ParserNode::None;}
+    : /* empty */           {$$ = SemanticValue::None;}
     | abstract_declarator   {$$ = $1;}
     ;
 
@@ -310,7 +313,7 @@ direct_abstract_declarator
     ;
 
 parameter_type_list_opt
-    : /* empty */           {$$ = ParserNode::None;}
+    : /* empty */           {$$ = SemanticValue::None;}
     | parameter_type_list   {$$ = $1;}
     ;
 
@@ -375,7 +378,7 @@ iteration_statement
     ;
 
 expression_opt
-    : /* empty */   {$$ = ParserNode::None;}
+    : /* empty */   {$$ = SemanticValue::None;}
     | expression    {$$ = $1;}
     ;
 
@@ -418,7 +421,7 @@ postfix_expression
     ;
 
 argument_expression_list_opt
-    : /* empty */               {$$ = ParserNode::None;}
+    : /* empty */               {$$ = SemanticValue::None;}
     | argument_expression_list  {$$ = $1;}
     ;
 

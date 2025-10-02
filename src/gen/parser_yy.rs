@@ -2,11 +2,12 @@
 use LRAction::*;
 use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::*;
-use crate::types::ast::parser_node::*;
+use crate::types::ast::sematic_value::*;
 use crate::types::ast::sema::*;
 use crate::types::ast::type_info::*;
 use crate::types::ast::initializer::*;
 use crate::types::ast::func_info::*;
+use crate::types::parser_context::*;
 
 
 /// vector deconstruct into vars
@@ -2165,1300 +2166,1300 @@ pub static TOKEN_CONTENTS: [Option<&str>; 318] = [
     Some("KEYWORD_IF"), Some("KEYWORD_ELSE"), Some("KEYWORD_SWITCH"), Some("KEYWORD_WHILE"), Some("KEYWORD_DO"), 
     Some("KEYWORD_FOR"), Some("KEYWORD_GOTO"), Some("KEYWORD_CONTINUE"), Some("KEYWORD_BREAK"), Some("KEYWORD_RETURN"), 
     Some("OP_ELLIPSIS"), 
-];type ActionHandler = fn(_arguments: Vec<ParserNode>,) -> ParserNode;
+];type ActionHandler = fn(_arguments: Vec<SemanticValue>, context: &mut ParserContext,) -> SemanticValue;
 
 pub static ACTION_CODES: [Option<ActionHandler>;218] = [
-    Some(|_arguments: Vec<ParserNode>,| {     // 0
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 0
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TranslationUnit::make_translation_unit(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 1
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 1
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = TranslationUnit::insert_ext_decl(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 2
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 2
         let value;
         destruct_vec!(_arguments, _arg1);
         value = ExternalDeclaration::make_func(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 3
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 3
         let value;
         destruct_vec!(_arguments, _arg1);
         value = ExternalDeclaration::make_decl(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 4
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 4
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
          value = FunctionDefinition::make(Some(_arg1.into()), _arg2.into(), _arg3.into(), _arg4.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 5
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 5
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
          value = FunctionDefinition::make(None, _arg1.into(), _arg2.into(), _arg3.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 6
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 6
         let value;
-         value = ParserNode::None; 
+         value = SemanticValue::None; 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 7
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 7
         let value;
         destruct_vec!(_arguments, _arg1);
          value = _arg1.into(); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 8
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 8
         let value;
         destruct_vec!(_arguments, _arg1);
          value = Decl::make_list(_arg1.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 9
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 9
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
          value = Decl::push(_arg1.into(), _arg2.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 10
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 10
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
          value = Decl::make(_arg1.into(), _arg2.into(), _arg3.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 11
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 11
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 12
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 12
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 13
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 13
         let value;
         destruct_vec!(_arguments, _arg1);
         value = InitDeclarator::make_list(_arg1.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 14
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 14
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = InitDeclarator::push(_arg1.into(), _arg2.into(), _arg3.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 15
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 15
         let value;
         destruct_vec!(_arguments, _arg1);
         value = InitDeclarator::make(_arg1.into(), None, None); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 16
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 16
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = InitDeclarator::make(_arg1.into(), Some(_arg2.into()), Some(_arg3.into())); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 17
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 17
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = DeclSpec::push_storage(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 18
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 18
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = DeclSpec::push_spec(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 19
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 19
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = DeclSpec::push_qual(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 20
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 20
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 21
-        let value;
-        destruct_vec!(_arguments, _arg1);
-        value = _arg1.into();
-        value
-    }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 22
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 21
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 23
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 22
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 24
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 23
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 25
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 24
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 26
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 25
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 27
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 26
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = _arg1.into();
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 27
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 28
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 28
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 29
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 29
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 30
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 30
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 31
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 31
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 32
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 32
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 33
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 33
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 34
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 34
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 35
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 35
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 36
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 36
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make_struct_or_union(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 37
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 37
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make_enum(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 38
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 38
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeSpec::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 39
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 39
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 40
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 40
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 41
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 41
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
         value = StructUnionSpec::make_def(_arg1.into(), _arg2.into(), _arg3.into(), _arg4.into(), _arg5.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 42
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 42
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = StructUnionSpec::make_decl(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 43
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 43
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 44
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 44
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 45
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 45
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 46
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 46
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 47
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 47
         let value;
         destruct_vec!(_arguments, _arg1);
         value = StructDecl::make_list(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 48
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 48
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = StructDecl::push(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 49
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 49
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = StructDecl::make(_arg1.into(), _arg2.into(), _arg3.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 50
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 50
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = DeclSpec::push_spec(_arg1.into(), _arg2.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 51
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 51
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = DeclSpec::push_qual(_arg1.into(), _arg2.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 52
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 52
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 53
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 53
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 54
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 54
         let value;
         destruct_vec!(_arguments, _arg1);
         value = StructDeclarator::make_list(_arg1.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 55
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 55
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = StructDeclarator::push(_arg1.into(), _arg2.into(), _arg3.into()); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 56
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 56
         let value;
         destruct_vec!(_arguments, _arg1);
         value = StructDeclarator::make(Some(_arg1.into()), None, None); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 57
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 57
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = StructDeclarator::make(None, Some(_arg1.into()), Some(_arg2.into())); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 58
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 58
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = StructDeclarator::make(Some(_arg1.into()), Some(_arg2.into()), Some(_arg3.into())); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 59
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 59
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
         value = EnumSpec::make_anon(_arg1.into(), _arg2.into(), _arg3.into(), _arg4.into(), _arg5.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 60
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 60
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = EnumSpec::make_named(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 61
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 61
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Enumerator::make_list(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 62
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 62
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Enumerator::push(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 63
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 63
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Enumerator::make(_arg1.into(), None);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 64
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 64
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Enumerator::make(_arg1.into(), Some(_arg3.into()));
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 65
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 65
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Declarator::make(_arg1.into(), Some(_arg2.into()));
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 66
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 66
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 67
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 67
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 68
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 68
         let value;
         destruct_vec!(_arguments, _arg1);
         value = PointerChunk::make_list( PointerChunk::make_pointer(_arg1.into(), None) );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 69
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 69
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = PointerChunk::make_list( PointerChunk::make_pointer(_arg1.into(), _arg2.into()) );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 70
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 70
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = PointerChunk::push_front( PointerChunk::make_pointer(_arg1.into(), None), _arg2.into() );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 71
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 71
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = PointerChunk::push_front( PointerChunk::make_pointer(_arg1.into(), _arg2.into()), _arg3.into() );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 72
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 72
         let value;
         destruct_vec!(_arguments, _arg1);
         value = TypeQual::make(None, _arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 73
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 73
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = TypeQual::make(Some(_arg1.into()), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 74
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 74
         let value;
         destruct_vec!(_arguments, _arg1);
         value = DeclChunk::make_list( DeclChunk::make_ident(_arg1.into()) ); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 75
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 75
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = DeclChunk::make_list( DeclChunk::make_paren(_arg1.into(), _arg2.into(), _arg3.into()) ); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 76
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 76
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = DeclChunk::push( _arg1.into(), DeclChunk::make_array(_arg2.into(), _arg3.into(), _arg4.into()) ); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 77
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 77
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = DeclChunk::push( _arg1.into(), DeclChunk::make_function(_arg2.into(), _arg3.into(), _arg4.into()) );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 78
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 78
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = DeclChunk::push( _arg1.into(), DeclChunk::make_kr_function(_arg2.into(), _arg3.into(), _arg4.into()) ); 
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 79
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 79
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 80
-        let value;
-        destruct_vec!(_arguments, _arg1);
-        value = _arg1.into();
-        value
-    }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 81
-        let value;
-        value = ParserNode::None;
-        value
-    }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 82
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 80
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 83
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 81
+        let value;
+        value = SemanticValue::None;
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 82
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = _arg1.into();
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 83
         let value;
         destruct_vec!(_arguments, _arg1);
         value = make_ident_list(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 84
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 84
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = push_ident_list(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 85
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 85
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 86
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 86
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = ParamList::set_variadic(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 87
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 87
         let value;
         destruct_vec!(_arguments, _arg1);
         value = ParamList::make_list(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 88
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 88
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = ParamList::push(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 89
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 89
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = ParamDecl::make(_arg1.into(), Some(_arg2.into()), true);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 90
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 90
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = ParamDecl::make(_arg1.into(), _arg2.into(), false);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 91
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 91
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 92
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 92
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 93
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 93
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Declarator::make(Some(_arg1.into()), None);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 94
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 94
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Declarator::make(_arg1.into(), Some(_arg2.into()));
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 95
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 95
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = DeclChunk::make_list( DeclChunk::make_paren(_arg1.into(), _arg2.into(), _arg3.into()) );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 96
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 96
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = DeclChunk::make_list( DeclChunk::make_array(_arg1.into(), _arg2.into(), _arg3.into()) );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 97
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 97
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = DeclChunk::push( _arg1.into(), DeclChunk::make_array(_arg2.into(), _arg3.into(), _arg4.into()) );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 98
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 98
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = DeclChunk::make_list( DeclChunk::make_function(_arg1.into(), _arg2.into(), _arg3.into()) );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 99
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 99
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = DeclChunk::push( _arg1.into(), DeclChunk::make_function(_arg2.into(), _arg3.into(), _arg4.into()) );
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 100
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 100
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 101
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 101
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 102
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 102
         let value;
         destruct_vec!(_arguments, _arg1);
         value = InitInfo::make_expr(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 103
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 103
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = InitInfo::make_init_list(_arg1.into(), _arg2.into(), None, _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 104
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 104
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = InitInfo::make_init_list(_arg1.into(), _arg2.into(), Some(_arg3.into()), _arg4.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 105
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 105
         let value;
         destruct_vec!(_arguments, _arg1);
         value = InitInfo::make_list(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 106
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 106
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = InitInfo::push(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 107
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 107
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 108
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 108
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 109
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 109
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 110
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 110
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 111
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 111
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 112
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 112
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 113
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 113
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Statement::make_label(_arg1.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 114
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 114
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = Statement::make_case(_arg1.into(), _arg2.into(), _arg4.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 115
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 115
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Statement::make_default(_arg1.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 116
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 116
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Statement::make_compound(_arg1.into(), None, _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 117
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 117
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Statement::make_compound(_arg1.into(), Some(_arg2.into()), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 118
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 118
         let value;
         destruct_vec!(_arguments, _arg1);
         value = BlockItem::make_list(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 119
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 119
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = BlockItem::push(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 120
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 120
         let value;
         destruct_vec!(_arguments, _arg1);
         value = BlockItem::make_decl(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 121
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 121
         let value;
         destruct_vec!(_arguments, _arg1);
         value = BlockItem::make_stmt(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 122
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 122
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Statement::make_expression(None, _arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 123
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 123
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Statement::make_expression(Some(_arg1.into()), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 124
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 124
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
         value = Statement::make_if(_arg1.into(), _arg3.into(), _arg5.into(), None);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 125
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 125
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7);
         value = Statement::make_if(_arg1.into(), _arg3.into(), _arg5.into(), Some(_arg7.into()));
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 126
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 126
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
         value = Statement::make_switch(_arg1.into(), _arg3.into(), _arg5.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 127
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 127
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
         value = Statement::make_while(_arg1.into(), _arg3.into(), _arg5.into(), None);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 128
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 128
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7);
         value = Statement::make_while(_arg1.into(), _arg2.into(), _arg5.into(), Some(_arg6.into()));
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 129
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 129
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7, _arg8, _arg9);
         value = Statement::make_for(_arg1.into(), _arg3.into(), _arg5.into(), _arg7.into(), _arg9.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 130
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 130
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 131
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 131
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 132
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 132
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Statement::make_goto(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 133
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 133
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Statement::make_continue_break(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 134
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 134
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Statement::make_continue_break(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 135
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 135
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Statement::make_return(_arg1.into(), None);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 136
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 136
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Statement::make_return(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 137
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 137
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Expression::make_id(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 138
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 138
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Expression::make_literal(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 139
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 139
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Expression::make_literal(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 140
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 140
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = _arg2.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 141
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 141
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Constant::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 142
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 142
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Constant::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 143
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 143
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Constant::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 144
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 144
         let value;
         destruct_vec!(_arguments, _arg1);
         value = Constant::make(_arg1.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 145
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 145
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Constant::insert_str(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 146
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 146
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 147
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 147
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = Expression::make_array_access(_arg1.into(), _arg3.into(), _arg4.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 148
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 148
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = Expression::make_call(_arg1.into(), _arg3.into(), _arg4.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 149
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 149
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_field_access(_arg1.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 150
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 150
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_arrow(_arg1.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 151
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 151
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Expression::make_update(_arg1.into(), _arg2.into(), true);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 152
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 152
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Expression::make_update(_arg1.into(), _arg2.into(), true);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 153
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 153
         let value;
-        value = ParserNode::None;
+        value = SemanticValue::None;
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 154
-        let value;
-        destruct_vec!(_arguments, _arg1);
-        value = _arg1.into();
-        value
-    }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 155
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 154
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 156
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 155
+        let value;
+        destruct_vec!(_arguments, _arg1);
+        value = _arg1.into();
+        value
+    }),
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 156
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_assign(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 157
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 157
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 158
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 158
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Expression::make_update(_arg2.into(), _arg1.into(), false);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 159
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 159
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Expression::make_update(_arg2.into(), _arg1.into(), true);
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 160
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 160
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Expression::make_unary(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 161
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 161
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = Expression::make_sizeof_expr(_arg1.into(), _arg2.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 162
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 162
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = Expression::make_sizeof_type(_arg1.into(), _arg2.into(), _arg3.into(), _arg4.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 163
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 163
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 164
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 164
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 165
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 165
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 166
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 166
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 167
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 167
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 168
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 168
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 169
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 169
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
         value = Expression::make_cast(_arg1.into(), _arg2.into(), _arg4.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 170
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 170
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 171
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 171
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 172
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 172
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 173
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 173
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 174
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 174
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 175
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 175
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 176
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 176
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 177
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 177
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 178
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 178
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 179
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 179
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 180
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 180
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 181
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 181
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 182
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 182
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 183
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 183
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 184
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 184
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 185
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 185
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 186
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 186
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 187
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 187
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 188
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 188
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 189
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 189
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 190
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 190
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 191
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 191
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 192
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 192
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 193
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 193
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 194
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 194
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 195
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 195
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 196
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 196
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 197
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 197
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_binary(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 198
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 198
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 199
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 199
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 200
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 200
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4, _arg5);
         value = Expression::make_conditional(_arg1.into(), _arg3.into(), _arg5.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 201
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 201
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 202
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 202
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_assign(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 203
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 203
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 204
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 204
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 205
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 205
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 206
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 206
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 207
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 207
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 208
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 208
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 209
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 209
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 210
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 210
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 211
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 211
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 212
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 212
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 213
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 213
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 214
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 214
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 215
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 215
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
         value = Expression::make_comma(_arg1.into(), _arg3.into());
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 216
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 216
         let value;
         destruct_vec!(_arguments, _arg1);
         value = _arg1.into();
         value
     }),
-    Some(|_arguments: Vec<ParserNode>,| {     // 217
+    Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 217
         let value;
         destruct_vec!(_arguments, _arg1, _arg2);
         value = CompleteDecl::make(_arg1.into(), _arg2.into());

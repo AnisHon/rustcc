@@ -1,6 +1,6 @@
 use crate::types::ast::ast_nodes;
 use crate::types::ast::decl_info::Declarator;
-use crate::types::ast::parser_node::ParserNode;
+use crate::types::ast::sematic_value::SemanticValue;
 use crate::types::lex::token::Token;
 use crate::types::span::{SepList, Span};
 
@@ -17,11 +17,11 @@ pub enum InitInfo {
 }
 
 impl InitInfo {
-    pub fn make_expr(expr: Box<ast_nodes::Expression>) -> ParserNode {
+    pub fn make_expr(expr: Box<ast_nodes::Expression>) -> SemanticValue {
         InitInfo::Expr(expr).into()
     }
 
-    pub fn make_init_list(lbrace: Token, mut list: InitList, comma: Option<Token>, rbrace: Token) -> ParserNode {
+    pub fn make_init_list(lbrace: Token, mut list: InitList, comma: Option<Token>, rbrace: Token) -> SemanticValue {
         if let Some(comma) = comma {
             list.push_sep(comma.span);
 
@@ -34,11 +34,11 @@ impl InitInfo {
     }
 
 
-    pub fn make_list(init: InitInfo) -> ParserNode {
+    pub fn make_list(init: InitInfo) -> SemanticValue {
         InitList::new(init).into()
     }
 
-    pub fn push(mut list: InitList, comma: Token, init: InitInfo) -> ParserNode {
+    pub fn push(mut list: InitList, comma: Token, init: InitInfo) -> SemanticValue {
         list.push(comma.span, init);
         list.into()
     }
@@ -58,7 +58,7 @@ pub struct InitDeclarator {
 
 impl InitDeclarator {
     
-    pub fn make(decl: Declarator, eq: Option<Token>, init: Option<InitInfo>) -> ParserNode {
+    pub fn make(decl: Declarator, eq: Option<Token>, init: Option<InitInfo>) -> SemanticValue {
         Box::new(Self {
             decl,
             eq: eq.map(|x| x.span),
@@ -66,11 +66,11 @@ impl InitDeclarator {
         }).into()
     }
     
-    pub fn make_list(init: Box<InitDeclarator>) -> ParserNode {
+    pub fn make_list(init: Box<InitDeclarator>) -> SemanticValue {
         InitDeclList::new(init).into()
     }
     
-    pub fn push(mut list: InitDeclList, comma: Token, init: Box<InitDeclarator>) -> ParserNode {
+    pub fn push(mut list: InitDeclList, comma: Token, init: Box<InitDeclarator>) -> SemanticValue {
         list.push(comma.span, init);
         list.into()
     }

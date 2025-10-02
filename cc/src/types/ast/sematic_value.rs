@@ -17,7 +17,7 @@ use crate::types::ast::initializer::{InitDeclList, InitDeclarator, InitInfo, Ini
 
 #[derive(Debug)]
 #[derive(EnumAutoInto, EnumAutoFrom, EnumAutoIntoOption, Default)]
-pub enum ParserNode {
+pub enum SemanticValue {
     TranslationUnitNode(TranslationUnit),
     ExternalDeclarationNode(ExternalDeclaration),
     FunctionDefinitionNode(Box<FunctionDefinition>),
@@ -67,11 +67,11 @@ pub enum ParserNode {
 
 pub type IdentList = SepList<Token>;
 
-pub fn make_ident_list(ident: Token) -> ParserNode {
+pub fn make_ident_list(ident: Token) -> SemanticValue {
     IdentList::new(ident).into()
 }
 
-pub fn push_ident_list(mut list: IdentList, comma: Token, ident: Token) -> ParserNode {
+pub fn push_ident_list(mut list: IdentList, comma: Token, ident: Token) -> SemanticValue {
     list.push(comma.span, ident);
     list.into()
 }

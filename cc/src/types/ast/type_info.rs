@@ -5,7 +5,7 @@
 use crate::types::lex::token_kind::TokenKind;
 use crate::types::ast::ast_nodes::Expression;
 use crate::types::ast::decl_info::{DeclSpec, Declarator};
-use crate::types::ast::parser_node::ParserNode;
+use crate::types::ast::sematic_value::SemanticValue;
 use crate::types::span::{Delim, SepList, Span};
 use crate::types::lex::token::Token;
 
@@ -23,7 +23,7 @@ pub struct StructDecl {
 }
 
 impl StructDecl {
-    pub fn make(spec_qual: DeclSpec, list: StructDeclaratorList, semi: Token) -> ParserNode {
+    pub fn make(spec_qual: DeclSpec, list: StructDeclaratorList, semi: Token) -> SemanticValue {
         let span = semi.span.merge(&spec_qual.span);
         Box::new(Self {
             spec_qual,
@@ -32,11 +32,11 @@ impl StructDecl {
         }).into()
     }
 
-    pub fn make_list(struct_decl: Box<StructDecl>) -> ParserNode {
+    pub fn make_list(struct_decl: Box<StructDecl>) -> SemanticValue {
         StructDeclList::from([struct_decl]).into()
     }
 
-    pub fn push(mut list: StructDeclList, struct_decl: Box<StructDecl>) -> ParserNode {
+    pub fn push(mut list: StructDeclList, struct_decl: Box<StructDecl>) -> SemanticValue {
         list.push(struct_decl);
         list.into()
     }
@@ -61,7 +61,7 @@ pub struct StructUnionSpec {
 impl StructUnionSpec {
 
     /// struct ID
-    pub fn make_decl(kind: Token, name: Token) -> ParserNode {
+    pub fn make_decl(kind: Token, name: Token) -> SemanticValue {
         let kind_span = kind.span;
         let span = kind_span.merge(&name.span);
         let name = name.value.into_string().unwrap();
@@ -81,7 +81,7 @@ impl StructUnionSpec {
     }
 
     /// struct ID? { ... }
-    pub fn make_def(kind: Token, name: Option<Token>, lparen: Token, members: StructDeclList, rparen: Token) -> ParserNode {
+    pub fn make_def(kind: Token, name: Option<Token>, lparen: Token, members: StructDeclList, rparen: Token) -> SemanticValue {
         let kind_span = kind.span;
         let span = kind_span.merge(&rparen.span);
 
@@ -113,7 +113,7 @@ pub struct StructDeclarator {
 
 impl StructDeclarator {
 
-    pub fn make(declarator: Option<Declarator>, colon: Option<Token>, bit_field: Option<Box<Expression>>) -> ParserNode {
+    pub fn make(declarator: Option<Declarator>, colon: Option<Token>, bit_field: Option<Box<Expression>>) -> SemanticValue {
         assert!(!(declarator.is_none() && bit_field.is_none())); // 不能同时None
 
         let span = match (&declarator, &bit_field) {
@@ -130,11 +130,11 @@ impl StructDeclarator {
         }.into()
     }
 
-    pub fn make_list(struct_declarator: StructDeclarator) -> ParserNode {
+    pub fn make_list(struct_declarator: StructDeclarator) -> SemanticValue {
         SepList::new(struct_declarator).into()
     }
     
-    pub fn push(mut list: StructDeclaratorList, comma: Token, struct_declarator: StructDeclarator) -> ParserNode {
+    pub fn push(mut list: StructDeclaratorList, comma: Token, struct_declarator: StructDeclarator) -> SemanticValue {
         list.push(comma.span, struct_declarator);
         list.into()
     }
@@ -151,7 +151,7 @@ pub struct EnumSpec {
 
 impl EnumSpec {
     /// 匿名（也可能有名字）
-    pub fn make_anon(keyword_enum: Token, name: Option<Token>, lbrace: Token, enums: SepList<Enumerator>, rbrace: Token) -> ParserNode {
+    pub fn make_anon(keyword_enum: Token, name: Option<Token>, lbrace: Token, enums: SepList<Enumerator>, rbrace: Token) -> SemanticValue {
         let span = Span::from_tokens(vec![&keyword_enum, &rbrace]);
 
         let name = name.map(|x| x.value.into_string().unwrap());
@@ -165,7 +165,7 @@ impl EnumSpec {
     }
 
     /// 具名枚举
-    pub fn make_named(keyword_enum: Token, name: Token) -> ParserNode {
+    pub fn make_named(keyword_enum: Token, name: Token) -> SemanticValue {
         let span = Span::from_tokens(vec![&keyword_enum, &name]);
         let name = name.value.into_string().unwrap();
         let enum_spec = Self {
@@ -187,18 +187,18 @@ pub struct Enumerator {
 
 impl Enumerator {
 
-    pub fn make_list(enumerator: Enumerator) -> ParserNode {
+    pub fn make_list(enumerator: Enumerator) -> SemanticValue {
         let enums = SepList::new(enumerator);
         enums.into()
     }
-    pub fn push(enums: EnumList, comma: Token, enumerator: Enumerator) -> ParserNode {
+    pub fn push(enums: EnumList, comma: Token, enumerator: Enumerator) -> SemanticValue {
         let mut enums = enums;
         enums.push_item(enumerator);
         enums.push_sep(comma.span);
         enums.into()
     }
 
-    pub fn make(name: Token, value: Option<Box<Expression>>) -> ParserNode {
+    pub fn make(name: Token, value: Option<Box<Expression>>) -> SemanticValue {
         let span = match &value {
             None => name.span,
             Some(x) => name.span.merge(&x.span),
@@ -222,7 +222,7 @@ pub struct CompleteDecl {
 }
 
 impl CompleteDecl {
-    pub fn make(decl_spec: DeclSpec, declarator: Option<Declarator>) -> ParserNode {
+    pub fn make(decl_spec: DeclSpec, declarator: Option<Declarator>) -> SemanticValue {
         Box::new(Self {
             decl_spec,
             declarator,

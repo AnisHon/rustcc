@@ -14,7 +14,7 @@
 use crate::types::ast::ast_nodes;
 use crate::types::ast::ast_nodes::{ExpressionKind, StorageClass};
 use crate::types::ast::func_info::ParamList;
-use crate::types::ast::parser_node::{IdentList, ParserNode};
+use crate::types::ast::sematic_value::{IdentList, SemanticValue};
 use crate::types::ast::type_info::{EnumSpec, StructUnionSpec};
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::TokenKind;
@@ -40,7 +40,7 @@ pub enum TypeSpec {
 }
 
 impl TypeSpec {
-    pub fn make(token: Token) -> ParserNode {
+    pub fn make(token: Token) -> SemanticValue {
         let span = token.span;
         let result = match token.kind {
             TokenKind::KeywordVoid => TypeSpec::Void(span),
@@ -62,11 +62,11 @@ impl TypeSpec {
         result.into()
     }
 
-    pub fn make_struct_or_union(struct_or_union_spec: Box<StructUnionSpec>) -> ParserNode {
+    pub fn make_struct_or_union(struct_or_union_spec: Box<StructUnionSpec>) -> SemanticValue {
         TypeSpec::StructOrUnion(struct_or_union_spec).into()
     }
 
-    pub fn make_enum(enum_spec: Box<EnumSpec>) -> ParserNode {
+    pub fn make_enum(enum_spec: Box<EnumSpec>) -> SemanticValue {
         TypeSpec::Enum(enum_spec).into()
     }
 }
@@ -104,7 +104,7 @@ impl TypeQual {
         }
     }
 
-    pub fn make(list: Option<Vec<TypeQual>>, token: Token) -> ParserNode {
+    pub fn make(list: Option<Vec<TypeQual>>, token: Token) -> SemanticValue {
         let span = token.span;
         let mut list = list.unwrap_or_default();
         let result = match token.kind {
@@ -136,7 +136,7 @@ impl DeclSpec {
         }
     }
 
-    pub fn push_storage(spec: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn push_storage(spec: Token, decl_spec: Option<DeclSpec>) -> SemanticValue {
         let span = spec.span;
         let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
         let spec = match spec.kind {
@@ -154,7 +154,7 @@ impl DeclSpec {
         decl_spec.into()
     }
 
-    pub fn push_qual(qual: Token, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn push_qual(qual: Token, decl_spec: Option<DeclSpec>) -> SemanticValue {
         let span = qual.span;
         let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
 
@@ -169,7 +169,7 @@ impl DeclSpec {
         decl_spec.into()
     }
 
-    pub fn push_spec(spec: TypeSpec, decl_spec: Option<DeclSpec>) -> ParserNode {
+    pub fn push_spec(spec: TypeSpec, decl_spec: Option<DeclSpec>) -> SemanticValue {
         let span = spec.unwrap_span();
         let mut decl_spec = decl_spec.unwrap_or_else(|| Self::new(span));
 
@@ -203,7 +203,7 @@ pub struct Declarator {
 }
 
 impl Declarator {
-    pub fn make(pointer_chunks: Option<PointerChunkList>, decl_chunks: Option<DeclChunkList>) -> ParserNode {
+    pub fn make(pointer_chunks: Option<PointerChunkList>, decl_chunks: Option<DeclChunkList>) -> SemanticValue {
         let mut pointer_chunks = pointer_chunks.unwrap_or_default();
         let decl_chunks = decl_chunks.unwrap_or_default();
         pointer_chunks.reverse(); // Pointer是反向的，这里需要翻转
@@ -232,7 +232,7 @@ pub struct PointerChunk {
 }
 
 impl PointerChunk {
-    pub fn make_list(chunk: PointerChunk) -> ParserNode {
+    pub fn make_list(chunk: PointerChunk) -> SemanticValue {
         vec![chunk].into()
     }
     
@@ -246,7 +246,7 @@ impl PointerChunk {
     }
 
     /// 注意这里是push_front是逻辑上的，读取时需要反向使用
-    pub fn push_front(chunk: PointerChunk, mut list: PointerChunkList) -> ParserNode {
+    pub fn push_front(chunk: PointerChunk, mut list: PointerChunkList) -> SemanticValue {
         list.push(chunk);
         list.into()
     }
@@ -331,11 +331,11 @@ impl DeclChunk {
         Self::new(kind, span)
     }
     
-    pub fn make_list(chunk: DeclChunk) -> ParserNode {
+    pub fn make_list(chunk: DeclChunk) -> SemanticValue {
         vec![chunk].into()
     }
     
-    pub fn push(mut list: DeclChunkList, chunk: DeclChunk) -> ParserNode {
+    pub fn push(mut list: DeclChunkList, chunk: DeclChunk) -> SemanticValue {
         list.push(chunk);
         list.into()
     }

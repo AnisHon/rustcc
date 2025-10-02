@@ -5,7 +5,7 @@
 
 use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclChunk, TypeQual};
-use crate::types::ast::parser_node::ParserNode;
+use crate::types::ast::sematic_value::SemanticValue;
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::TokenKind;
 use crate::types::span::UnwrapSpan;
@@ -13,11 +13,11 @@ use std::mem;
 use crate::types::ast::initializer::InitDeclarator;
 
 impl TranslationUnit {
-    pub fn make_translation_unit(ext_decl: ExternalDeclaration) -> ParserNode {
+    pub fn make_translation_unit(ext_decl: ExternalDeclaration) -> SemanticValue {
         TranslationUnit { ext_decls: vec![ext_decl], }.into()
     }
 
-    pub fn insert_ext_decl(mut translation_unit: TranslationUnit, ext_decl: ExternalDeclaration) -> ParserNode {
+    pub fn insert_ext_decl(mut translation_unit: TranslationUnit, ext_decl: ExternalDeclaration) -> SemanticValue {
         translation_unit.unwrap_span().merge_self(&ext_decl.unwrap_span());
         translation_unit.ext_decls.push(ext_decl);
         translation_unit.into()
@@ -25,11 +25,11 @@ impl TranslationUnit {
 }
 
 impl ExternalDeclaration {
-    pub fn make_func(def: Box<FunctionDefinition>) -> ParserNode {
+    pub fn make_func(def: Box<FunctionDefinition>) -> SemanticValue {
         Self::Function(def).into()
     }
 
-    pub fn make_decl(decl: DeclStmt) -> ParserNode {
+    pub fn make_decl(decl: DeclStmt) -> SemanticValue {
         Self::Declaration(decl).into()
     }
 }
@@ -40,26 +40,26 @@ impl FunctionDefinition {
         declarator: Declarator,
         decl_list: Option<DeclList>,  // 老式类型声明
         stmt: Statement
-    ) -> ParserNode {
+    ) -> SemanticValue {
         todo!() // 函数定义
     }
 }
 
 impl BlockItem {
     
-    pub fn make_decl(decl: DeclStmt) -> ParserNode {
+    pub fn make_decl(decl: DeclStmt) -> SemanticValue {
         Self::Declaration(decl).into()
     }
     
-    pub fn make_stmt(stmt: Statement) -> ParserNode {
+    pub fn make_stmt(stmt: Statement) -> SemanticValue {
         Self::Statement(stmt).into()
     }
     
-    pub fn make_list(block_item: BlockItem) -> ParserNode {
+    pub fn make_list(block_item: BlockItem) -> SemanticValue {
         BlockItemList::from([block_item]).into()
     }
     
-    pub fn push(mut list: BlockItemList, block_item: BlockItem) -> ParserNode {
+    pub fn push(mut list: BlockItemList, block_item: BlockItem) -> SemanticValue {
         list.push(block_item);
         list.into()
     }
@@ -105,7 +105,7 @@ impl Qualifiers {
 
 impl Statement {
 
-    pub fn make_label(ident: Token, stmt: Statement) -> ParserNode {
+    pub fn make_label(ident: Token, stmt: Statement) -> SemanticValue {
         let span = ident.span.merge(&stmt.span);
         let label = ident.value.into_string().unwrap();
         let kind = StatementKind::Labeled { label, stmt: Box::new(stmt) };
@@ -114,7 +114,7 @@ impl Statement {
 
 
     /// constexpr应该会被归并成为一个常量表达式，最终被计算
-    pub fn make_case(kw_case: Token, constexpr: Box<Expression>, stmt: Statement) -> ParserNode {
+    pub fn make_case(kw_case: Token, constexpr: Box<Expression>, stmt: Statement) -> SemanticValue {
         let span = kw_case.span.merge(&stmt.span);
         let constant = match constexpr.kind {
             ExpressionKind::Literal(constant) => constant,
@@ -131,13 +131,13 @@ impl Statement {
         Statement::new(kind, span).into()
     }
 
-    pub fn make_default(kw_default: Token, stmt: Statement) -> ParserNode {
+    pub fn make_default(kw_default: Token, stmt: Statement) -> SemanticValue {
         let span = kw_default.span.merge(&stmt.span);
         let kind = StatementKind::Default {stmt: Box::new(stmt) };
         Statement::new(kind, span).into()
     }
 
-    pub fn make_expression(expr: Option<Box<Expression>>, semi: Token) -> ParserNode {
+    pub fn make_expression(expr: Option<Box<Expression>>, semi: Token) -> SemanticValue {
         let span = semi.span;
         let span = expr.as_ref().map(|x| span.merge(&x.span)).unwrap_or(span);
 
@@ -145,7 +145,7 @@ impl Statement {
         Statement::new(kind, span).into()
     }
 
-    pub fn make_if(if_token: Token, cond: Box<Expression>, then_stmt: Statement, else_stmt: Option<Statement>) -> ParserNode {
+    pub fn make_if(if_token: Token, cond: Box<Expression>, then_stmt: Statement, else_stmt: Option<Statement>) -> SemanticValue {
         let span = if_token.span;
         let span = match &else_stmt {
             None => span,
@@ -156,12 +156,12 @@ impl Statement {
         Statement::new(kind, span).into()
     }
 
-    pub fn make_switch(switch_token: Token, cond: Box<Expression>, body: Statement) -> ParserNode {
+    pub fn make_switch(switch_token: Token, cond: Box<Expression>, body: Statement) -> SemanticValue {
         let span = switch_token.span.merge(&body.span);
         let kind = StatementKind::Switch { cond, body: Box::new(body) };
         Statement::new(kind, span).into()
     }
-    pub fn make_while(while_token: Token, cond: Box<Expression>, body: Statement, rparen: Option<Token>) -> ParserNode {
+    pub fn make_while(while_token: Token, cond: Box<Expression>, body: Statement, rparen: Option<Token>) -> SemanticValue {
         let span = while_token.span.merge(&body.span);
         let span = match rparen {
             None => span,
@@ -175,14 +175,14 @@ impl Statement {
         Statement::new(kind, span).into()
     }
 
-    pub fn make_for(for_token: Token, init: Option<Box<Expression>>, cond: Option<Box<Expression>>, step: Option<Box<Expression>>, body: Statement) -> ParserNode {
+    pub fn make_for(for_token: Token, init: Option<Box<Expression>>, cond: Option<Box<Expression>>, step: Option<Box<Expression>>, body: Statement) -> SemanticValue {
         let span = for_token.span.merge(&body.span);
         let kind = StatementKind::For { init, cond, step, body: Box::new(body) };
         Statement::new(kind, span).into()
     }
 
     /// 第一个token是goto
-    pub fn make_goto(goto: Token, label: Token) -> ParserNode {
+    pub fn make_goto(goto: Token, label: Token) -> SemanticValue {
         let goto_span = goto.span;
         let label_span = label.span;
 
@@ -193,7 +193,7 @@ impl Statement {
     }
 
 
-    pub fn make_continue_break(token: Token) -> ParserNode {
+    pub fn make_continue_break(token: Token) -> SemanticValue {
         let span = token.span;
         let kind = match token.kind {
             TokenKind::KeywordContinue => StatementKind::Continue,
@@ -205,7 +205,7 @@ impl Statement {
     }
 
     /// 第一个token是return
-    pub fn make_return(ret: Token, expr: Option<Box<Expression>>) -> ParserNode {
+    pub fn make_return(ret: Token, expr: Option<Box<Expression>>) -> SemanticValue {
         let ret_span = ret.span;
         let span = match &expr {
             None => ret_span,
@@ -216,7 +216,7 @@ impl Statement {
         Statement::new(kind, span).into()
     }
 
-    pub fn make_compound(lbrace: Token, list: Option<BlockItemList>, rbrace: Token) -> ParserNode {
+    pub fn make_compound(lbrace: Token, list: Option<BlockItemList>, rbrace: Token) -> SemanticValue {
         let span = lbrace.span.merge(&rbrace.span);
         let kind = StatementKind::Compound {lbrace: lbrace.span, list, rbrace: span};
         Statement::new(kind, span).into()
@@ -226,13 +226,13 @@ impl Statement {
 
 impl Expression {
 
-    pub fn make_literal(constant: Constant) -> ParserNode {
+    pub fn make_literal(constant: Constant) -> SemanticValue {
         let span = constant.span;
         let kind = ExpressionKind::Literal(constant);
         Box::new(Expression::new(kind, None, span)).into()
     }
 
-    pub fn make_id(token: Token) -> ParserNode {
+    pub fn make_id(token: Token) -> SemanticValue {
         let span = token.span;
         let name = token.value.into_string().unwrap();
         let kind = ExpressionKind::Id { name, decl_ref: None };
@@ -240,21 +240,21 @@ impl Expression {
     }
 
     /// 最后的token是 arr[...] <-这个字符，用来精确确定位置
-    pub fn make_array_access(base: Box<Expression>, index: Box<Expression>, token: Token) -> ParserNode {
+    pub fn make_array_access(base: Box<Expression>, index: Box<Expression>, token: Token) -> SemanticValue {
         let span = base.span.merge(&token.span);
         let kind = ExpressionKind::ArrayAccess { base, index };
         Box::new(Expression::new(kind, None, span)).into()
     }
 
     /// 最后的token是 foo(...) <-这个字符，用来精确确定位置
-    pub fn make_call(func: Box<Expression>, args: Vec<Box<Expression>>, token: Token) -> ParserNode {
+    pub fn make_call(func: Box<Expression>, args: Vec<Box<Expression>>, token: Token) -> SemanticValue {
         let span = func.span.merge(&token.span);
         let kind = ExpressionKind::Call {func, args};
 
         Box::new(Expression::new(kind, None, span)).into()
     }
 
-    pub fn make_field_access(base: Box<Expression>, field: Token) -> ParserNode {
+    pub fn make_field_access(base: Box<Expression>, field: Token) -> SemanticValue {
         let span = base.span.merge(&field.span);
         let field = field.value.into_string().unwrap();
         let kind = ExpressionKind::FieldAccess { base, field };
@@ -262,7 +262,7 @@ impl Expression {
         Box::new(Expression::new(kind, None, span)).into()
     }
 
-    pub fn make_arrow(base: Box<Expression>, field: Token) -> ParserNode {
+    pub fn make_arrow(base: Box<Expression>, field: Token) -> SemanticValue {
         let span = base.span.merge(&field.span);
         let field = field.value.into_string().unwrap();
         let kind = ExpressionKind::Arrow { base, field };
@@ -278,7 +278,7 @@ impl Expression {
     /// token:
     /// post: 是否是后置
     ///
-    pub fn make_update(expr: Box<Expression>, token: Token, post: bool) -> ParserNode {
+    pub fn make_update(expr: Box<Expression>, token: Token, post: bool) -> SemanticValue {
         let span = token.span.merge(&expr.span);
 
         let kind = match (token.kind, post) {
@@ -293,7 +293,7 @@ impl Expression {
         Box::new(Expression { kind, ty: None, span }).into()
     }
 
-    pub fn make_unary(token: Token, expr: Box<Expression>) -> ParserNode {
+    pub fn make_unary(token: Token, expr: Box<Expression>) -> SemanticValue {
         let token_span = token.span;
         let span = token_span.merge(&expr.span);
 
@@ -316,7 +316,7 @@ impl Expression {
     }
 
     /// 第一个token是sizeof的值 -> sizeof expr
-    pub fn make_sizeof_expr(_sizeof: Token, expr: Box<Expression>) -> ParserNode {
+    pub fn make_sizeof_expr(_sizeof: Token, expr: Box<Expression>) -> SemanticValue {
         let span = expr.span;
         let kind = ExpressionKind::SizeofExpr(expr);
 
@@ -324,18 +324,18 @@ impl Expression {
     }
 
     /// 第一个token是sizeof的值 -> sizeof(type) <- 第二个是第二个括号
-    pub fn make_sizeof_type(kw_sizeof: Token, rparen: Token, typ: Type, lparen: Token) -> ParserNode {
+    pub fn make_sizeof_type(kw_sizeof: Token, rparen: Token, typ: Type, lparen: Token) -> SemanticValue {
         todo!()
     }
 
 
     /// 第一个token 是类型转换的第一个括号-> (X)X
-    pub fn make_cast(token: Token, typ: Type, expr: Box<Expression>) -> ParserNode {
+    pub fn make_cast(token: Token, typ: Type, expr: Box<Expression>) -> SemanticValue {
         todo!();
        
     }
 
-    pub fn make_binary(lhs: Box<Expression>, token: Token, rhs: Box<Expression>) -> ParserNode {
+    pub fn make_binary(lhs: Box<Expression>, token: Token, rhs: Box<Expression>) -> SemanticValue {
         let span = lhs.span.merge(&rhs.span);
         let span_token = token.span;
 
@@ -349,7 +349,7 @@ impl Expression {
     }
 
 
-    pub fn make_conditional(cond: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>) -> ParserNode {
+    pub fn make_conditional(cond: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>) -> SemanticValue {
         let span = cond.span.merge(&else_expr.span);
         let kind = ExpressionKind::Conditional {
             cond,
@@ -360,7 +360,7 @@ impl Expression {
         Box::new(Expression::new(kind, None, span)).into()
     }
 
-    pub fn make_assign(lhs: Box<Expression>, token: Token, rhs: Box<Expression>) -> ParserNode {
+    pub fn make_assign(lhs: Box<Expression>, token: Token, rhs: Box<Expression>) -> SemanticValue {
         if lhs.is_rvalue() {
             panic!("Cannot assign to rvalue");
         }
@@ -374,7 +374,7 @@ impl Expression {
         Box::new(Expression { kind, ty: None, span }).into()
     }
 
-    pub fn make_comma(mut exprs: Vec<Box<Expression>>, expr: Box<Expression>) -> ParserNode {
+    pub fn make_comma(mut exprs: Vec<Box<Expression>>, expr: Box<Expression>) -> SemanticValue {
         exprs.push(expr);
         exprs.into()
     }
@@ -382,11 +382,11 @@ impl Expression {
 }
 
 impl Constant {
-    pub fn make(token: Token) -> ParserNode {
+    pub fn make(token: Token) -> SemanticValue {
         Constant::try_from(token).unwrap().into()
     }
 
-    pub fn insert_str(mut constant: Constant, token: Token) -> ParserNode {
+    pub fn insert_str(mut constant: Constant, token: Token) -> SemanticValue {
         let token_str = token.value.as_string().unwrap();
         let token_span = token.span;
         let string = match &mut constant.kind {
@@ -404,15 +404,15 @@ impl Constant {
 
 
 impl Decl {
-    pub fn make(decl_spec: DeclSpec, init_decl: Box<InitDeclarator>, semi: Token) -> ParserNode {
+    pub fn make(decl_spec: DeclSpec, init_decl: Box<InitDeclarator>, semi: Token) -> SemanticValue {
         todo!()
     }
 
-    pub fn make_list(decl: Box<Decl>) -> ParserNode {
+    pub fn make_list(decl: Box<Decl>) -> SemanticValue {
         DeclList::from([decl]).into()
     }
 
-    pub fn push(mut decl_list: DeclList, decl: Box<Decl>) -> ParserNode {
+    pub fn push(mut decl_list: DeclList, decl: Box<Decl>) -> SemanticValue {
         decl_list.push(decl);
         decl_list.into()
     }

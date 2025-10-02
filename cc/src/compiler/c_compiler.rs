@@ -1,11 +1,11 @@
-use std::cell::RefCell;
 use crate::lex::lex_core::{AsyncLex, Lex};
 use crate::parser::parser_core::Parser;
+use crate::parser::token_stream::TokenStream;
+use crate::types::parser_context::ParserContext;
+use std::cell::RefCell;
 use std::io::Read;
 use std::rc::Rc;
 use std::sync::mpsc;
-use crate::parser::token_stream::TokenStream;
-use crate::types::symbol_table::SymbolTable;
 
 ///
 /// 编译器主流程
@@ -37,9 +37,10 @@ impl<R: Read + Send + 'static> CCompiler<R> {
     /// 
     pub fn compile(self) {
         
-        let symbol_table: Rc<RefCell<SymbolTable<()>>> = Rc::new(RefCell::new(SymbolTable::new())); // 临时符号表，仅用于查询符号
         let (token_tx, token_rx) = crossbeam_channel::bounded(self.token_bound);
         let (error_tx, error_rx) = mpsc::channel();
+
+        let context = Rc::new(RefCell::new(ParserContext::new(error_tx.clone())));
 
         // lexer 是异步的
         let lex = Lex::new(self.input);
@@ -49,16 +50,16 @@ impl<R: Read + Send + 'static> CCompiler<R> {
 
 
 
-        // Parser过程必须是同步的
-        let token_stream = TokenStream::new(token_rx, Rc::clone(&symbol_table));
-        let parser = Parser::new(token_stream, symbol_table);
-        let cst = parser.parse().unwrap();
+        // Parser过程是同步的
+        let token_stream = TokenStream::new(token_rx, Rc::clone(&context));
+        let parser = Parser::new(token_stream, context);
+        let ast = parser.parse().unwrap();
 
         for x in error_rx {
             eprintln!("{x:?}")
         }
 
-        println!("{:?}", cst);
+        println!("{:?}", ast);
 
 
     }
