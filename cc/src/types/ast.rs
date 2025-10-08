@@ -1,9 +1,10 @@
-pub mod ast_nodes;
+pub mod nodes;
 pub mod builder;
 pub mod visitor;
-pub mod sema;
+pub mod methods;
 pub mod decl_info;
 pub mod sematic_value;
 pub mod type_info;
 pub mod initializer;
 pub mod func_info;
+mod seme;

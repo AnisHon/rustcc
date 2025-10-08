@@ -6,14 +6,14 @@
 //! 配套定义了From Into(包括Option<T>)，在Parser阶段调用Into自动解开
 //!
 
-use crate::types::ast::ast_nodes::*;
+use crate::types::ast::nodes::*;
 use crate::types::ast::decl_info::*;
 use crate::types::ast::type_info::*;
 use crate::types::lex::token::Token;
 use crate::types::span::SepList;
 use macros::{EnumAutoFrom, EnumAutoInto, EnumAutoIntoOption};
 use crate::types::ast::func_info::{ParamDecl, ParamList};
-use crate::types::ast::initializer::{InitDeclList, InitDeclarator, InitInfo, InitList};
+use crate::types::ast::initializer::{InitDeclList, InitDeclarator};
 
 #[derive(Debug)]
 #[derive(EnumAutoInto, EnumAutoFrom, EnumAutoIntoOption, Default)]
@@ -30,6 +30,7 @@ pub enum SemanticValue {
     FieldNode(Box<Field>),
     ParameterNode(Box<Parameter>),
     InitializerNode(Initializer),
+    InitializerListNode(InitializerList),
     BlockNode(BlockItemList),
     BlockItemNode(BlockItem),
     StatementNode(Statement),
@@ -56,8 +57,6 @@ pub enum SemanticValue {
     TokenListNode(IdentList),
     ParamDeclNode(Box<ParamDecl>),
     ParamListNode(ParamList),
-    InitInfoNode(InitInfo),
-    InitListNode(InitList),
     InitDeclaratorNode(Box<InitDeclarator>),
     InitDeclListNode(InitDeclList),
     #[enum_auto_ignore]

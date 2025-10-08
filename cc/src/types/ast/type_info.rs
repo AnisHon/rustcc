@@ -3,7 +3,7 @@
 //!
 
 use crate::types::lex::token_kind::TokenKind;
-use crate::types::ast::ast_nodes::Expression;
+use crate::types::ast::nodes::Expression;
 use crate::types::ast::decl_info::{DeclSpec, Declarator};
 use crate::types::ast::sematic_value::SemanticValue;
 use crate::types::span::{Delim, SepList, Span};

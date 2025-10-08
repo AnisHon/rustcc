@@ -11,6 +11,7 @@
       <sourceFolder url="file://$MODULE_DIR$/rparser/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/backend/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/macros/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rcc/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/common/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlex/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />

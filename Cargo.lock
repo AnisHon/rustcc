@@ -343,6 +343,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
+name = "rcc"
+version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
+ "enum-as-inner",
+ "indexmap",
+ "macros",
+ "num-derive",
+ "num-traits",
+ "strum",
+ "thiserror",
+]
+
+[[package]]
 name = "regex"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

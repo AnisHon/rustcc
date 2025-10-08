@@ -1,7 +1,7 @@
 //!
 //! 定义了语义化AST节点
 //!
-use crate::types::span::{Span, UnwrapSpan};
+use crate::types::span::{SepList, Span, UnwrapSpan};
 use crate::types::symbol_table::Symbol;
 use enum_as_inner::EnumAsInner;
 use std::rc::Rc;
@@ -75,12 +75,13 @@ pub struct Decl {
 #[derive(Debug, Clone)]
 pub struct Type {
     pub kind: TypeKind,
+    pub qualifiers: Qualifiers,
     pub span: Span,
 }
 
 impl Type {
     pub fn new(kind: TypeKind, span: Span) -> Type {
-        Type { kind, span }
+        Type { kind, qualifiers: Default::default(), span }
     }
 }
 // 类型系统
@@ -90,7 +91,7 @@ pub enum TypeKind {
     Integer { signed: bool, size: IntegerSize},
     Floating { size: FloatSize},
     Pointer(Box<Type>),
-    Array { elem_ty: Box<Type>, size: Option<u64>}, // size is constant-evaluated
+    Array { elem_ty: Box<Type>, size: Option<i64>}, // size is constant-evaluated
     Function { ret_ty: Box<Type>, params: Vec<Type>, is_variadic: bool },
     Struct { name: Option<String>, fields: Vec<Field> },
     Union { name: Option<String>, fields: Vec<Field> },
@@ -99,16 +100,18 @@ pub enum TypeKind {
 }
 
 impl Type {
-    pub fn string_type(len: u64, span: Span) -> Self {
+    pub fn string_type(len: i64, span: Span) -> Self {
         let int_kind = TypeKind::Integer { signed: false, size: IntegerSize::Char };
         let int_ty = Self {
             kind: int_kind,
+            qualifiers: Default::default(),
             span,
         };
 
         let kind = TypeKind::Array { elem_ty: Box::new(int_ty), size: Some(len) };
         Self {
             kind,
+            qualifiers: Default::default(),
             span,
         }
     }
@@ -167,6 +170,18 @@ pub enum StorageClass {
     Register(Span),
 }
 
+impl StorageClass {
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            StorageClass::Typedef(_) => "typedef",
+            StorageClass::Extern(_) => "extern",
+            StorageClass::Static(_) => "static",
+            StorageClass::Auto(_) => "auto",
+            StorageClass::Register(_) => "register",
+        }
+    }
+}
+
 // 类型限定符
 #[derive(Debug, Clone)]
 pub struct Qualifiers {
@@ -199,11 +214,17 @@ pub struct Parameter {
     pub span: Span,
 }
 
+pub type InitializerList = SepList<Initializer>;
+
 // 初始化器
 #[derive(Debug, Clone)]
 pub enum Initializer {
     Scalar(Box<Expression>),
-    List(Vec<Initializer>),
+    List{
+        lbrace: Span,
+        list: InitializerList,
+        rbrace: Span,
+    },
 }
 
 /// 语句块
@@ -313,6 +334,13 @@ impl Expression {
         !self.is_lvalue()
     }
 
+    pub fn get_constant(self) -> Result<Constant, &'static str> {
+        match self.kind {
+            ExpressionKind::Literal(x) => Ok(x),
+            _ => Err("Not a constant expression"),
+        }
+    }
+
 }
 
 #[derive(Debug, Clone, EnumAsInner)]
@@ -392,7 +420,7 @@ impl Constant {
             ConstantKind::String(x) => {
                 let int_kind = TypeKind::Integer { signed: false, size: IntegerSize::Char };
                 let int_ty = Type::new(int_kind, span);
-                TypeKind::Array { elem_ty: Box::new(int_ty), size: Some(x.len() as u64) }
+                TypeKind::Array { elem_ty: Box::new(int_ty), size: Some(x.len() as u64 as i64) }
             },
         };
 

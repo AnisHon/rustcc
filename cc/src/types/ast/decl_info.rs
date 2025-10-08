@@ -11,8 +11,8 @@
 //! - `ParamInfo`:
 //!
 
-use crate::types::ast::ast_nodes;
-use crate::types::ast::ast_nodes::{ExpressionKind, StorageClass};
+use crate::types::ast::nodes;
+use crate::types::ast::nodes::{ExpressionKind, StorageClass};
 use crate::types::ast::func_info::ParamList;
 use crate::types::ast::sematic_value::{IdentList, SemanticValue};
 use crate::types::ast::type_info::{EnumSpec, StructUnionSpec};
@@ -269,7 +269,7 @@ pub struct DeclChunk {
 #[derive(Debug, Clone)]
 pub enum DeclChunkKind {
     Array {
-        size: Option<Box<ast_nodes::Expression>>, // 大小
+        size: Option<Box<nodes::Expression>>, // 大小
         asm: ArraySizeModifier, // Array类型(Normal, Static, VLA)
     },
     Function { param_list: Delim<Option<Box<ParamList>>>, },
@@ -283,7 +283,7 @@ impl DeclChunk {
         Self { chunk, span }
     }
 
-    pub fn make_array(lbracket: Token, size: Option<Box<ast_nodes::Expression>>, rbracket: Token) -> Self {
+    pub fn make_array(lbracket: Token, size: Option<Box<nodes::Expression>>, rbracket: Token) -> Self {
         let span = Span::from_tokens(vec![&lbracket, &rbracket]);
         
         let asm = match &size {

@@ -1,7 +1,7 @@
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::parser::parser_yy::{get_action, get_goto, LRAction, ACTION_CODES, EXPR_LENS, EXPR_NAMES, INIT_STATE};
 use crate::parser::token_stream::TokenStream;
-use crate::types::ast::ast_nodes::TranslationUnit;
+use crate::types::ast::nodes::TranslationUnit;
 use crate::types::ast::sematic_value::SemanticValue;
 use crate::types::lex::token::Token;
 use crate::types::parser_context::ParserContext;
@@ -67,7 +67,7 @@ impl Parser {
     /// Reduce本身不会出错，但是符号表可能会出现重定义
     /// 
     fn reduce(&mut self, expr: usize) -> ParserResult<()> {
-        println!("reduce: {}", EXPR_NAMES[expr]);
+        println!("reduce: {} {}", EXPR_NAMES[expr], expr);
         let expr_len = EXPR_LENS[expr];
         let pop_idx = self.state_stack.len() - expr_len;
 

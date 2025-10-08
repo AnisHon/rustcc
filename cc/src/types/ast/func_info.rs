@@ -1,4 +1,5 @@
 use crate::types::ast::decl_info::{DeclSpec, Declarator};
+use crate::types::ast::nodes::Type;
 use crate::types::ast::sematic_value::SemanticValue;
 use crate::types::ast::type_info::CompleteDecl;
 use crate::types::lex::token::Token;
@@ -42,28 +43,30 @@ impl ParamList {
 
 #[derive(Debug, Clone)]
 pub struct ParamDecl {
-    complete_decl: CompleteDecl,
-    has_prototype: bool,
+    pub ty: Type,
+    pub name: Option<String>,
 }
 
 impl ParamDecl {
     pub fn make(decl_spec: DeclSpec, declarator: Option<Declarator>, has_prototype: bool) -> SemanticValue {
-        Box::new(Self {
-            complete_decl: CompleteDecl {decl_spec, declarator},
-            has_prototype,
-        }).into()
+        todo!()
+        // Box::new(Self {
+        //     complete_decl: CompleteDecl {decl_spec, declarator},
+        //     has_prototype,
+        // }).into()
     }
     
 }
 
 impl UnwrapSpan for ParamDecl {
     fn unwrap_span(&self) -> Span {
-        let decl = &self.complete_decl;
-        let mut span = decl.decl_spec.unwrap_span();
-        if let Some(x) = &decl.declarator {
-            span.merge_self(&x.span);
-        }
-        span
+        todo!()
+        // let decl = &self.complete_decl;
+        // let mut span = decl.decl_spec.unwrap_span();
+        // if let Some(x) = &decl.declarator {
+        //     span.merge_self(&x.span);
+        // }
+        // span
     }
 }
 

@@ -2774,31 +2774,31 @@ pub static ACTION_CODES: [Option<ActionHandler>;218] = [
     Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 102
         let value;
         destruct_vec!(_arguments, _arg1);
-        value = InitInfo::make_expr(_arg1.into());
+        value = Initializer::make_expr(_arg1.into());
         value
     }),
     Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 103
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
-        value = InitInfo::make_init_list(_arg1.into(), _arg2.into(), None, _arg3.into());
+        value = Initializer::make_init_list(_arg1.into(), _arg2.into(), None, _arg3.into());
         value
     }),
     Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 104
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3, _arg4);
-        value = InitInfo::make_init_list(_arg1.into(), _arg2.into(), Some(_arg3.into()), _arg4.into());
+        value = Initializer::make_init_list(_arg1.into(), _arg2.into(), Some(_arg3.into()), _arg4.into());
         value
     }),
     Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 105
         let value;
         destruct_vec!(_arguments, _arg1);
-        value = InitInfo::make_list(_arg1.into());
+        value = Initializer::make_list(_arg1.into());
         value
     }),
     Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 106
         let value;
         destruct_vec!(_arguments, _arg1, _arg2, _arg3);
-        value = InitInfo::push(_arg1.into(), _arg2.into(), _arg3.into());
+        value = Initializer::push(_arg1.into(), _arg2.into(), _arg3.into());
         value
     }),
     Some(|_arguments: Vec<SemanticValue>, context: &mut ParserContext,| {     // 107

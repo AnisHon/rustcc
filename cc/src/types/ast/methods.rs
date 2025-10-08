@@ -3,14 +3,16 @@
 //! Sema函数会做语义检查，类型检查，错误处理 和 错误恢复
 //!
 
-use crate::types::ast::ast_nodes::*;
-use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclChunk, TypeQual};
+use crate::types::ast::nodes::*;
+use crate::types::ast::decl_info::{DeclSpec, Declarator, DeclChunk, TypeQual, DeclChunkList, DeclChunkKind, PointerChunk};
 use crate::types::ast::sematic_value::SemanticValue;
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::TokenKind;
 use crate::types::span::UnwrapSpan;
 use std::mem;
-use crate::types::ast::initializer::InitDeclarator;
+use crate::types::ast::nodes;
+use crate::types::ast::initializer::{InitDeclList, InitDeclarator};
+use crate::types::ast::seme::flat_chunks;
 
 impl TranslationUnit {
     pub fn make_translation_unit(ext_decl: ExternalDeclaration) -> SemanticValue {
@@ -400,11 +402,57 @@ impl Constant {
     }
 
 }
+impl Initializer {
+    pub fn make_expr(expr: Box<nodes::Expression>) -> SemanticValue {
+        Self::Scalar(expr).into()
+    }
+
+    pub fn make_init_list(lbrace: Token, mut list: InitializerList, comma: Option<Token>, rbrace: Token) -> SemanticValue {
+        if let Some(comma) = comma {
+            list.push_sep(comma.span);
+
+        }
+        Self::List {
+            lbrace: lbrace.span,
+            list,
+            rbrace: rbrace.span
+        }.into()
+    }
+
+
+    pub fn make_list(init: Self) -> SemanticValue {
+        InitializerList::new(init).into()
+    }
+
+    pub fn push(mut list: InitializerList, comma: Token, init: Self) -> SemanticValue {
+        list.push(comma.span, init);
+        list.into()
+    }
+
+
+
+}
 
 
 
 impl Decl {
-    pub fn make(decl_spec: DeclSpec, init_decl: Box<InitDeclarator>, semi: Token) -> SemanticValue {
+
+    pub fn make(decl_spec: DeclSpec, init_decl_list: Option<InitDeclList>, semi: Token) -> SemanticValue {
+        let span = semi.span.merge(&decl_spec.span);
+        let init_decl_list = init_decl_list.unwrap_or_default();
+
+        
+
+        for x in init_decl_list.list {
+            let mut chunks = Vec::new();
+            let name = flat_chunks(x.decl, &mut chunks);
+            
+        }
+        
+
+
+
+
         todo!()
     }
 

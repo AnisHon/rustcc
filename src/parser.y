@@ -10,10 +10,10 @@
  */
 
 %{
-use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::*;
 use crate::types::ast::sematic_value::*;
-use crate::types::ast::sema::*;
+use crate::types::ast::nodes::*;
+use crate::types::ast::methods::*;
 use crate::types::ast::type_info::*;
 use crate::types::ast::initializer::*;
 use crate::types::ast::func_info::*;
@@ -319,14 +319,14 @@ parameter_type_list_opt
 
 /* Initializers (C89) */
 initializer
-    : assignment_expression         {$$ = InitInfo::make_expr($1);}
-    | '{' initializer_list '}'      {$$ = InitInfo::make_init_list($1, $2, None, $3);}
-    | '{' initializer_list ',' '}'  {$$ = InitInfo::make_init_list($1, $2, Some($3), $4);}  /* trailing comma is widely accepted; tighten if needed */
+    : assignment_expression         {$$ = Initializer::make_expr($1);}
+    | '{' initializer_list '}'      {$$ = Initializer::make_init_list($1, $2, None, $3);}
+    | '{' initializer_list ',' '}'  {$$ = Initializer::make_init_list($1, $2, Some($3), $4);}  /* trailing comma is widely accepted; tighten if needed */
     ;
 
 initializer_list
-    : initializer                       {$$ = InitInfo::make_list($1);}
-    | initializer_list ',' initializer  {$$ = InitInfo::push($1, $2, $3);}
+    : initializer                       {$$ = Initializer::make_list($1);}
+    | initializer_list ',' initializer  {$$ = Initializer::push($1, $2, $3);}
     ;
 
 /* 6.8 Statements */
