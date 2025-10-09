@@ -5,7 +5,7 @@ pub type LexResult<T> = Result<T, LexError>;
 #[derive(Error, Debug)]
 pub enum LexError {
     #[error("unexpected symbol: {symbol}")]
-    InvalidToken { pos: usize, symbol: String },
+    UnknownSymbol{ pos: usize, symbol: char },
     #[error("missing terminating: {chr} character")]
     MissingTerminating { pos: usize, chr: char },
     #[error("unterminated comment")]

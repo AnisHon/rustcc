@@ -10,7 +10,6 @@ use crate::err::lex_error::{LexError, LexResult};
 use crate::lex::{keyword, operator};
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, Keyword, LiteralKind, Symbol, TokenKind};
-use crate::lex::types::token_kind::TokenKind::{Amp, Assign, Bang, Caret, Colon, Comma, Dot, Gt, LBrace, LBracket, LParen, Lt, Minus, Percent, Pipe, Plus, Question, RBrace, RBracket, RParen, Semi, Slash, Star, Tilde};
 use crate::util::utf8::unescape_str;
 
 ///
@@ -47,21 +46,37 @@ impl<'a> Lex<'a> {
         self.iter.peek().copied()
     }
 
+    fn peek_n(&mut self, n: usize) -> Option<char> {
+        self.iter.clone().skip(n).next()
+    }
+
+    fn expect(&mut self, chr: char) -> bool {
+        self.peek() == Some(chr)
+    }
+
+    fn expect_nth(&mut self, n: usize, chr: char) -> bool {
+        self.peek_n(n) == Some(chr)
+    }
+
     /// 取出patten
-    pub fn get_patten(&self) -> &str {
+    fn get_patten(&self) -> &str {
         let patten = self.content_manager.str(self.last_pos..self.curr_pos);
         patten
     }
 
-    pub fn clear_patten(&mut self) {
+    fn clear_patten(&mut self) {
         self.last_pos = self.curr_pos;
     }
 
     /// 构建token，清空区间
-    pub fn make_token(&mut self, kind: TokenKind) -> Token {
+    fn make_token(&mut self, kind: TokenKind) -> Token {
         let token = Token::new(self.last_pos, self.curr_pos, kind);
         self.clear_patten();
         token
+    }
+
+    pub fn peek_nth_is_digit(&mut self, n: usize) -> bool {
+        self.peek_n(n).map(|x| x.is_ascii_digit()).unwrap_or(false)
     }
 
     pub fn next_token(&mut self) -> LexResult<Option<Token>> {
@@ -69,15 +84,20 @@ impl<'a> Lex<'a> {
             let token = if chr.is_whitespace() {
                 self.skip_whitespace();
                 continue
-            } else if chr.is_ascii_digit() {
+            } else if chr.is_ascii_digit() || (chr == '.' && self.peek_nth_is_digit(1)) {
                 self.maybe_number_constant()?
             } else if is_xid_start(chr) {
                 self.maybe_keyword_or_ident()?
             } else if chr == '"' || chr == '\'' {
-
-                todo!()
+                self.maybe_string_or_char()?
+            } else if self.expect('/') && self.expect_nth(1, '/') {
+                self.skip_line_comment();
+                continue
+            } else if self.expect('/') && self.expect_nth(1, '*') {
+                self.skip_block_comment()?;
+                continue
             } else {
-                todo!()
+                self.maybe_operator()?
             };
 
             return Ok(Some(token))
@@ -85,7 +105,7 @@ impl<'a> Lex<'a> {
         Ok(None)
     }
 
-    pub fn skip_whitespace(&mut self) {
+    fn skip_whitespace(&mut self) {
         while let Some(chr) = self.peek() {
             if !chr.is_whitespace() {
                 break
@@ -96,7 +116,7 @@ impl<'a> Lex<'a> {
     }
 
     /// 匹配 E|e . [0-9]
-    pub fn try_float(&mut self) {
+    fn try_float(&mut self) {
         let mut dot = false; // 小数点是否出现过
         let mut exp = false; // E是否出现过
 
@@ -108,6 +128,13 @@ impl<'a> Lex<'a> {
                         break;
                     }
                     exp = true;
+                    self.next(); // 消耗 'e'
+
+                    // 消耗可能的 '+' '-'
+                    if self.expect('+') || self.expect('-') {
+                        self.next();
+                    }
+                    continue; // 跳过 e 部分继续读取数字
                 }
                 '.' => {
                     if dot {
@@ -126,20 +153,36 @@ impl<'a> Lex<'a> {
     /// # Return
     /// - `true`: 是`int`
     /// - `false`: 是`float`(遇到`.` `e` `E`)
-    pub fn try_int(&mut self) -> bool {
+    fn try_int(&mut self, base: u32) -> bool {
         while let Some(chr) = self.peek() {
-            if chr == '.' || chr == 'e' || chr == 'E' { // 浮点数
-                return false;
+            // 检测浮点标志
+            if chr == '.' || chr == 'e' || chr == 'E' {
+                return false; // 转为浮点
             } else if !chr.is_digit(16) {
                 break;
             }
+
+            // 根据进制判断合法性
+            let ok = match base {
+                2 => matches!(chr, '0' | '1'),
+                8 => matches!(chr, '0'..='7'),
+                10 => matches!(chr, '0'..='9'),
+                16 => chr.is_ascii_hexdigit(),
+                _ => unreachable!(),
+            };
+
+            if !ok {
+                break;
+            }
+
             self.next();
         }
-        false
+
+        true // 没有遇到'.'或'e'是整数
     }
 
     /// 返回是否有后缀
-    pub fn try_suffix(&mut self) -> bool {
+    fn try_suffix(&mut self) -> bool {
         let mut flag = false;
         while let Some(chr) = self.peek() {
             if !chr.is_ascii_alphanumeric() {
@@ -151,8 +194,9 @@ impl<'a> Lex<'a> {
         flag
     }
 
-    pub fn maybe_number_constant(&mut self) -> LexResult<Token> {
+    fn maybe_number_constant(&mut self) -> LexResult<Token> {
         let mut base = 10;
+
         // 一定存在
         if self.peek().unwrap() == '0' {
             self.next();
@@ -166,12 +210,22 @@ impl<'a> Lex<'a> {
             }
         }
 
-        let is_int = self.try_int();
+        let is_int = self.try_int(base);
         if !is_int {
             self.try_float();
         }
-        let patten = self.get_patten();
-        let beg = self.curr_pos;
+
+        let beg = self.last_pos;
+        let end = self.curr_pos;
+        let patten = self.content_manager.str(beg..end);
+
+        let has_suffix = self.try_suffix();
+        let suffix_beg = end;
+        let suffix_end = self.curr_pos;
+        let suffix = match has_suffix {
+            true => Some(self.content_manager.str(suffix_beg..suffix_end)),
+            false => None,
+        };
 
         let kind = if is_int {
             let num = match base {
@@ -181,44 +235,29 @@ impl<'a> Lex<'a> {
                 _ => unreachable!()
             }?;
 
-            self.clear_patten();
-            let has_suffix = self.try_suffix();
-            let suffix = match has_suffix {
-                true => Some(self.get_patten()),
-                false => None,
-            };
             let suffix = match suffix {
                 Some(x) => Some(make_int_suffix(x)?),
                 None => None,
             };
             LiteralKind::Integer { value: num, suffix }
-
         } else {
+            let patten = self.content_manager.str(beg..end);
             let num = make_float(patten)?;
 
-            self.clear_patten();
-            let has_suffix = self.try_suffix();
-            let suffix = match has_suffix {
-                true => Some(self.get_patten()),
-                false => None,
-            };
             let suffix = match suffix {
                 Some(x) => Some(make_float_suffix(x)?),
                 None => None,
             };
-
             LiteralKind::Float { value: num, suffix }
         };
 
         let kind = TokenKind::Literal(kind);
-
-        let token = Token::new(beg, self.curr_pos, kind);
-        self.clear_patten();
+        let token = self.make_token(kind);
         Ok(token)
     }
 
     /// 尝试解析为Keyword
-    pub fn try_keyword(&mut self) -> Option<Keyword> {
+    fn try_keyword(&mut self) -> Option<Keyword> {
         let mut kw = None;
         let mut state = keyword::INIT_STATE;
         while let Some(chr) = self.peek() {
@@ -235,7 +274,7 @@ impl<'a> Lex<'a> {
         kw
     }
     
-    pub fn try_ident(&mut self) -> LexResult<bool> {
+    fn try_ident(&mut self) -> LexResult<bool> {
         let mut flag = false;
         while let Some(chr) = self.peek() {
             if !is_xid_continue(chr) {
@@ -248,7 +287,7 @@ impl<'a> Lex<'a> {
 
 
     /// 尝试解析为keyword或者ident
-    pub fn maybe_keyword_or_ident(&mut self) -> LexResult<Token> {
+    fn maybe_keyword_or_ident(&mut self) -> LexResult<Token> {
         let kw = self.try_keyword();
         let is_ident = self.try_ident()?;
         
@@ -268,7 +307,7 @@ impl<'a> Lex<'a> {
 
 
     /// 尝试解析为string 或 char
-    pub fn maybe_string_or_char(&mut self) -> LexResult<Token> {
+    fn maybe_string_or_char(&mut self) -> LexResult<Token> {
         let quote = self.peek().unwrap();
         self.next();
 
@@ -290,7 +329,7 @@ impl<'a> Lex<'a> {
 
         // 未闭合出错
         if !closed {
-            return Err(LexError::MissingTerminating {pos: self.curr_pos, chr: quote })
+            return Err(LexError::MissingTerminating {pos: self.last_pos, chr: quote })
         }
 
 
@@ -304,28 +343,88 @@ impl<'a> Lex<'a> {
         Ok(token)
     }
     
-    pub fn try_operator(&mut self) -> Option<TokenKind> {
+
+    /// 尝试解析operator
+    fn maybe_operator(&mut self) -> LexResult<Token> {
+        let mut pos = self.curr_pos;
+        let mut last_pos = self.curr_pos;
         let mut state = operator::INIT_STATE;
-        let mut kind = None;
-        while let Some(chr) = self.peek() {
+        let mut last_state = operator::INIT_STATE;
+
+        let mut iter = self.iter.clone();
+
+        while let Some(&chr) = iter.peek() {
             state = match operator::find_next(state, chr) {
                 Some(x) => x,
                 None => break,
             };
-            kind = operator::STATES[state];
+
+            if operator::STATES[state].is_some() {
+                last_state = state;
+                last_pos = pos;
+            };
+
+            iter.next();
+            pos += chr.len_utf8();
         }
-        
-        kind
-        
+
+        self.curr_pos = last_pos;
+
+        let kind = match operator::STATES[last_state].clone() {
+            None => return Err(LexError::UnknownSymbol {pos: self.curr_pos, symbol: self.peek().unwrap()}),
+            Some(x) => x,
+        };
+
+        Ok(self.make_token(kind))
     }
-    
-    /// 尝试解析operator，注释 浮点数（.开头） 或者 什么都不是
-    pub fn maybe_other(&mut self) -> LexResult<Token> {
-        use TokenKind::*;
 
+    fn skip_line_comment(&mut self) {
+        let mut prev;
+        let mut curr = '\x00';
+        while let Some(chr) = self.peek() {
+            prev = curr;
+            curr = chr;
 
+            match (prev, curr) {
+                ('\r', '\n') => {
+                    self.next(); // 指向最新位置
+                    break;
+                }
+                ('\r', _) | ('\n', _)=> { // 当前位置就是最新位置
+                    break;
+                }
+                (_, _) => {
+                    self.next(); // 继续匹配
+                }
+            }
+        }
 
+        self.clear_patten();
     }
+
+    fn skip_block_comment(&mut self) -> LexResult<()> {
+        let mut prev;
+        let mut curr = '\x00';
+        let mut closed = false;
+
+        while let Some(chr) = self.peek() {
+            prev = curr;
+            curr = chr;
+            self.next();
+            if (prev, curr) == ('*', '/') {
+                closed = true;
+                break;
+            }
+        }
+
+        if closed {
+            self.clear_patten();
+            Ok(())
+        } else {
+            Err(LexError::UnterminatedComment { pos: self.last_pos })
+        }
+    }
+
 }
 
 
@@ -417,4 +516,15 @@ pub fn make_char(patten: &str) -> TokenKind {
     // todo
     let value = unescape_str(patten);
     TokenKind::Literal(LiteralKind::Char { value })
+}
+
+
+#[test]
+fn test() {
+    let content = include_str!("../../resources/test.c");
+    let manager = ContentManager::new(content.to_string());
+    let mut lex = Lex::new(&manager);
+    while let Some(x) = lex.next_token().unwrap() {
+        println!("{:?}", 1)
+    }
 }
