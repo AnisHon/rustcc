@@ -1,4 +1,6 @@
+use std::mem::take;
 use rlex::rlexer::lex_config::LexConfigParser;
+use rlex::rlexer::lex_mtx_writer::LexMtxWriter;
 use rlex::rlexer::lex_writer::LexWriter;
 use rlex::rlexer::lexer::Lexer;
 
@@ -8,17 +10,17 @@ pub fn get_path(path: &str) -> String {
 }
 fn main() {
     
-    let lex_input = include_str!("../../src/clex.l");
+    let lex_input = include_str!("../../rcc/resources/operator.l");
 
     let parser = LexConfigParser::new(lex_input.to_owned());
     let config = parser.parse();
     // println!("{:#?}", config);
     
-    let lex = Lexer::new(config);
+    let lex = Lexer::new(config, true);
 
     let dfa = lex.get_dfa();
 
-    // let char_class_set = lex.get_char_class_set();
+    // let char_class_set = types.get_char_class_set();
     // let mut state = dfa.get_init_state();
     // for chr in "// 123".chars() {
     //     println!("{:?}", state);
@@ -41,6 +43,9 @@ fn main() {
     }
     println!("edges: {}", sum);
 
-    let lex_writer = LexWriter::new(&get_path("/../src/gen/lex_yy.rs"), lex, );
+    // let lex_writer = LexWriter::new(&get_path("/../src/gen/lex_yy.rs"), lex);
+    let lex_writer = LexMtxWriter::new(&get_path("/../src/gen/operator.rs"), lex);
     lex_writer.write();
+    
+    
 }

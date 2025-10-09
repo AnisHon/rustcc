@@ -1,3 +1,4 @@
+use std::cmp::max;
 use crate::char_class::char_class_set::CharClassSet;
 use crate::parser::ast::ASTNode;
 use bitvec::macros::internal::funty::Fundamental;
@@ -6,18 +7,34 @@ use std::collections::{BTreeSet, VecDeque};
 
 pub struct CharClassBuilder {
     total_set: (u32, u32), // 字符集 全集比如 0-127 比如 0-0x10FFFF
+    ascii: bool // 只有ASCII字符，不做等价类优化
 }
 
 impl CharClassBuilder {
-    pub fn new(total_set: (u32, u32)) -> Self {
-        Self { total_set }
+    pub fn new(total_set: (u32, u32), ascii: bool) -> Self {
+        Self { total_set, ascii }
     }
 
     pub fn build_char_class_set(&self, ast_vec: &[ASTNode]) -> CharClassSet {
-        let mut ranges = get_ranges(ast_vec);
-        ranges.insert(self.total_set); // 添加一个 unicode 全集
-
+        let ranges = if self.ascii {
+            // 检查合法性
+            let ranges = get_ranges(ast_vec);
+            for (i, j) in ranges {
+                let chr = max(i, j);
+                if chr > 127 { 
+                    panic!("Not a ASCII Character: {:?}", char::from_u32(chr));
+                }
+            }
+            
+            // ascii 模式直接使用所有ASCII字符
+            (0..=127u32).map(|x| (x, x)).collect()
+        } else {
+            let mut ranges = get_ranges(ast_vec);
+            ranges.insert(self.total_set); // 添加一个 unicode 全集
+            ranges
+        };
         let ranges = build_range(ranges);
+        
         CharClassSet::new(ranges)
     }
 }

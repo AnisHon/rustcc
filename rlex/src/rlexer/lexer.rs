@@ -18,8 +18,8 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new(config: LexConfig) -> Self {
-        let (dfa, char_class_set) = match Self::init(&config) {
+    pub fn new(config: LexConfig, ascii: bool) -> Self {
+        let (dfa, char_class_set) = match Self::init(&config, ascii) {
             Ok(dfa) => dfa,
             Err(e) => panic!("{}", e),
         };
@@ -30,12 +30,12 @@ impl Lexer {
         }
     }
 
-    fn init(config: &LexConfig) -> ReResult<(DFA, CharClassSet)> {
+    fn init(config: &LexConfig, ascii: bool) -> ReResult<(DFA, CharClassSet)> {
         if config.rules.is_empty() {
             panic!("No regex specified");
         }
         let rules_sz = config.rules.len();
-        let builder = CharClassBuilder::new((0, 0x10FFFF)); // char_class_set 初始化为 Unicode全集
+        let builder = CharClassBuilder::new((0, 0x10FFFF), ascii); // char_class_set 初始化为 Unicode全集
         let mut ast_nodes: Vec<ASTNode> = Vec::with_capacity(rules_sz);
         let mut ast_idx_map: Vec<usize> = Vec::with_capacity(rules_sz); // 用来映射对应的Lex结构位置
 
