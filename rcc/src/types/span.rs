@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Formatter};
-use crate::types::lex::token::Token;
+use crate::lex::types::token::Token;
 
 ///
 /// 节点对应的位置区间

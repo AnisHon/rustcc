@@ -38,3 +38,9 @@ pub fn decode_char(bytes: &[u8]) -> Result<Option<(char, usize)>, u8> {
 
     Ok(Some((ch, width)))
 }
+
+
+pub fn unescape_str(str: &str) -> String {
+    // todo 格式化string
+    str.to_owned()
+}

@@ -1,4 +1,4 @@
-use crate::types::lex::token_kind::TokenKind;
+use crate::lex::types::token_kind::TokenKind;
 use crate::types::span::Span;
 use enum_as_inner::EnumAsInner;
 use std::fmt::{Debug, Display, Formatter};

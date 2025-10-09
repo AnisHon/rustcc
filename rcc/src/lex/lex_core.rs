@@ -1,369 +1,420 @@
-use std::cell::RefCell;
-use super::lex_yy::{exec_action, find_next, INIT_STATE};
 use crate::err::global_err::GlobalError;
-use crate::err::lex_error::{LexError, LexResult};
-use crate::types::lex::token::Token;
-use crate::types::lex::token_kind::TokenKind;
-use num_traits::FromPrimitive;
-use std::collections::vec_deque::Drain;
-use std::collections::VecDeque;
 use std::io::{BufReader, Read};
+use std::iter::Peekable;
+use std::str::Chars;
 use std::sync::mpsc;
 use std::thread;
+use unicode_ident::{is_xid_continue, is_xid_start};
 use crate::content_manager::ContentManager;
-
-/// 缓冲区默认块大小
-const BUFF_BLOCK: usize = 4096;
-
-pub(super) enum LexMode {
-    Normal,         // 正常模式
-    #[allow(dead_code)]
-    String,         // 保留未使用
-    LineComment,     // 行注释
-    BlockComment,    // 块注释
-    WhileSpace,     // 空白字符
-}
-
+use crate::err::lex_error::{LexError, LexResult};
+use crate::lex::{keyword, operator};
+use crate::lex::types::token::Token;
+use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, Keyword, LiteralKind, Symbol, TokenKind};
+use crate::lex::types::token_kind::TokenKind::{Amp, Assign, Bang, Caret, Colon, Comma, Dot, Gt, LBrace, LBracket, LParen, Lt, Minus, Percent, Pipe, Plus, Question, RBrace, RBracket, RParen, Semi, Slash, Star, Tilde};
+use crate::util::utf8::unescape_str;
 
 ///
 ///
 ///
 /// # Members
 
-pub struct Lex {
-    mode: LexMode,
-    content: RefCell<ContentManager>,
+pub struct Lex<'a> {
+    iter: Peekable<Chars<'a>>,
+    content_manager: &'a ContentManager,
     curr_pos: usize,
-    curr_state: usize,
-    last_pos: usize, // 上次规约位置
-    saved_pos: Option<usize>,
-    saved_state: Option<usize>,
+    last_pos: usize, // 上次位置
 }
 
-impl Lex {
-    pub fn new(content: RefCell<ContentManager>) -> Self {
+impl<'a> Lex<'a> {
+    pub fn new(content: &'a ContentManager) -> Self {
         Self {
-            mode: LexMode::Normal,
-            content,
+            iter: content.chars().peekable(),
+            content_manager: content,
             curr_pos: 0,
-            curr_state: INIT_STATE,
             last_pos: 0,
-            saved_pos: None,
-            saved_state: None,
         }
     }
 
-    pub(super) fn set_mode(&mut self, mode: LexMode) {
-        self.mode = mode;
-    }
-
-    pub fn next_token(&mut self) -> Option<Token> {
-        while let Some(chr) = self.peek() {
-            match self.mode {
-                LexMode::Normal => match self.handle_normal(chr) {
-                    Ok(Some(token)) => return Some(token),
-                    Ok(None) => { /* 继续匹配 */ }
-                    Err(err) => self.errors.push(err), // 错误自动恢复，添加到errors，继续匹配
-                }
-                LexMode::LineComment => self.handle_comment(),
-                LexMode::BlockComment => self.handle_block_comment(),
-                LexMode::String => self.reset_state(), // 未使用
-                LexMode::WhileSpace => self.handle_white_space()
-            }
-        }
-        // 数据流结束，查看是否有剩余部分，以及当前流是否匹配成功
-        // 流空了，没问题
-        if self.buff.is_empty() {
-            return None;
-        }
-
-        // 流没空且没有匹配到东西，出错
-        if !self.has_last() {
-            // 直接弹出来，不回去重新匹配，不恢复状态
-            let content: String = self.pop_buff(self.curr_pos).collect();
-
-            let pos = self.curr_pos;
-
-            // 判断类型，分支不会很多，不用设计查表
-            let err = match content.as_str() {
-                s if s.starts_with("/*") => LexError::UnterminatedComment { pos },
-                s if s.starts_with("\"") => LexError::MissingTerminating { pos, content: "\"" },
-                s if s.starts_with("'")  => LexError::MissingTerminating { pos, content: "'" },
-                s => LexError::InvalidToken { pos, symbol: s.to_string() },
-            };
-
-            self.errors.push(err);
-            return None;
-        }
-
-        // 匹配到东西，构建token
-        let token = self.make_token();
-        Some(token)
-    }
-
-    pub fn get_errors(&self) -> &[LexError] {
-        &self.errors
-    }
-
-    ///
-    /// 处理普通模式，每次做一次转移
-    /// - 所有的正常转义都会调用`next`让指针始终指向最新位置
-    /// - save保存的state是旧位置
-    /// - pop传递的也是
-    ///
-    /// # Returns
-    /// 可能会出错，交给主循环处理
-    /// 当返回None的时候要继续循环
-    ///
-    fn handle_normal(&mut self, chr: char) -> LexResult<Option<Token>> {
-        let mut token = None;
-        // 正常转移
-        if let Some(x) = find_next(self.curr_state, chr) {
-            self.next();
-            self.curr_state = x;
-        } else { 
-            // 匹配失败
-            // 没有成功结果被保存，出错
-            if !self.has_last() {
-                let err_pos = self.curr_pos;
-                let symbol = self.recover();
-                return Err(LexError::InvalidToken{ pos: err_pos, symbol })
-            }
-            // 有结果被保存
-            // 构建Token
-            token = Some(self.make_token());
-            // 恢复状态
-            self.reset_state();
-        }
-        Ok(token)
-    }
-
-    /// 处理单行注释
-    fn handle_comment(&mut self) {
-
-        let mut prev;
-        let mut curr = '\x00';
-        while let Some(chr) = self.peek() {
-
-            prev = curr;
-            curr = chr;
-
-            match (prev, curr) {
-                ('\r', '\n') => {
-                    self.next(); // 指向最新位置
-                    break;
-                }
-                ('\r', _) | ('\n', _)=> { // 当前位置就是最新位置
-                    break;
-                }
-                (_, _) => {
-                    self.next(); // 继续匹配
-                }
-            }
-        }
-
-        // 弹出注释串，清空保存，重制状态
-        self.pop_buff(self.curr_pos);
-        self.clear_save();
-        self.reset_state();
-    }
-
-    /// 处理多行注释
-    fn handle_block_comment(&mut self) {
-        let mut prev;
-        let mut curr = '\x00';
-
-        while let Some(chr) = self.peek() {
-            prev = curr;
-            curr = chr;
-            self.next();
-            if (prev, curr) == ('*', '/') {
-                break;
-            }
-        }
-
-        // 弹出注释串，清空保存，重制状态
-        self.pop_buff(self.curr_pos);
-        self.clear_save();
-        self.reset_state();
-    }
-
-    fn handle_white_space(&mut self) {
-        while let Some(chr) = self.peek() {
-            // 跳过空白符号
-            if !chr.is_whitespace() {
-                break;
-            } else {
-                self.next();
-            }
-        }
-
-        // 弹出空白，清空保存，重制状态
-        self.pop_buff(self.curr_pos);
-        self.clear_save();
-        self.reset_state();
-    }
-
-    /// 出错后，对当前状态进行恢复，返回出错单词
-    fn recover(&mut self) -> String {
-        // 跳过当前词
-        while let Some(chr) = self.peek() {
-            if chr.is_ascii_whitespace() {
-                break
-            }
-            self.next();
-        }
-
-        // 恢复状态
-        self.reset_state();
-        // 弹出出错符号
-        self.pop_buff(self.curr_pos).collect()
-    }
-
-    fn buff_pos(&self, cursor: usize) -> usize {
-        assert!(cursor <= self.cursor_pos);
-        let ring_len = self.buff.len();
-        ring_len - (self.cursor_pos - self.curr_pos)
-    }
-
-    /// 检查是否需要读取，语义是要读取/消耗pos位置
-    /// 保证`pos`始终小于`cursor_pos`
-    fn check_read(&mut self, pos: usize) {
-        // 不需要加载
-        if pos < self.cursor_pos {
-            return;
-        }
-
-        // 按块加载
-        let mut chunk = String::with_capacity(BUFF_BLOCK);
-        let n = self.reader
-            .by_ref()
-            .take(BUFF_BLOCK as u64)
-            .read_to_string(&mut chunk)
-            .unwrap_or_else(|e| panic!("{}", e));
-        for chr in chunk[0..n].chars() {
-            self.buff.push_back(chr);
-            self.cursor_pos += 1;
-        }
-    }
-
-    /// 拿到下一个char，自动选择流或者缓冲区，更新pos
-    /// curr_pos可取cursor + 1，表示结束
     fn next(&mut self) -> Option<char> {
-        let chr = self.peek();
-        // 最多指向cursor + 1
-        if self.curr_pos <= self.cursor_pos {
-            self.curr_pos += 1;
+        let chr = self.iter.next();
+        if let Some(chr) = chr {
+            self.curr_pos = chr.len_utf8();
         }
         chr
     }
 
     fn peek(&mut self) -> Option<char> {
-        
-        
+        self.iter.peek().copied()
     }
 
-    /// 根据pos从头弹出缓冲区，转换成字符串，不包含pos
-    fn pop_buff(&mut self, pos: usize) -> Drain<char> {
-        let pos = self.buff_pos(pos);
-        self.buff.drain(0..pos)
+    /// 取出patten
+    pub fn get_patten(&self) -> &str {
+        let patten = self.content_manager.str(self.last_pos..self.curr_pos);
+        patten
     }
 
-    /// 通过load_state 构建token
-    fn make_token(&mut self, kind: TokenKind) -> Token {
-        assert!(self.has_last());
-        // 加载状态，提取文本，构建token
-        let content = self.pop_buff(self.curr_pos);
-        let len = content.len();
-        let content: String = content.collect();
-        let beg = self.curr_pos - len;
-        let end = self.curr_pos - 1;
-        
-        Token::new(beg, end, kind)
+    pub fn clear_patten(&mut self) {
+        self.last_pos = self.curr_pos;
+    }
+
+    /// 构建token，清空区间
+    pub fn make_token(&mut self, kind: TokenKind) -> Token {
+        let token = Token::new(self.last_pos, self.curr_pos, kind);
+        self.clear_patten();
+        token
+    }
+
+    pub fn next_token(&mut self) -> LexResult<Option<Token>> {
+        while let Some(chr) = self.peek() {
+            let token = if chr.is_whitespace() {
+                self.skip_whitespace();
+                continue
+            } else if chr.is_ascii_digit() {
+                self.maybe_number_constant()?
+            } else if is_xid_start(chr) {
+                self.maybe_keyword_or_ident()?
+            } else if chr == '"' || chr == '\'' {
+
+                todo!()
+            } else {
+                todo!()
+            };
+
+            return Ok(Some(token))
+        }
+        Ok(None)
+    }
+
+    pub fn skip_whitespace(&mut self) {
+        while let Some(chr) = self.peek() {
+            if !chr.is_whitespace() {
+                break
+            }
+            self.next();
+        }
+        self.clear_patten();
+    }
+
+    /// 匹配 E|e . [0-9]
+    pub fn try_float(&mut self) {
+        let mut dot = false; // 小数点是否出现过
+        let mut exp = false; // E是否出现过
+
+        while let Some(chr) = self.peek() {
+            match chr {
+                '0'..='9' => {},
+                'E' | 'e' => {
+                    if exp {
+                        break;
+                    }
+                    exp = true;
+                }
+                '.' => {
+                    if dot {
+                        break;
+                    }
+                    dot = true;
+                }
+                _ => break
+            }
+            self.next();
+        }
+
+    }
+
+    /// 匹配 [a-f0-9]*
+    /// # Return
+    /// - `true`: 是`int`
+    /// - `false`: 是`float`(遇到`.` `e` `E`)
+    pub fn try_int(&mut self) -> bool {
+        while let Some(chr) = self.peek() {
+            if chr == '.' || chr == 'e' || chr == 'E' { // 浮点数
+                return false;
+            } else if !chr.is_digit(16) {
+                break;
+            }
+            self.next();
+        }
+        false
+    }
+
+    /// 返回是否有后缀
+    pub fn try_suffix(&mut self) -> bool {
+        let mut flag = false;
+        while let Some(chr) = self.peek() {
+            if !chr.is_ascii_alphanumeric() {
+                break
+            }
+            flag = true;
+            self.next();
+        }
+        flag
+    }
+
+    pub fn maybe_number_constant(&mut self) -> LexResult<Token> {
+        let mut base = 10;
+        // 一定存在
+        if self.peek().unwrap() == '0' {
+            self.next();
+            if let Some(x) = self.peek() {
+                match x {
+                    'x' | 'X' => base = 16,
+                    'b' | 'B' => base = 2,
+                    '0'..='9' => base = 8,
+                    _ => {}
+                }
+            }
+        }
+
+        let is_int = self.try_int();
+        if !is_int {
+            self.try_float();
+        }
+        let patten = self.get_patten();
+        let beg = self.curr_pos;
+
+        let kind = if is_int {
+            let num = match base {
+                2 => make_bin(patten),
+                8 => make_oct(patten),
+                10 => make_dec(patten),
+                _ => unreachable!()
+            }?;
+
+            self.clear_patten();
+            let has_suffix = self.try_suffix();
+            let suffix = match has_suffix {
+                true => Some(self.get_patten()),
+                false => None,
+            };
+            let suffix = match suffix {
+                Some(x) => Some(make_int_suffix(x)?),
+                None => None,
+            };
+            LiteralKind::Integer { value: num, suffix }
+
+        } else {
+            let num = make_float(patten)?;
+
+            self.clear_patten();
+            let has_suffix = self.try_suffix();
+            let suffix = match has_suffix {
+                true => Some(self.get_patten()),
+                false => None,
+            };
+            let suffix = match suffix {
+                Some(x) => Some(make_float_suffix(x)?),
+                None => None,
+            };
+
+            LiteralKind::Float { value: num, suffix }
+        };
+
+        let kind = TokenKind::Literal(kind);
+
+        let token = Token::new(beg, self.curr_pos, kind);
+        self.clear_patten();
+        Ok(token)
+    }
+
+    /// 尝试解析为Keyword
+    pub fn try_keyword(&mut self) -> Option<Keyword> {
+        let mut kw = None;
+        let mut state = keyword::INIT_STATE;
+        while let Some(chr) = self.peek() {
+            if !chr.is_ascii() {
+                break
+            }
+            state = match keyword::find_next(state, chr) {
+                None => break,
+                Some(x) => x
+            };
+            kw = keyword::STATES[state];
+            self.next();
+        }
+        kw
     }
     
-    pub fn content()
-
-    /// 保存当前状态
-    fn save_state(&mut self) {
-        self.saved_state = Some(self.curr_state);
-        self.saved_pos = Some(self.curr_pos);
+    pub fn try_ident(&mut self) -> LexResult<bool> {
+        let mut flag = false;
+        while let Some(chr) = self.peek() {
+            if !is_xid_continue(chr) {
+                break;
+            }
+            flag = true;
+        }
+        Ok(flag)
     }
 
-    /// 加载上一个状态，加载后会清空，返回保存的tok结果
-    fn load_state(&mut self) -> usize {
-        assert!(self.has_last());
-        self.curr_state = self.saved_state.unwrap();
-        self.curr_pos = self.saved_pos.unwrap();
-        // 加载后清空
-        self.saved_state = None;
-        self.saved_pos = None;
 
-        let tok = self.last_tok;
-        self.last_tok = None;
-        tok.unwrap()
+    /// 尝试解析为keyword或者ident
+    pub fn maybe_keyword_or_ident(&mut self) -> LexResult<Token> {
+        let kw = self.try_keyword();
+        let is_ident = self.try_ident()?;
+        
+        let patten = self.get_patten();
+
+        // 不是keyword，一定是ident
+        if is_ident || kw.is_none() {
+            let kind = make_ident(patten);
+            let token = self.make_token(kind);
+            Ok(token)
+        } else {
+            let kind = TokenKind::Keyword(kw.unwrap());
+            let token = self.make_token(kind);
+            Ok(token)
+        }
     }
 
-    /// 清空保存的状态
-    fn clear_save(&mut self) {
-        self.saved_state = None;
-        self.saved_pos = None;
-        self.last_tok = None;
-    }
 
-    /// 是否存在 last_state和last_pos
-    fn has_last(&self) -> bool {
-        self.saved_state.is_some() && self.saved_pos.is_some()
-    }
+    /// 尝试解析为string 或 char
+    pub fn maybe_string_or_char(&mut self) -> LexResult<Token> {
+        let quote = self.peek().unwrap();
+        self.next();
 
-    /// 重制状态
-    fn reset_state(&mut self) {
-        self.mode = LexMode::Normal;
-        self.curr_state = INIT_STATE;
-    }
+        let mut esc = false; // 转义状态
+        let mut closed = false; // 是否闭合
+        while let Some(chr) = self.peek() {
+            match chr {
+                '\\' => esc = true, // 进入转译
+                '\n' | '\r' => break, // 闭合
+                chr if chr == quote && !esc => {
+                    closed = true;
+                    break;
+                }
+                _ => {}
+            }
+            self.next();
+        }
 
+
+        // 未闭合出错
+        if !closed {
+            return Err(LexError::MissingTerminating {pos: self.curr_pos, chr: quote })
+        }
+
+
+        let patten = self.get_patten();
+        let kind = match quote {
+            '"' => make_string(patten),
+            '\'' => make_char(patten),
+            _ => unreachable!()
+        };
+        let token = self.make_token(kind);
+        Ok(token)
+    }
+    
+    pub fn try_operator(&mut self) -> Option<TokenKind> {
+        let mut state = operator::INIT_STATE;
+        let mut kind = None;
+        while let Some(chr) = self.peek() {
+            state = match operator::find_next(state, chr) {
+                Some(x) => x,
+                None => break,
+            };
+            kind = operator::STATES[state];
+        }
+        
+        kind
+        
+    }
+    
+    /// 尝试解析operator，注释 浮点数（.开头） 或者 什么都不是
+    pub fn maybe_other(&mut self) -> LexResult<Token> {
+        use TokenKind::*;
+
+
+
+    }
 }
 
 
 /// 异步lex
 ///
 /// # Members
-/// - `lex`: lexer
+/// - `types`: lexer
 /// - `token_tx`: token channel，总体速度匹配，但防止积压，使用有界队列
 /// - `error_tx`: 错误channel
 ///
-pub struct AsyncLex<R: Read> {
-    pub lex: Lex<R>,
-    pub token_tx: crossbeam_channel::Sender<Token>,
-    pub error_rx: mpsc::Sender<GlobalError>,
+// pub struct AsyncLex<R: Read> {
+//     pub lex: Lex<R>,
+//     pub token_tx: crossbeam_channel::Sender<Token>,
+//     pub error_rx: mpsc::Sender<GlobalError>,
+// }
+//
+//
+// impl <R: Read + Send + 'static> AsyncLex<R> {
+//
+//     pub fn new(lex: Lex<R>, token_tx: crossbeam_channel::Sender<Token>, error_rx: mpsc::Sender<GlobalError>) -> AsyncLex<R> {
+//         Self { lex, token_tx, error_rx }
+//     }
+//
+//     pub fn start(mut self) {
+//         thread::spawn(move || {
+//             while let Some(x) = self.lex.next_token() {
+//                 // 如果出错了，直接报错
+//                 if self.token_tx.send(x).is_err() {
+//                     break;
+//                 };
+//             }
+//
+//             // 构建 EOF token 发过去
+//             let pos = self.lex.curr_pos;
+//             let token = Token::new(pos, pos, TokenKind::Eof);
+//             let _ = self.token_tx.send(token); // 成功与否不关心
+//             drop(self.token_tx); // 关闭通道
+//
+//             for x in self.lex.errors {
+//                 // 全局错误通道永远不会关闭
+//                 self.error_rx.send(GlobalError::LexError(x)).unwrap_or_else(|_| panic!("Global Error Handler Crashed"));
+//             }
+//         });
+//     }
+// }
+
+
+pub fn make_ident(patten: &str) -> TokenKind {
+    let symbol = Symbol(patten.to_owned());
+    TokenKind::Ident(symbol)
+}
+pub fn make_bin(patten: &str) -> LexResult<u64> {
+    let patten = &patten[2..];
+    todo!()
+}
+pub fn make_hex(patten: &str) -> LexResult<u64> {
+    let patten = &patten[2..];
+    todo!()
 }
 
+pub fn make_oct(patten: &str) -> LexResult<u64> {
+    let patten = &patten[1..];
+    todo!()
+}
 
-impl <R: Read + Send + 'static> AsyncLex<R> {
+pub fn make_dec(patten: &str) -> LexResult<u64> {
+    todo!()
+}
 
-    pub fn new(lex: Lex<R>, token_tx: crossbeam_channel::Sender<Token>, error_rx: mpsc::Sender<GlobalError>) -> AsyncLex<R> {
-        Self { lex, token_tx, error_rx }
-    }
+pub fn make_float(patten: &str) -> LexResult<f64> {
+    todo!()
+}
 
-    pub fn start(mut self) {
-        thread::spawn(move || {
-            while let Some(x) = self.lex.next_token() {
-                // 如果出错了，直接报错
-                if self.token_tx.send(x).is_err() {
-                    break;
-                };
-            }
+fn make_int_suffix(value: &str) -> LexResult<IntSuffix> {
+    todo!()
 
-            // 构建 EOF token 发过去
-            let pos = self.lex.curr_pos;
-            let token = Token::new(pos, pos, TokenKind::Eof);
-            let _ = self.token_tx.send(token); // 成功与否不关心
-            drop(self.token_tx); // 关闭通道
-            
-            for x in self.lex.errors {
-                // 全局错误通道永远不会关闭
-                self.error_rx.send(GlobalError::LexError(x)).unwrap_or_else(|_| panic!("Global Error Handler Crashed"));
-            }
-        });
-    }
+}
+
+fn make_float_suffix(value: &str) -> LexResult<FloatSuffix> {
+    todo!()
+}
+pub fn make_string(patten: &str) -> TokenKind {
+    // todo 
+    let value = unescape_str(patten);
+    TokenKind::Literal(LiteralKind::String { value })
+}
+
+pub fn make_char(patten: &str) -> TokenKind {
+    // todo
+    let value = unescape_str(patten);
+    TokenKind::Literal(LiteralKind::Char { value })
 }

@@ -1,4 +1,4 @@
-use crate::lex::lex_core::{AsyncLex, Lex};
+use crate::lex::lex_core::{Lex};
 use crate::types::parser_context::ParserContext;
 use std::cell::RefCell;
 use std::io::Read;
@@ -35,21 +35,21 @@ impl<R: Read + Send + 'static> CCompiler<R> {
     /// 
     pub fn compile(self) {
         
-        let (token_tx, token_rx) = crossbeam_channel::bounded(self.token_bound);
-        let (error_tx, error_rx) = mpsc::channel();
-
-        let context = Rc::new(RefCell::new(ParserContext::new(error_tx.clone())));
+        // let (token_tx, token_rx) = crossbeam_channel::bounded(self.token_bound);
+        // let (error_tx, error_rx) = mpsc::channel();
+        //
+        // let context = Rc::new(RefCell::new(ParserContext::new(error_tx.clone())));
 
         // lexer 是异步的
-        let lex = Lex::new(self.input);
-        let async_lex = AsyncLex::new(lex, token_tx, error_tx);
-        async_lex.start();
+        // let lex = Lex::new(self.input);
+        // let async_lex = AsyncLex::new(lex, token_tx, error_tx);
+        // async_lex.start();
 
 
 
-        for x in error_rx {
-            eprintln!("{x:?}")
-        }
+        // for x in error_rx {
+        //     eprintln!("{x:?}")
+        // }
 
 
     }

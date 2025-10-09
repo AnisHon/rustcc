@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use crate::types::lex::token::Token;
+use crate::lex::types::token::Token;
 use crate::types::span::Span;
 
 pub type ParserResult<T> = Result<T, ParserError>;
