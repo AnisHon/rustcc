@@ -1,7 +1,7 @@
 use crate::err::global_err::GlobalError;
 use std::io::{BufReader, Read};
 use std::iter::Peekable;
-use std::str::Chars;
+use std::str::{Chars, FromStr};
 use std::sync::mpsc;
 use std::thread;
 use unicode_ident::{is_xid_continue, is_xid_start};
@@ -18,7 +18,6 @@ use crate::util::utf8::unescape_str;
 /// # Members
 
 pub struct Lex<'a> {
-    iter: Peekable<Chars<'a>>,
     content_manager: &'a ContentManager,
     curr_pos: usize,
     last_pos: usize, // 上次位置
@@ -27,7 +26,6 @@ pub struct Lex<'a> {
 impl<'a> Lex<'a> {
     pub fn new(content: &'a ContentManager) -> Self {
         Self {
-            iter: content.chars().peekable(),
             content_manager: content,
             curr_pos: 0,
             last_pos: 0,
@@ -35,27 +33,37 @@ impl<'a> Lex<'a> {
     }
 
     fn next(&mut self) -> Option<char> {
-        let chr = self.iter.next();
+        let chr = self.content_manager.chars(self.curr_pos).next();
         if let Some(chr) = chr {
-            self.curr_pos = chr.len_utf8();
+            self.curr_pos += chr.len_utf8();
         }
         chr
     }
 
     fn peek(&mut self) -> Option<char> {
-        self.iter.peek().copied()
+        self.content_manager.chars(self.curr_pos).next()
     }
 
     fn peek_n(&mut self, n: usize) -> Option<char> {
-        self.iter.clone().skip(n).next()
+        self.content_manager.chars(self.curr_pos).nth(n)
+    }
+
+    fn skip_bytes(&mut self, n: usize) {
+        self.curr_pos += n;
+    }
+
+    fn expect_patten(&mut self, patten: &str) -> bool {
+        let mut chars = self.content_manager.chars(self.curr_pos);
+        for chr in patten.chars() {
+               if Some(chr) != chars.next() {
+                   return false;
+               }
+        }
+        true
     }
 
     fn expect(&mut self, chr: char) -> bool {
         self.peek() == Some(chr)
-    }
-
-    fn expect_nth(&mut self, n: usize, chr: char) -> bool {
-        self.peek_n(n) == Some(chr)
     }
 
     /// 取出patten
@@ -75,8 +83,8 @@ impl<'a> Lex<'a> {
         token
     }
 
-    pub fn peek_nth_is_digit(&mut self, n: usize) -> bool {
-        self.peek_n(n).map(|x| x.is_ascii_digit()).unwrap_or(false)
+    pub fn peek_next_is_digit(&mut self) -> bool {
+        self.peek_n(1).map(|x| x.is_ascii_digit()).unwrap_or(false)
     }
 
     pub fn next_token(&mut self) -> LexResult<Option<Token>> {
@@ -84,16 +92,16 @@ impl<'a> Lex<'a> {
             let token = if chr.is_whitespace() {
                 self.skip_whitespace();
                 continue
-            } else if chr.is_ascii_digit() || (chr == '.' && self.peek_nth_is_digit(1)) {
+            } else if chr.is_ascii_digit() || (chr == '.' && self.peek_next_is_digit()) {
                 self.maybe_number_constant()?
             } else if is_xid_start(chr) {
                 self.maybe_keyword_or_ident()?
             } else if chr == '"' || chr == '\'' {
                 self.maybe_string_or_char()?
-            } else if self.expect('/') && self.expect_nth(1, '/') {
+            } else if self.expect_patten("//") {
                 self.skip_line_comment();
                 continue
-            } else if self.expect('/') && self.expect_nth(1, '*') {
+            } else if self.expect_patten("/*") {
                 self.skip_block_comment()?;
                 continue
             } else {
@@ -116,7 +124,7 @@ impl<'a> Lex<'a> {
     }
 
     /// 匹配 E|e . [0-9]
-    fn try_float(&mut self) {
+    fn try_float(&mut self) -> LexResult<()> {
         let mut dot = false; // 小数点是否出现过
         let mut exp = false; // E是否出现过
 
@@ -128,12 +136,17 @@ impl<'a> Lex<'a> {
                         break;
                     }
                     exp = true;
-                    self.next(); // 消耗 'e'
+                    self.skip_bytes(1); // 消耗 'e'
 
                     // 消耗可能的 '+' '-'
                     if self.expect('+') || self.expect('-') {
-                        self.next();
+                        self.skip_bytes(1);
                     }
+
+                    if !self.peek().map(|x| x.is_ascii_digit()).unwrap_or(false) {
+                        return Err(LexError::Exponent { pos: self.curr_pos });
+                    }
+
                     continue; // 跳过 e 部分继续读取数字
                 }
                 '.' => {
@@ -147,38 +160,30 @@ impl<'a> Lex<'a> {
             self.next();
         }
 
+        Ok(())
     }
 
     /// 匹配 [a-f0-9]*
     /// # Return
     /// - `true`: 是`int`
     /// - `false`: 是`float`(遇到`.` `e` `E`)
-    fn try_int(&mut self, base: u32) -> bool {
+    fn try_int(&mut self, base: u32) -> LexResult<bool> {
         while let Some(chr) = self.peek() {
             // 检测浮点标志
             if chr == '.' || chr == 'e' || chr == 'E' {
-                return false; // 转为浮点
+                return Ok(false); // 转为浮点
             } else if !chr.is_digit(16) {
                 break;
             }
 
-            // 根据进制判断合法性
-            let ok = match base {
-                2 => matches!(chr, '0' | '1'),
-                8 => matches!(chr, '0'..='7'),
-                10 => matches!(chr, '0'..='9'),
-                16 => chr.is_ascii_hexdigit(),
-                _ => unreachable!(),
-            };
-
-            if !ok {
+            if !chr.is_digit(base) {
                 break;
             }
 
             self.next();
         }
 
-        true // 没有遇到'.'或'e'是整数
+        Ok(true) // 没有遇到'.'或'e'是整数
     }
 
     /// 返回是否有后缀
@@ -202,15 +207,24 @@ impl<'a> Lex<'a> {
             self.next();
             if let Some(x) = self.peek() {
                 match x {
-                    'x' | 'X' => base = 16,
-                    'b' | 'B' => base = 2,
-                    '0'..='9' => base = 8,
+                    'x' | 'X' => {
+                        self.skip_bytes(1); // 跳过 x
+                        base = 16
+                    },
+                    'b' | 'B' => {
+                        self.skip_bytes(1); // 跳过 b
+                        base = 2
+                    },
+                    '0'..='9' => {
+                        // 不用跳
+                        base = 8
+                    },
                     _ => {}
                 }
             }
         }
 
-        let is_int = self.try_int(base);
+        let is_int = self.try_int(base)?;
         if !is_int {
             self.try_float();
         }
@@ -232,6 +246,7 @@ impl<'a> Lex<'a> {
                 2 => make_bin(patten),
                 8 => make_oct(patten),
                 10 => make_dec(patten),
+                16 => make_hex(patten),
                 _ => unreachable!()
             }?;
 
@@ -256,60 +271,32 @@ impl<'a> Lex<'a> {
         Ok(token)
     }
 
-    /// 尝试解析为Keyword
-    fn try_keyword(&mut self) -> Option<Keyword> {
-        let mut kw = None;
-        let mut state = keyword::INIT_STATE;
-        while let Some(chr) = self.peek() {
-            if !chr.is_ascii() {
-                break
-            }
-            state = match keyword::find_next(state, chr) {
-                None => break,
-                Some(x) => x
-            };
-            kw = keyword::STATES[state];
-            self.next();
-        }
-        kw
-    }
-    
-    fn try_ident(&mut self) -> LexResult<bool> {
-        let mut flag = false;
+    /// 尝试解析为keyword或者ident
+    fn maybe_keyword_or_ident(&mut self) -> LexResult<Token> {
         while let Some(chr) = self.peek() {
             if !is_xid_continue(chr) {
                 break;
             }
-            flag = true;
+            self.next();
         }
-        Ok(flag)
-    }
-
-
-    /// 尝试解析为keyword或者ident
-    fn maybe_keyword_or_ident(&mut self) -> LexResult<Token> {
-        let kw = self.try_keyword();
-        let is_ident = self.try_ident()?;
         
         let patten = self.get_patten();
 
-        // 不是keyword，一定是ident
-        if is_ident || kw.is_none() {
-            let kind = make_ident(patten);
-            let token = self.make_token(kind);
-            Ok(token)
-        } else {
-            let kind = TokenKind::Keyword(kw.unwrap());
-            let token = self.make_token(kind);
-            Ok(token)
-        }
+
+        let kind = match keyword::KEYWORDS.get(patten) {
+            None => make_ident(patten),
+            Some(&x) => TokenKind::Keyword(x),
+        };
+
+        let token = self.make_token(kind);
+        Ok(token)
     }
 
 
     /// 尝试解析为string 或 char
     fn maybe_string_or_char(&mut self) -> LexResult<Token> {
         let quote = self.peek().unwrap();
-        self.next();
+        self.skip_bytes(1); // 跳过   ' 或 “
 
         let mut esc = false; // 转义状态
         let mut closed = false; // 是否闭合
@@ -319,9 +306,10 @@ impl<'a> Lex<'a> {
                 '\n' | '\r' => break, // 闭合
                 chr if chr == quote && !esc => {
                     closed = true;
+                    self.skip_bytes(1); // 跳过   ' 或 “
                     break;
                 }
-                _ => {}
+                _ => esc = false
             }
             self.next();
         }
@@ -347,28 +335,30 @@ impl<'a> Lex<'a> {
     /// 尝试解析operator
     fn maybe_operator(&mut self) -> LexResult<Token> {
         let mut pos = self.curr_pos;
-        let mut last_pos = self.curr_pos;
         let mut state = operator::INIT_STATE;
         let mut last_state = operator::INIT_STATE;
 
-        let mut iter = self.iter.clone();
+        let mut iter = self.content_manager.chars(self.curr_pos).peekable();
 
         while let Some(&chr) = iter.peek() {
+            if !chr.is_ascii() {
+                break
+            }
             state = match operator::find_next(state, chr) {
                 Some(x) => x,
                 None => break,
             };
 
-            if operator::STATES[state].is_some() {
-                last_state = state;
-                last_pos = pos;
-            };
-
             iter.next();
             pos += chr.len_utf8();
+
+            if operator::STATES[state].is_some() {
+                last_state = state;
+                self.curr_pos = pos;
+            };
         }
 
-        self.curr_pos = last_pos;
+        self.curr_pos = pos;
 
         let kind = match operator::STATES[last_state].clone() {
             None => return Err(LexError::UnknownSymbol {pos: self.curr_pos, symbol: self.peek().unwrap()}),
@@ -379,15 +369,16 @@ impl<'a> Lex<'a> {
     }
 
     fn skip_line_comment(&mut self) {
+        self.skip_bytes(2); // 跳过  ‘//’
         let mut prev;
-        let mut curr = '\x00';
+        let mut curr = '/';
         while let Some(chr) = self.peek() {
             prev = curr;
             curr = chr;
 
             match (prev, curr) {
                 ('\r', '\n') => {
-                    self.next(); // 指向最新位置
+                    self.skip_bytes(1); // 指向最新位置
                     break;
                 }
                 ('\r', _) | ('\n', _)=> { // 当前位置就是最新位置
@@ -403,8 +394,9 @@ impl<'a> Lex<'a> {
     }
 
     fn skip_block_comment(&mut self) -> LexResult<()> {
+        self.skip_bytes(2); // 跳过  ‘/*’
         let mut prev;
-        let mut curr = '\x00';
+        let mut curr = '*';
         let mut closed = false;
 
         while let Some(chr) = self.peek() {
@@ -478,29 +470,35 @@ pub fn make_ident(patten: &str) -> TokenKind {
 }
 pub fn make_bin(patten: &str) -> LexResult<u64> {
     let patten = &patten[2..];
-    todo!()
-}
-pub fn make_hex(patten: &str) -> LexResult<u64> {
-    let patten = &patten[2..];
-    todo!()
+    // todo
+    Ok(u64::from_str_radix(patten, 2).unwrap())
 }
 
 pub fn make_oct(patten: &str) -> LexResult<u64> {
     let patten = &patten[1..];
-    todo!()
+    // todo
+    Ok(u64::from_str_radix(patten, 8).unwrap())
 }
 
 pub fn make_dec(patten: &str) -> LexResult<u64> {
-    todo!()
+    // todo
+    Ok(u64::from_str_radix(patten, 10).unwrap())
 }
 
+pub fn make_hex(patten: &str) -> LexResult<u64> {
+    let patten = &patten[2..];
+    // todo
+    Ok(u64::from_str_radix(patten, 16).unwrap())
+}
+
+
 pub fn make_float(patten: &str) -> LexResult<f64> {
-    todo!()
+    // todo
+    Ok(f64::from_str(patten).unwrap())
 }
 
 fn make_int_suffix(value: &str) -> LexResult<IntSuffix> {
     todo!()
-
 }
 
 fn make_float_suffix(value: &str) -> LexResult<FloatSuffix> {
@@ -525,6 +523,6 @@ fn test() {
     let manager = ContentManager::new(content.to_string());
     let mut lex = Lex::new(&manager);
     while let Some(x) = lex.next_token().unwrap() {
-        println!("{:?}", 1)
+        println!("{:?}.", x)
     }
 }

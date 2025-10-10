@@ -10,9 +10,10 @@ pub enum LexError {
     MissingTerminating { pos: usize, chr: char },
     #[error("unterminated comment")]
     UnterminatedComment { pos: usize },
-    #[error("Invalid suffix '{content} on on {typ} constant")]
-    InvalidSuffix { beg: usize, end: usize, content: String, typ: &'static str },
-
+    #[error("Invalid {invalid} '{content}' on {typ} constant")]
+    Invalid { beg: usize, end: usize, invalid: &'static str, content: String, typ: &'static str },
+    #[error("Exponent has no digits constant")]
+    Exponent { pos: usize },
 }
 
 

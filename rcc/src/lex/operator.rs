@@ -93,6 +93,11 @@ pub fn find_next(state_id: usize, chr: char) -> Option<usize> {
     let base = BASE[row_id]?;
 
     let idx = base + class_id;
+
+    if idx > CHECK.len() {
+        return None;
+    }
+
     let check = CHECK[idx]?;
 
     if check == row_id {

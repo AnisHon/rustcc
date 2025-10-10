@@ -12,7 +12,7 @@ num-traits = "0.2.19"
 strum = "0.27.2"
 thiserror.workspace = true
 crossbeam-channel = "0.5.15"
-phf = "0.13.1"
+phf = { version = "0.13.1", features = ["macros"] }
 unicode-ident = "1.0.19"
 
 
