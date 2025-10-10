@@ -92,7 +92,7 @@ pub enum Keyword {
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiteralKind {
     Integer { value: u64, suffix: Option<IntSuffix> },
-    Float   { value: f64, suffix: Option<FloatSuffix> },
+    Float   { value: String, suffix: Option<FloatSuffix> }, // float交给后期解析
     Char    { value: String },
     String  { value: String },
 }

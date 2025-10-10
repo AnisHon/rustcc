@@ -2,14 +2,15 @@ use crate::err::global_err::GlobalError;
 use std::io::{BufReader, Read};
 use std::iter::Peekable;
 use std::str::{Chars, FromStr};
-use std::sync::mpsc;
-use std::thread;
+use std::sync::{mpsc, Arc};
+use std::{error, thread};
 use unicode_ident::{is_xid_continue, is_xid_start};
 use crate::content_manager::ContentManager;
 use crate::err::lex_error::{LexError, LexResult};
 use crate::lex::{keyword, operator};
 use crate::lex::types::token::Token;
-use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, Keyword, LiteralKind, Symbol, TokenKind};
+use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, LiteralKind, Symbol, TokenKind};
+use crate::lex::types::token_kind::IntSuffix::{L, U, UL};
 use crate::util::utf8::unescape_str;
 
 ///
@@ -17,14 +18,14 @@ use crate::util::utf8::unescape_str;
 ///
 /// # Members
 
-pub struct Lex<'a> {
-    content_manager: &'a ContentManager,
+pub struct Lex {
+    content_manager: Arc<ContentManager>,
     curr_pos: usize,
     last_pos: usize, // 上次位置
 }
 
-impl<'a> Lex<'a> {
-    pub fn new(content: &'a ContentManager) -> Self {
+impl Lex {
+    pub fn new(content: Arc<ContentManager>) -> Self {
         Self {
             content_manager: content,
             curr_pos: 0,
@@ -81,6 +82,21 @@ impl<'a> Lex<'a> {
         let token = Token::new(self.last_pos, self.curr_pos, kind);
         self.clear_patten();
         token
+    }
+
+    /// 跳过一个单词（空字符作为边界）
+    pub fn skip_word(&mut self) {
+        while let Some(chr) = self.peek() {
+            if chr.is_whitespace() {
+                break;
+            }
+            self.next();
+        }
+    }
+
+    pub fn recover(&mut self) {
+        self.skip_word();
+        self.clear_patten();
     }
 
     pub fn peek_next_is_digit(&mut self) -> bool {
@@ -187,16 +203,81 @@ impl<'a> Lex<'a> {
     }
 
     /// 返回是否有后缀
-    fn try_suffix(&mut self) -> bool {
-        let mut flag = false;
+    fn try_int_suffix(&mut self) -> LexResult<Option<IntSuffix>> {
+        use IntSuffix::*;
+        let mut suffix = None;
+        let mut valid = true;
+        let beg = self.curr_pos;
+
         while let Some(chr) = self.peek() {
-            if !chr.is_ascii_alphanumeric() {
-                break
-            }
-            flag = true;
-            self.next();
+            // 检查是否是合法的前后缀
+            let chr = match chr {
+                'U' | 'u' => U,
+                'L' | 'l' => L,
+                chr if is_xid_continue(chr) => {  // 这个字符肯定有错
+                    valid = false;
+                    break
+                }
+                _ => break // 这些字符可以当做结束
+            };
+
+            suffix = match (suffix, chr) {
+                (None, U) => Some(U),
+                (None, L) =>  Some(L),
+                (Some(L), L) => Some(LL),
+                (Some(U), L) | (Some(L), U) => Some(UL),
+                (Some(LL), U) | (Some(U), LL) | (Some(UL), L) => Some(ULL),
+                _ => {
+                    valid = false;
+                    break
+                }
+            };
+            self.skip_bytes(1);
         }
-        flag
+        if valid {
+            Ok(suffix)
+        } else {
+            self.skip_word();
+            let end = self.curr_pos;
+            let content = self.content_manager.str(beg..end).to_owned();
+            Err(LexError::Invalid { beg, end, invalid: "suffix", content, typ: "integer" })
+        }
+    }
+
+    fn try_float_suffix(&mut self) -> LexResult<Option<FloatSuffix>> {
+        use FloatSuffix::*;
+        let beg = self.curr_pos;
+        let chr = match self.peek() {
+            Some(x) if x.is_ascii_digit() => x, // 是后缀字符
+            Some(_) | None => return Ok(None), // 不是后缀字符
+        };
+
+        let float = match chr {
+            'f' | 'F' => {
+                self.skip_bytes(1);
+                F
+            },
+            'l' | 'L' => {
+                self.skip_bytes(1);
+                L
+            },
+            _ => {
+                self.skip_word();
+                let end = self.curr_pos;
+                let content = self.content_manager.str(beg..end).to_owned();
+                return Err(LexError::Invalid { beg, end, invalid: "suffix", content, typ: "floating" })
+            }
+        };
+
+        // 如果后缀是非后缀字符，继续匹配。
+        if self.peek().map(|x| is_xid_continue(x)).unwrap_or(false) {
+            self.skip_word();
+            let end = self.curr_pos;
+            let content = self.content_manager.str(beg..end).to_owned();
+            Err(LexError::Invalid { beg, end, invalid: "suffix", content, typ: "floating" })
+        } else {
+            Ok(Some(float))
+        }
     }
 
     fn maybe_number_constant(&mut self) -> LexResult<Token> {
@@ -225,45 +306,20 @@ impl<'a> Lex<'a> {
         }
 
         let is_int = self.try_int(base)?;
-        if !is_int {
-            self.try_float();
-        }
-
-        let beg = self.last_pos;
-        let end = self.curr_pos;
-        let patten = self.content_manager.str(beg..end);
-
-        let has_suffix = self.try_suffix();
-        let suffix_beg = end;
-        let suffix_end = self.curr_pos;
-        let suffix = match has_suffix {
-            true => Some(self.content_manager.str(suffix_beg..suffix_end)),
-            false => None,
-        };
-
         let kind = if is_int {
-            let num = match base {
-                2 => make_bin(patten),
-                8 => make_oct(patten),
-                10 => make_dec(patten),
-                16 => make_hex(patten),
-                _ => unreachable!()
-            }?;
+            let patten = self.get_patten(); // 获取当前数字的部分
+            let num = make_integer(patten, base);
 
-            let suffix = match suffix {
-                Some(x) => Some(make_int_suffix(x)?),
-                None => None,
-            };
+            let suffix = self.try_int_suffix()?;
+
             LiteralKind::Integer { value: num, suffix }
         } else {
-            let patten = self.content_manager.str(beg..end);
-            let num = make_float(patten)?;
+            self.try_float()?;
+            let patten = self.get_patten().to_owned(); // 获取当前数字的部分
 
-            let suffix = match suffix {
-                Some(x) => Some(make_float_suffix(x)?),
-                None => None,
-            };
-            LiteralKind::Float { value: num, suffix }
+            let suffix = self.try_float_suffix()?;
+
+            LiteralKind::Float { value: patten, suffix }
         };
 
         let kind = TokenKind::Literal(kind);
@@ -420,90 +476,21 @@ impl<'a> Lex<'a> {
 }
 
 
-/// 异步lex
-///
-/// # Members
-/// - `types`: lexer
-/// - `token_tx`: token channel，总体速度匹配，但防止积压，使用有界队列
-/// - `error_tx`: 错误channel
-///
-// pub struct AsyncLex<R: Read> {
-//     pub lex: Lex<R>,
-//     pub token_tx: crossbeam_channel::Sender<Token>,
-//     pub error_rx: mpsc::Sender<GlobalError>,
-// }
-//
-//
-// impl <R: Read + Send + 'static> AsyncLex<R> {
-//
-//     pub fn new(lex: Lex<R>, token_tx: crossbeam_channel::Sender<Token>, error_rx: mpsc::Sender<GlobalError>) -> AsyncLex<R> {
-//         Self { lex, token_tx, error_rx }
-//     }
-//
-//     pub fn start(mut self) {
-//         thread::spawn(move || {
-//             while let Some(x) = self.lex.next_token() {
-//                 // 如果出错了，直接报错
-//                 if self.token_tx.send(x).is_err() {
-//                     break;
-//                 };
-//             }
-//
-//             // 构建 EOF token 发过去
-//             let pos = self.lex.curr_pos;
-//             let token = Token::new(pos, pos, TokenKind::Eof);
-//             let _ = self.token_tx.send(token); // 成功与否不关心
-//             drop(self.token_tx); // 关闭通道
-//
-//             for x in self.lex.errors {
-//                 // 全局错误通道永远不会关闭
-//                 self.error_rx.send(GlobalError::LexError(x)).unwrap_or_else(|_| panic!("Global Error Handler Crashed"));
-//             }
-//         });
-//     }
-// }
-
-
 pub fn make_ident(patten: &str) -> TokenKind {
     let symbol = Symbol(patten.to_owned());
     TokenKind::Ident(symbol)
 }
-pub fn make_bin(patten: &str) -> LexResult<u64> {
-    let patten = &patten[2..];
-    // todo
-    Ok(u64::from_str_radix(patten, 2).unwrap())
+pub fn make_integer(patten: &str, base: u32) -> u64 {
+    let patten = match base {
+        2 => &patten[2..],
+        8 => &patten[1..],
+        10 => patten,
+        16 => &patten[2..],
+        _ => unreachable!()
+    };
+    u64::from_str_radix(patten, base).unwrap()
 }
 
-pub fn make_oct(patten: &str) -> LexResult<u64> {
-    let patten = &patten[1..];
-    // todo
-    Ok(u64::from_str_radix(patten, 8).unwrap())
-}
-
-pub fn make_dec(patten: &str) -> LexResult<u64> {
-    // todo
-    Ok(u64::from_str_radix(patten, 10).unwrap())
-}
-
-pub fn make_hex(patten: &str) -> LexResult<u64> {
-    let patten = &patten[2..];
-    // todo
-    Ok(u64::from_str_radix(patten, 16).unwrap())
-}
-
-
-pub fn make_float(patten: &str) -> LexResult<f64> {
-    // todo
-    Ok(f64::from_str(patten).unwrap())
-}
-
-fn make_int_suffix(value: &str) -> LexResult<IntSuffix> {
-    todo!()
-}
-
-fn make_float_suffix(value: &str) -> LexResult<FloatSuffix> {
-    todo!()
-}
 pub fn make_string(patten: &str) -> TokenKind {
     // todo 
     let value = unescape_str(patten);
@@ -516,13 +503,44 @@ pub fn make_char(patten: &str) -> TokenKind {
     TokenKind::Literal(LiteralKind::Char { value })
 }
 
+/// 异步执行lex
+///
+/// # Arguments
+/// - `types`: lexer
+/// - `token_tx`: token channel，总体速度匹配，但防止积压，使用有界队列
+/// - `error_tx`: 错误channel
+///
+pub fn run_async<'a>(
+    mut lex: Lex, token_tx: 
+    crossbeam_channel::Sender<Token>, 
+    error_rx: mpsc::Sender<GlobalError>
+) {
+    thread::spawn(move || {
+        loop {
+            let tok = match lex.next_token() {
+                Ok(x) => x,
+                Err(err) => {
+                    lex.recover();
+                    error_rx.send(GlobalError::LexError(err)).unwrap_or_else(|_| panic!("Global Error Handler Crashed"));
+                    continue;
+                }
+            };
 
-#[test]
-fn test() {
-    let content = include_str!("../../resources/test.c");
-    let manager = ContentManager::new(content.to_string());
-    let mut lex = Lex::new(&manager);
-    while let Some(x) = lex.next_token().unwrap() {
-        println!("{:?}.", x)
-    }
+            let tok = match tok {
+                None => {
+                    let pos = lex.curr_pos;
+                    let token = Token::new(pos, pos, TokenKind::Eof);
+                    let _ = token_tx.send(token);
+                    break;
+                }
+                Some(x) => x,
+            };
+
+            if token_tx.send(tok).is_err() {
+                break;
+            }
+        }
+    });
 }
+
+

@@ -1,9 +1,11 @@
-use crate::lex::lex_core::{Lex};
+use crate::lex::lex_core::{run_async, Lex};
 use crate::types::parser_context::ParserContext;
 use std::cell::RefCell;
+use std::fs;
 use std::io::Read;
 use std::rc::Rc;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
+use crate::content_manager::ContentManager;
 
 ///
 /// 编译器主流程
@@ -12,15 +14,15 @@ use std::sync::mpsc;
 /// - `input`: 输入
 /// - `token_bound`: token有界队列大小
 ///
-pub struct CCompiler<R: Read> {
-    input: R,
-    token_bound: usize
+pub struct CCompiler<> {
+    token_bound: usize,
+    file_path: String,
 }
 
 
-impl<R: Read + Send + 'static> CCompiler<R> {
-    pub fn new(input: R, token_bound: usize) -> Self {
-        Self { input, token_bound }
+impl CCompiler<> {
+    pub fn new(file_path: String, token_bound: usize) -> Self {
+        Self { file_path, token_bound }
     }
 
 
@@ -34,22 +36,21 @@ impl<R: Read + Send + 'static> CCompiler<R> {
     /// 
     /// 
     pub fn compile(self) {
+        let content = fs::read_to_string(&self.file_path).unwrap();
+        let content_manager = Arc::new(ContentManager::new(content));
         
-        // let (token_tx, token_rx) = crossbeam_channel::bounded(self.token_bound);
-        // let (error_tx, error_rx) = mpsc::channel();
-        //
-        // let context = Rc::new(RefCell::new(ParserContext::new(error_tx.clone())));
-
+        let (token_tx, token_rx) = crossbeam_channel::bounded(self.token_bound);
+        let (error_tx, error_rx) = mpsc::channel();
+        
         // lexer 是异步的
-        // let lex = Lex::new(self.input);
-        // let async_lex = AsyncLex::new(lex, token_tx, error_tx);
-        // async_lex.start();
-
-
-
-        // for x in error_rx {
-        //     eprintln!("{x:?}")
-        // }
+        let lex = Lex::new(Arc::clone(&content_manager));
+        run_async(lex, token_tx, error_tx);
+        
+        
+        
+        for x in error_rx {
+            eprintln!("{x:?}")
+        }
 
 
     }
