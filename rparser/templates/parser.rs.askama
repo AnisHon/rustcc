@@ -92,6 +92,10 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
 
     let idx = base.unwrap() + token;
 
+    if idx > ACTION_CHECK.len() {
+        return Error;
+    }
+
     let check = match ACTION_CHECK[idx] {
         None => return Error,
         Some(x) => x
@@ -111,6 +115,10 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     let base = GOTO_BASE[row_id]?;
 
     let idx = base + rule_id;
+
+    if idx > GOTO_CHECK.len() {
+           return None;
+    }
 
     let check = GOTO_CHECK[idx]?;
 
