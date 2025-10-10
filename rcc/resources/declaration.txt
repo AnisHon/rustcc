@@ -1,0 +1,99 @@
+declaration =
+      declaration-specifiers [ init-declarator-list ] ";" ;
+
+declaration-specifiers =
+      { storage-class-specifier | type-specifier | type-qualifier | function-specifier } ;
+
+storage-class-specifier = "typedef" | "extern" | "static" | "auto" | "register" ;
+
+type-specifier =
+      "void" | "char" | "short" | "int" | "long"
+    | "float" | "double" | "signed" | "unsigned"
+    | struct-or-union-specifier
+    | enum-specifier
+    | typedef-name ;
+
+struct-or-union-specifier =
+      ("struct" | "union") [ identifier ]
+      "{" struct-declaration-list "}"
+    | ("struct" | "union") identifier ;
+
+struct-declaration-list = { struct-declaration } ;
+
+struct-declaration =
+      specifier-qualifier-list struct-declarator-list ";" ;
+
+specifier-qualifier-list =
+      { type-specifier | type-qualifier } ;
+
+struct-declarator-list =
+      struct-declarator { "," struct-declarator } ;
+
+struct-declarator =
+      declarator
+    | [ declarator ] ":" constant-expression ;
+
+enum-specifier =
+      "enum" [ identifier ]
+      "{" enumerator-list [ "," ] "}"
+    | "enum" identifier ;
+
+enumerator-list = enumerator { "," enumerator } ;
+
+enumerator =
+      identifier [ "=" constant-expression ] ;
+
+type-qualifier = "const" | "restrict" | "volatile" | "_Atomic" ;
+
+function-specifier = "inline" ;
+
+declarator =
+      [ pointer ] direct-declarator ;
+
+direct-declarator =
+      identifier
+    | "(" declarator ")"
+    | direct-declarator "[" [ type-qualifier-list ] [ assignment-expression ] "]"
+    | direct-declarator "(" [ parameter-type-list | identifier-list ] ")" ;
+
+pointer =
+      "*" { type-qualifier-list [ "*" ] } ;
+
+type-qualifier-list = { type-qualifier } ;
+
+parameter-type-list =
+      parameter-list [ "," "..." ] ;
+
+parameter-list =
+      parameter-declaration { "," parameter-declaration } ;
+
+parameter-declaration =
+      declaration-specifiers [ declarator | abstract-declarator ] ;
+
+identifier-list =
+      identifier { "," identifier } ;
+
+type-name =
+      specifier-qualifier-list [ abstract-declarator ] ;
+
+abstract-declarator =
+      pointer
+    | [ pointer ] direct-abstract-declarator ;
+
+direct-abstract-declarator =
+      "(" abstract-declarator ")"
+    | [ direct-abstract-declarator ] "[" [ assignment-expression ] "]"
+    | [ direct-abstract-declarator ] "(" [ parameter-type-list ] ")" ;
+
+initializer =
+      assignment-expression
+    | "{" initializer-list [ "," ] "}" ;
+
+initializer-list =
+      initializer { "," initializer } ;
+
+init-declarator-list =
+      init-declarator { "," init-declarator } ;
+
+init-declarator =
+      declarator [ "=" initializer ] ;

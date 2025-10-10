@@ -1,0 +1,5 @@
+function-definition =
+      declaration-specifiers declarator [ declaration-list ] compound-statement ;
+
+declaration-list =
+      { declaration } ;
