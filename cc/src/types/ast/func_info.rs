@@ -16,20 +16,22 @@ pub struct ParamList {
 impl ParamList {
     pub fn make_list(param_decl: Box<ParamDecl>) -> SemanticValue {
         let span = param_decl.unwrap_span();
-        Self {
-            is_variadic: false, 
-            has_prototype: param_decl.has_prototype,
-            list: SepList::new(param_decl),
-            span
-        }.into()
+        todo!()
+        // Self {
+        //     is_variadic: false,
+        //     has_prototype: param_decl.has_prototype,
+        //     list: SepList::new(param_decl),
+        //     span
+        // }.into()
     }
 
     pub fn push(mut param_list: ParamList, comma: Token, param_decl: Box<ParamDecl>) -> SemanticValue {
-        // 全部都有原型才算原型
-        param_list.has_prototype = param_list.has_prototype && param_decl.has_prototype;
-        param_list.span.merge_self(&param_decl.unwrap_span());
-        param_list.list.push(comma.span, param_decl);
-        param_list.into()
+        todo!()
+        // // 全部都有原型才算原型
+        // param_list.has_prototype = param_list.has_prototype && param_decl.has_prototype;
+        // param_list.span.merge_self(&param_decl.unwrap_span());
+        // param_list.list.push(comma.span, param_decl);
+        // param_list.into()
     }
     
     pub fn set_variadic(mut param_list: ParamList, comma: Token, ellipsis: Token) -> SemanticValue {
