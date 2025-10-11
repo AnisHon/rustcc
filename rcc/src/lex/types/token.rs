@@ -1,10 +1,9 @@
 use crate::lex::types::token_kind::TokenKind;
 use crate::types::span::Span;
-use enum_as_inner::EnumAsInner;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 
 /// 词法分析输出Token
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct Token {
     pub span: Span,
     pub kind: TokenKind,

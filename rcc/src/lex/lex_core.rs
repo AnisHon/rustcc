@@ -1,17 +1,13 @@
-use crate::err::global_err::GlobalError;
-use std::io::{BufReader, Read};
-use std::iter::Peekable;
-use std::str::{Chars, FromStr};
-use std::sync::{mpsc, Arc};
-use std::{error, thread};
-use unicode_ident::{is_xid_continue, is_xid_start};
 use crate::content_manager::ContentManager;
+use crate::err::global_err::GlobalError;
 use crate::err::lex_error::{LexError, LexResult};
-use crate::lex::{keyword, operator};
 use crate::lex::types::token::Token;
-use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, LiteralKind, Symbol, TokenKind};
 use crate::lex::types::token_kind::IntSuffix::{L, U, UL};
-use crate::util::utf8::unescape_str;
+use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, LiteralKind, Symbol, TokenKind};
+use crate::lex::{keyword, operator};
+use std::sync::{mpsc, Arc};
+use std::thread;
+use unicode_ident::{is_xid_continue, is_xid_start};
 
 ///
 ///
@@ -315,11 +311,11 @@ impl Lex {
             LiteralKind::Integer { value: num, suffix }
         } else {
             self.try_float()?;
-            let patten = self.get_patten().to_owned(); // 获取当前数字的部分
-
+            let patten = self.get_patten(); // 获取当前数字的部分
+            let value = Symbol::new(patten);
             let suffix = self.try_float_suffix()?;
-
-            LiteralKind::Float { value: patten, suffix }
+            
+            LiteralKind::Float { value, suffix }
         };
 
         let kind = TokenKind::Literal(kind);
@@ -477,9 +473,20 @@ impl Lex {
 
 
 pub fn make_ident(patten: &str) -> TokenKind {
-    let symbol = Symbol(patten.to_owned());
+    let symbol = Symbol::new(patten);
     TokenKind::Ident(symbol)
 }
+
+pub fn make_string(patten: &str) -> TokenKind {
+    let value = Symbol::new(patten);
+    TokenKind::Literal(LiteralKind::String { value })
+}
+
+pub fn make_char(patten: &str) -> TokenKind {
+    let value = Symbol::new(patten);
+    TokenKind::Literal(LiteralKind::Char { value })
+}
+
 pub fn make_integer(patten: &str, base: u32) -> u64 {
     let patten = match base {
         2 => &patten[2..],
@@ -491,56 +498,42 @@ pub fn make_integer(patten: &str, base: u32) -> u64 {
     u64::from_str_radix(patten, base).unwrap()
 }
 
-pub fn make_string(patten: &str) -> TokenKind {
-    // todo 
-    let value = unescape_str(patten);
-    TokenKind::Literal(LiteralKind::String { value })
-}
 
-pub fn make_char(patten: &str) -> TokenKind {
-    // todo
-    let value = unescape_str(patten);
-    TokenKind::Literal(LiteralKind::Char { value })
-}
 
-/// 异步执行lex
+/// 执行lex
 ///
 /// # Arguments
-/// - `types`: lexer
-/// - `token_tx`: token channel，总体速度匹配，但防止积压，使用有界队列
+/// - `lex`: lexer
 /// - `error_tx`: 错误channel
 ///
-pub fn run_async<'a>(
-    mut lex: Lex, token_tx: 
-    crossbeam_channel::Sender<Token>, 
-    error_rx: mpsc::Sender<GlobalError>
-) {
-    thread::spawn(move || {
-        loop {
-            let tok = match lex.next_token() {
-                Ok(x) => x,
-                Err(err) => {
-                    lex.recover();
-                    error_rx.send(GlobalError::LexError(err)).unwrap_or_else(|_| panic!("Global Error Handler Crashed"));
-                    continue;
-                }
-            };
-
-            let tok = match tok {
-                None => {
-                    let pos = lex.curr_pos;
-                    let token = Token::new(pos, pos, TokenKind::Eof);
-                    let _ = token_tx.send(token);
-                    break;
-                }
-                Some(x) => x,
-            };
-
-            if token_tx.send(tok).is_err() {
-                break;
+/// # Returns
+/// 解析后的Token
+/// 
+pub fn run_lexer<'a>(mut lex: Lex, error_rx: mpsc::Sender<GlobalError>) -> Vec<Token> {
+    let mut tokens = Vec::new();
+    loop {
+        let tok = match lex.next_token() {
+            Ok(x) => x,
+            Err(err) => {
+                // 出错恢复重试
+                lex.recover();
+                error_rx.send(GlobalError::LexError(err)).unwrap_or_else(|_| panic!("Global Error Handler Crashed"));
+                continue;
             }
+        };
+        
+        if let Some(tok) = tok {
+            tokens.push(tok);
+        } else {
+            // 返回None，推入EOF结束
+            let pos = lex.curr_pos;
+            let token = Token::new(pos, pos, TokenKind::Eof);
+            tokens.push(token);
+            break
         }
-    });
+    }
+    
+    tokens
 }
 
 

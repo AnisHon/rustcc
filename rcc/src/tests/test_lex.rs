@@ -1,6 +1,6 @@
 use std::sync::{mpsc, Arc};
 use crate::content_manager::ContentManager;
-use crate::lex::lex_core::{run_async, Lex};
+use crate::lex::lex_core::{run_lexer, Lex};
 
 #[test]
 fn test() {
@@ -13,17 +13,15 @@ fn test() {
 }
 
 #[test]
-fn test_async() {
+fn test_run_lexer() {
     let content = include_str!("../../resources/test.c");
     let manager = ContentManager::new(content.to_string());
     let lex = Lex::new(Arc::new(manager));
-    let (token_tx, token_rx) = crossbeam_channel::bounded(100);
     let (error_tx, error_rx) = mpsc::channel();
 
-    run_async(lex, token_tx, error_tx);
-
-    for r in token_rx {
-        println!("{:?}.", r);
+    let vec = run_lexer(lex, error_tx);
+    for x in vec {
+        println!("{:?}", x);
     }
 
     for r in error_rx {

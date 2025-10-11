@@ -1,4 +1,4 @@
-use crate::lex::lex_core::{run_async, Lex};
+use crate::lex::lex_core::{run_lexer, Lex};
 use crate::types::parser_context::ParserContext;
 use std::cell::RefCell;
 use std::fs;
@@ -15,14 +15,13 @@ use crate::content_manager::ContentManager;
 /// - `token_bound`: token有界队列大小
 ///
 pub struct CCompiler<> {
-    token_bound: usize,
-    file_path: String,
+    content: String,
 }
 
 
 impl CCompiler<> {
-    pub fn new(file_path: String, token_bound: usize) -> Self {
-        Self { file_path, token_bound }
+    pub fn new(content: String) -> Self {
+        Self { content }
     }
 
 
@@ -36,22 +35,16 @@ impl CCompiler<> {
     /// 
     /// 
     pub fn compile(self) {
-        let content = fs::read_to_string(&self.file_path).unwrap();
-        let content_manager = Arc::new(ContentManager::new(content));
+        let content_manager = Arc::new(ContentManager::new(self.content));
         
-        let (token_tx, token_rx) = crossbeam_channel::bounded(self.token_bound);
         let (error_tx, error_rx) = mpsc::channel();
-        
-        // lexer 是异步的
+
+        // 执行lexer
         let lex = Lex::new(Arc::clone(&content_manager));
-        run_async(lex, token_tx, error_tx);
-        
-        
-        
+        let tokens = run_lexer(lex, error_tx);
+
         for x in error_rx {
             eprintln!("{x:?}")
         }
-
-
     }
 }

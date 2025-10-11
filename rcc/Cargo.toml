@@ -14,5 +14,4 @@ thiserror.workspace = true
 crossbeam-channel = "0.5.15"
 phf = { version = "0.13.1", features = ["macros"] }
 unicode-ident = "1.0.19"
-
-
+rustc-hash = "2.1.1"

@@ -1,9 +1,7 @@
-// use cc::compiler::c_compiler::CCompiler;
-use std::io::Cursor;
+use rcc::compiler::c_compiler::CCompiler;
 
 fn main() {
-    const TOKEN_BOUND: usize = 4096;
     let code = include_str!("../resources/test.c");
-    // let compiler = CCompiler::new(Cursor::new(code), TOKEN_BOUND);
-    // compiler.compile();
+    let compiler = CCompiler::new(code.to_string());
+    compiler.compile();
 }

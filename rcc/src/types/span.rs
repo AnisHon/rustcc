@@ -4,7 +4,7 @@ use crate::lex::types::token::Token;
 ///
 /// 节点对应的位置区间
 ///
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Default, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct Span {
     pub start: usize, // 在源文件中的字节偏移
     pub end: usize,   // 在源文件中的字节偏移（不包含end）
