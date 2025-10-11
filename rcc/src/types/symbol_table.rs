@@ -39,8 +39,9 @@ impl<V> Scope<V> {
     /// 插入
     ///
     pub fn insert(&mut self, name: &str, v: V) -> ParserResult<()> {
-        if self.table.contains_key(name) { 
-            return Err(ParserError::new(Span::default(), format!("Duplicate Define {}", name).as_str(), ""));
+        if self.table.contains_key(name) {
+            todo!()
+            // return returnErr(ParserError::new(Span::default(), format!("Redefinition {}", name).as_str(), ""));
         }
         self.table.insert(name.to_string(), Rc::new(v));
         Ok(())

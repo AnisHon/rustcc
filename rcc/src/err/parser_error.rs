@@ -1,38 +1,18 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use thiserror::Error;
 use crate::lex::types::token::Token;
 use crate::types::span::Span;
 
 pub type ParserResult<T> = Result<T, ParserError>;
 
-/// 同时返回数据和错误
-pub struct PartialResult<T> {
-    pub data: T,
-    pub errors: Vec<ParserError>,
+#[derive(Error, Debug)]
+pub enum ErrorKind {
+    #[error("expect {expect} found {found}")]
+    ExpectButFound { expect: String, found: String },
+    #[error("expect {expect}")]
+    Expect { expect: String },
 }
-
-impl<T> PartialResult<T> {
-    pub fn new(data: T, errors: Vec<ParserError>) -> Self {
-        Self {
-            data,
-            errors
-        }
-    }
-    pub fn merge_error(&mut self, errors: &mut Vec<ParserError>) {
-        self.errors.append(errors)
-    }
-    
-}
-
-impl<T: Default> Default for PartialResult<T> {
-    fn default() -> Self {
-        Self {
-            data: T::default(),
-            errors: vec![],
-        }
-    }
-}
-
 #[derive(Debug)]
 pub enum ErrorLevel {
     Note,
@@ -40,59 +20,42 @@ pub enum ErrorLevel {
     Error,
 }
 
+impl ErrorLevel {
+    fn from_kind(kind: &ErrorKind) -> Self {
+        match kind {
+            ErrorKind::ExpectButFound { .. }
+            | ErrorKind::Expect { .. }=> ErrorLevel::Error,
+        }
+    }
+}
+
+impl Display for ErrorLevel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            ErrorLevel::Note => "note",
+            ErrorLevel::Warning => "warning",
+            ErrorLevel::Error => "error",
+        };
+        write!(f, "{}", msg)
+    }
+}
+
 #[derive(Debug)]
 pub struct ParserError {
     pub span: Span,
-    pub msg: String,    // 错误信息
+    pub error_kind: ErrorKind,    // 错误信息
     pub level: ErrorLevel
 }
 
 impl ParserError {
-    pub fn new(span: Span, msg: &str, name: &'static str) -> Self {
-        Self { span, msg: msg.to_string(), level: ErrorLevel::Error }
-    }
-
-    pub fn error(span: Span, msg: String) -> Self {
-        Self { span, msg, level: ErrorLevel::Error }
-    }
-    
-    pub fn warning(span: Span, msg: String) -> Self {
-        Self { span, msg, level: ErrorLevel::Warning }
-    }
-    
-    /// todo 可能以后不需要这个
-    pub fn with_pos(mut self, pos: usize) -> Self {
-        self.span.start = pos;
-        self
-    }
-
-    /// todo 可能以后不需要这个
-    pub fn with_line(mut self, end: usize) -> Self {
-        self.span.end = end;
-        self
-    }
-    
-    pub fn with_name(mut self, name: &'static str) -> Self {
-        self
-    }
-
-    /// todo 可能以后不需要这个
-    pub fn with_token(mut self, token: &Token) -> Self {
-        self.span = token.span;
-        self
-    }
-    pub fn with_msg(mut self, msg: &'static str) -> Self {
-        self.msg = msg.to_string();
-        self
+    pub fn new(span: Span, error_kind: ErrorKind) -> Self {
+        let level = ErrorLevel::from_kind(&error_kind);
+        Self { span, error_kind, level }
     }
 }
 
 impl Display for ParserError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}: {}", self.level ,self.error_kind)
     }
-}
-
-impl Error for ParserError {
-
 }
