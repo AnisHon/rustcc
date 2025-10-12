@@ -4,17 +4,16 @@
 //! 符号表以及符号表相关结构
 //!
 
+use crate::err::parser_error::ParserResult;
+use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::rc::Rc;
-use indexmap::IndexMap;
-use crate::err::parser_error::{ParserError, ParserResult};
-use crate::types::span::Span;
 
 ///
 /// 符号类型
 ///
 #[derive(Debug, Clone, PartialEq)]
-pub struct Symbol {
+pub struct Symbol_ {
 
 }
 
@@ -70,7 +69,7 @@ impl<V> Scope<V> {
 /// - 'global': 全局作用域
 /// - ‘current’: 当前作用域
 /// - 'stack': 总用于栈
-pub struct SymbolTable<V = Symbol> {
+pub struct SymbolTable<V = Symbol_> {
     global: Rc<RefCell<Scope<V>>>,
     current: Rc<RefCell<Scope<V>>>,
     stack: Vec<Rc<RefCell<Scope<V>>>>

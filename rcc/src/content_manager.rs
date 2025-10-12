@@ -1,6 +1,5 @@
 use std::ops::Range;
 use std::str::Chars;
-use crate::util::utf8::decode_char;
 
 ///
 /// 内容管理

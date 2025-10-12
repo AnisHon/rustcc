@@ -1,16 +1,8 @@
-use std::collections::HashMap;
-use crate::common::lr_type::LRAction;
+use crate::common::grammar::EpsilonSymbol;
 use crate::file_parser::table_builder::LRTableBuilder;
-use askama::Template;
-use common::utils::compress::compress_matrix;
-use common::utils::str_util::{default_cvt, option_cvt, str_option_cvt, string_cvt, vec_to_code};
-use heck::ToSnakeCase;
-use regex::Regex;
-use std::fs;
-use indexmap::IndexMap;
-use crate::common::grammar::{EpsilonSymbol, Grammar, RuleVec, SymbolBound};
-use crate::file_parser::config_reader::END_SYMBOL_ID;
 use crate::util::first_set::build_first;
+use askama::Template;
+use std::collections::HashMap;
 
 #[derive(Template)]
 #[template(path = "lex_decl.rs.askama", ext = "txt", escape = "none")]

@@ -1,11 +1,6 @@
-use crate::lex::lex_core::{run_lexer, Lex};
-use crate::types::parser_context::ParserContext;
-use std::cell::RefCell;
-use std::fs;
-use std::io::Read;
-use std::rc::Rc;
-use std::sync::{mpsc, Arc};
 use crate::content_manager::ContentManager;
+use crate::lex::lex_core::{run_lexer, Lex};
+use std::sync::{mpsc, Arc};
 
 ///
 /// 编译器主流程
@@ -15,13 +10,13 @@ use crate::content_manager::ContentManager;
 /// - `token_bound`: token有界队列大小
 ///
 pub struct CCompiler<> {
-    content: String,
+    code: String,
 }
 
 
 impl CCompiler<> {
-    pub fn new(content: String) -> Self {
-        Self { content }
+    pub fn new(code: String) -> Self {
+        Self { code }
     }
 
 
@@ -35,13 +30,13 @@ impl CCompiler<> {
     /// 
     /// 
     pub fn compile(self) {
-        let content_manager = Arc::new(ContentManager::new(self.content));
+        let content_manager = Arc::new(ContentManager::new(self.code));
         
         let (error_tx, error_rx) = mpsc::channel();
 
         // 执行lexer
         let lex = Lex::new(Arc::clone(&content_manager));
-        let tokens = run_lexer(lex, error_tx);
+        let _tokens = run_lexer(lex, error_tx);
 
         for x in error_rx {
             eprintln!("{x:?}")

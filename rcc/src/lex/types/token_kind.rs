@@ -1,6 +1,7 @@
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
+use enum_as_inner::EnumAsInner;
 
 thread_local! {
     static SYMBOL_INTERNER: RefCell<Interner> = RefCell::new(Interner::new());
@@ -39,7 +40,7 @@ impl Interner {
 }
 
 /// 主体 Token 枚举
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy, EnumAsInner)]
 pub enum TokenKind {
     Ident(Symbol),
     Keyword(Keyword),
@@ -70,7 +71,7 @@ pub enum TokenKind {
 }
 
 /// 符号池中的索引（用于标识符/字符串等）
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+#[derive(Clone, PartialEq, Eq, Hash, Copy)]
 pub struct Symbol(usize);
 
 impl Symbol {
@@ -80,6 +81,18 @@ impl Symbol {
     }
     pub fn get(self) -> &'static str {
         SYMBOL_INTERNER.with_borrow(|interner| interner.get(self))
+    }
+}
+
+impl Display for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.get())
+    }
+}
+
+impl Debug for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Symbol({:?})", self.get())
     }
 }
 
@@ -125,7 +138,7 @@ pub enum Keyword {
     Imaginary,  // _Imaginary
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy, EnumAsInner)]
 pub enum LiteralKind {
     Integer { value: u64, suffix: Option<IntSuffix> },
     Float   { value: Symbol, suffix: Option<FloatSuffix> }, // float交给后期解析

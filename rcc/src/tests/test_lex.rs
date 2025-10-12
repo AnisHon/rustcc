@@ -4,7 +4,7 @@ use crate::lex::lex_core::{run_lexer, Lex};
 
 #[test]
 fn test() {
-    let content = include_str!("../../resources/test.c");
+    let content = include_str!("../../resources/example/test.c");
     let manager = ContentManager::new(content.to_string());
     let mut lex = Lex::new(Arc::new(manager));
     while let Some(x) = lex.next_token().unwrap() {
@@ -14,7 +14,7 @@ fn test() {
 
 #[test]
 fn test_run_lexer() {
-    let content = include_str!("../../resources/test.c");
+    let content = include_str!("../../resources/example/test.c");
     let manager = ContentManager::new(content.to_string());
     let lex = Lex::new(Arc::new(manager));
     let (error_tx, error_rx) = mpsc::channel();

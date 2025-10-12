@@ -1,8 +1,6 @@
-use std::error::Error;
+use crate::types::span::Span;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
-use crate::lex::types::token::Token;
-use crate::types::span::Span;
 
 pub type ParserResult<T> = Result<T, ParserError>;
 
@@ -12,6 +10,9 @@ pub enum ErrorKind {
     ExpectButFound { expect: String, found: String },
     #[error("expect {expect}")]
     Expect { expect: String },
+    #[error("{ty} is not assignable")]
+    NotAssignable { ty: String },
+
 }
 #[derive(Debug)]
 pub enum ErrorLevel {
@@ -22,9 +23,12 @@ pub enum ErrorLevel {
 
 impl ErrorLevel {
     fn from_kind(kind: &ErrorKind) -> Self {
+        use ErrorKind::*;
+        use ErrorLevel::*;
         match kind {
-            ErrorKind::ExpectButFound { .. }
-            | ErrorKind::Expect { .. }=> ErrorLevel::Error,
+            ExpectButFound { .. }
+            | Expect { .. }
+            | NotAssignable { .. } => Error,
         }
     }
 }

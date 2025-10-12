@@ -27,21 +27,21 @@ impl Parser {
 
     /// 不建议用次函数检查TokenKind下的子类型
     /// 对于Literal Ident行为未知
-    pub(crate) fn check(&mut self, kind: TokenKind) -> bool {
+    pub(crate) fn check(&self, kind: TokenKind) -> bool {
         self.stream.peek().kind == kind
     }
 
-    pub(crate) fn checks(&mut self, kind: &[TokenKind]) -> bool {
+    pub(crate) fn checks(&self, kind: &[TokenKind]) -> bool {
         let token_kind = self.stream.peek().kind;
-        kind.iter().all(|kind| token_kind.eq(kind))
+        kind.iter().any(|kind| token_kind.eq(kind))
     }
 
-    pub(crate) fn check_ident(&mut self) -> bool {
+    pub(crate) fn check_ident(&self) -> bool {
         let kind = self.stream.peek().kind;
         matches!(kind, TokenKind::Ident(_))
     }
 
-    pub(crate) fn check_keyword(&mut self, keyword: Keyword) -> bool {
+    pub(crate) fn check_keyword(&self, keyword: Keyword) -> bool {
         let kind = self.stream.peek().kind;
         kind == TokenKind::Keyword(keyword)
     }
@@ -111,6 +111,18 @@ impl Parser {
         self.next_conditional(is_kind)
     }
 
+    pub(crate) fn consume_pair(&mut self, kind1: TokenKind, kind2: TokenKind) -> Option<Token> {
+        let kind = self.stream.peek().kind;
+        let is_kind = kind == kind1 || kind == kind2;
+        self.next_conditional(is_kind)
+    }
+
+    // pub(crate) fn consume_triple(&mut self, kind1: TokenKind, kind2: TokenKind, kind3: TokenKind) -> Option<Token> {
+    //     let kind = self.stream.peek().kind;
+    //     let is_kind = kind == kind1 || kind == kind2 || kind == kind3;
+    //     self.next_conditional(is_kind)
+    // }
+
     /// 同上，不建议用此函数消费TokenKind下的子类型
     pub(crate) fn consume(&mut self, kind: TokenKind) -> Option<Token> {
         let is_kind = self.check(kind);
@@ -122,42 +134,22 @@ impl Parser {
         self.next_conditional(is_keyword)
     }
 
+    pub(crate) fn consume_ident(&mut self) -> Option<Token> {
+        let is_ident = self.check_ident();
+        self.next_conditional(is_ident)
+    }
+
     pub(crate) fn error_here(&mut self, kind: parser_error::ErrorKind) -> ParserError {
         let span = self.stream.peek().span;
         ParserError::new(span, kind)
     }
 
-    /// 匹配带间隔符的列表，不负责消费最后的结束符，不允许存在尾随分隔符
-    ///
-    /// # Arguments
-    /// - `sep`: 分割字符
-    /// - `end`: 结束字符
-    /// - `parse_elem`: 解析函数
-    ///
-    pub(crate) fn parse_sep_list<T>(
-        &mut self,
-        sep: TokenKind,
-        end: TokenKind,
-        parse_elem: impl Fn(&mut Self) -> ParserResult<T>,
-    ) -> ParserResult<Vec<T>> {
-        let mut elems = Vec::new();
-        if self.check(end) {
-            return Ok(elems);
+    pub(crate) fn is_type_name(&self, token: &Token) -> bool {
+        // todo
+        if let TokenKind::Ident(symbol) = token.kind {
+            false
+        } else {
+            false
         }
-
-        loop {
-            elems.push(parse_elem(self)?);
-            if let Some(_tok) = self.consume(sep) {
-                todo!()
-            } else if self.check(end) {
-                break
-            } else {
-                let kind = parser_error::ErrorKind::Expect {
-                    expect: end.kind_str().to_owned()
-                };
-                return Err(self.error_here(kind));
-            }
-        }
-        Ok(elems)
     }
 }

@@ -1,9 +1,9 @@
 #![allow(clippy::useless_conversion)]
 use LRAction::*;
-use crate::types::ast::ast_nodes::*;
 use crate::types::ast::decl_info::*;
 use crate::types::ast::sematic_value::*;
-use crate::types::ast::sema::*;
+use crate::types::ast::nodes::*;
+use crate::types::ast::methods::*;
 use crate::types::ast::type_info::*;
 use crate::types::ast::initializer::*;
 use crate::types::ast::func_info::*;
@@ -3479,6 +3479,10 @@ pub fn get_action(state: usize, token: usize) -> LRAction {
 
     let idx = base.unwrap() + token;
 
+    if idx > ACTION_CHECK.len() {
+        return Error;
+    }
+
     let check = match ACTION_CHECK[idx] {
         None => return Error,
         Some(x) => x
@@ -3498,6 +3502,10 @@ pub fn get_goto(state: usize, prod_id: usize) -> Option<usize> {
     let base = GOTO_BASE[row_id]?;
 
     let idx = base + rule_id;
+
+    if idx > GOTO_CHECK.len() {
+           return None;
+    }
 
     let check = GOTO_CHECK[idx]?;
 

@@ -39,17 +39,26 @@ impl TokenStream {
     pub fn peek(&self) -> &Token {
         &self.tokens[self.pos]
     }
+    
+    /// peek 下一个token
+    pub fn peek_next(&self) -> &Token {
+        self.tokens.get(self.pos + 1).unwrap_or(self.tokens.last().unwrap())
+    }
 
     /// 保存当前位置，用于回溯
-    fn mark(&mut self) {
+    pub fn mark(&mut self) {
         self.mark_pos.push(self.pos);
     }
     
+    pub fn pop_mark(&mut self) {
+        self.mark_pos.pop();
+    }
+    
     /// 回溯位置，如果没有回溯点会panic
-    fn rewind(&mut self) {
+    pub fn rewind(&mut self) {
         self.pos = self.mark_pos.pop().expect("Pos stack is empty");
     }
-
+    
     /// 最后一个token
     pub fn last(&self) -> &Token {
         self.tokens.last().unwrap() // 一定存在最后的token（EOF）
