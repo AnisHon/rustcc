@@ -50,11 +50,9 @@ impl LRTableBuilder {
     pub fn new(table_type: TableType, input: String) -> Self {
         let config = GrammarConfigParser::new(input).parse();
         let  (grammar, token_meta, prod_map) = get_grammar(&config);
-        // 子式->id映射表
-        let rule_id_map: IndexMap<_, _> = (0..grammar.get_size())
-            .flat_map(|i| (0..grammar.get_rule(i).unwrap().len()).map(move |j| (i, j)))
-            .enumerate()
-            .map(|(i, j)| (j, i))
+
+        let rule_id_map: IndexMap<_, _> = prod_map.iter().enumerate()
+            .map(|(i, meta)| ((meta.id, meta.alter), i))
             .collect();
 
         Self {

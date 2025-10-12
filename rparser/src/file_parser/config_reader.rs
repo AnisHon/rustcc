@@ -330,7 +330,8 @@ pub fn get_grammar(config: &GrammarConfig) -> (Grammar<usize>, Vec<Option<Symbol
     let mut prod_map = Vec::new();
 
     // 构建推导式
-    for (rule_id, production) in config.productions.iter().enumerate() {
+    for production in config.productions.iter() {
+        let rule_id = non_terminal[production.name.as_str()];
         let mut rule_vec = RuleVec::new();
 
         // 遍历所有alter

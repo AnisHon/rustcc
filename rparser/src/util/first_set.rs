@@ -134,7 +134,7 @@ where
                 break;
             }
             Symbol::NonTerminal(rule_id) => {
-                let first_set = &first_map[rule_id];
+                let first_set = &first_map.get(rule_id).unwrap();
                 result.extend(
                     first_set.iter()
                         .filter(|&x| x.ne(&EpsilonSymbol::Epsilon))
