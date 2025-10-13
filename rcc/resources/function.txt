@@ -1,3 +1,7 @@
+translation-unit = { external-declaration } ;
+
+external-declaration = function-definition | declaration ;
+
 function-definition =
       declaration-specifiers declarator [ declaration-list ] compound-statement ;
 

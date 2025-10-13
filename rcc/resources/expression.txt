@@ -1,6 +1,3 @@
-translation-unit = { external-declaration } ;
-external-declaration = function-definition | declaration ;
-
 identifier = IDENTIFIER ;
 constant = INTEGER_CONSTANT | FLOAT_CONSTANT | CHAR_CONSTANT ;
 string-literal = STRING_LITERAL ;

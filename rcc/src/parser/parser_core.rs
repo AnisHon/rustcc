@@ -1,3 +1,4 @@
+use std::fmt::format;
 use crate::err::global_err::GlobalError;
 use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
@@ -108,6 +109,22 @@ impl Parser {
         }
     }
 
+    pub(crate) fn expect_keyword_pair(&mut self, kw1: Keyword, kw2: Keyword) -> ParserResult<Token> {
+        let kind = self.stream.peek().kind;
+        let expected = match kind {
+            TokenKind::Keyword(k) => k == kw1 || k == kw2,
+            _ => false,
+        };
+        if expected {
+            Ok(self.stream.next())
+        } else {
+            let expect = format!("{}, {}", kw1.kind_str(), kw2.kind_str());
+            let error_kind = parser_error::ErrorKind::Expect { expect };
+            let error = self.error_here(error_kind);
+            Err(error)
+        }
+    }
+
     /// 同上，不建议用此函数消费TokenKind下的子类型
     pub(crate) fn consumes(&mut self, kind: &[TokenKind]) -> Option<Token> {
         let is_kind = self.checks(kind);
@@ -135,6 +152,15 @@ impl Parser {
     pub(crate) fn consume_keyword(&mut self, keyword: Keyword) -> Option<Token> {
         let is_keyword = self.check_keyword(keyword);
         self.next_conditional(is_keyword)
+    }
+
+    pub(crate) fn consume_keyword_pair(&mut self, kw1: Keyword, kw2: Keyword) -> Option<Token> {
+        let kind = self.stream.peek().kind;
+        let is_kw = match kind {
+            TokenKind::Keyword(k) => k == kw1 || k == kw2,
+            _ => false,
+        };
+        self.next_conditional(is_kw)
     }
 
     pub(crate) fn consume_ident(&mut self) -> Option<Token> {
@@ -194,4 +220,5 @@ impl Parser {
             _ => false,
         }
     }
+
 }
