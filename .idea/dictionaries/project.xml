@@ -7,6 +7,7 @@
       <w>decls</w>
       <w>endfor</w>
       <w>exprs</w>
+      <w>inits</w>
       <w>lbrace</w>
       <w>lbracket</w>
       <w>lparen</w>

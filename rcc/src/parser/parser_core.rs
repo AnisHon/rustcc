@@ -202,7 +202,7 @@ impl Parser {
             TokenKind::Keyword(x) =>
                 matches!(
                     x,
-                    Const | Volatile
+                    Const | Restrict | Volatile 
                 ),
             _ => false,
         }

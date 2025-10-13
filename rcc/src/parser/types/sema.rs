@@ -1,2 +1,2 @@
 pub mod expr;
-pub mod decl_spec;
+pub mod decl_chunk;

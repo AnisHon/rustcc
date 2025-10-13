@@ -459,7 +459,7 @@ impl Parser {
     }
 
 
-    fn parse_assign_expr(&mut self) -> ParserResult<Box<Expr>> {
+    pub(crate) fn parse_assign_expr(&mut self) -> ParserResult<Box<Expr>> {
         let lo = self.stream.span();
         let lhs = self.parse_conditional_expr()?;
         let assign_op = self.consume_assign_op();
