@@ -17,19 +17,8 @@ impl Parser {
 
 
     fn next_is_type_name(&self) -> bool {
-        use Keyword::*;
         let token = self.stream.peek_next();
-        match token.kind {
-            TokenKind::Ident(_) => self.is_type_name(token),
-            TokenKind::Keyword(x) =>
-                matches!(
-                    x,
-                    Char | Short | Int | Long | Float | Double | Void
-                    | Signed| Unsigned | Const | Volatile
-                    | Struct | Union | Enum
-                ),
-            _ => false,
-        }
+        self.is_type_qual(token) || self.is_type_spec(token)
     }
     
     fn consume_constant(&mut self) -> Option<Token> {
@@ -93,7 +82,9 @@ impl Parser {
             let kind = parser_error::ErrorKind::Expect {
                 expect: "identifier, integer, float, char, string, '('".to_owned()
             };
-            return Err(self.error_here(kind));
+            let error = self.error_here(kind);
+            panic!("{error}");
+            return Err(error);
         };
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);

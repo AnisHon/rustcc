@@ -4,58 +4,73 @@ use crate::lex::types::token_kind::{Keyword, TokenKind};
 
 use crate::parser::parser_core::Parser;
 use crate::parser::types::ast::stmt::{Stmt, StmtKind};
+use crate::parser::types::common::Ident;
 use crate::types::span::Span;
 
 impl Parser {
 
-    fn is_labeled_stmt(token: &Token) -> bool {
+    fn check_labeled_stmt(&self) -> bool {
         use Keyword::*;
-        match &token.kind {
-            TokenKind::Ident(_) => true,
+        let first = self.stream.peek();
+        let second = self.stream.peek_next();
+        match &first.kind {
+            TokenKind::Ident(_) => matches!(second.kind, TokenKind::Colon),
             TokenKind::Keyword(kw) => matches!(kw, Case | Default),
             _ => false,
         }
     }
 
-    fn is_selection_stmt(token: &Token) -> bool {
+    fn check_selection_stmt(&self) -> bool {
         use Keyword::*;
-        match token.kind {
+        let token = self.stream.peek();
+        match &token.kind {
             TokenKind::Keyword(kw) => matches!(kw, If | Switch),
             _ => false
         }
     }
 
-    fn is_iteration_stmt(token: &Token) -> bool {
+    fn check_iteration_stmt(&self) -> bool {
         use Keyword::*;
-        match token.kind {
+        let token = self.stream.peek();
+        match &token.kind {
             TokenKind::Keyword(kw) => matches!(kw, While | Do | For),
             _ => false
         }
     }
 
-    fn is_jump_stmt(token: &Token) -> bool {
+    fn check_jump_stmt(&self) -> bool {
         use Keyword::*;
-        match token.kind {
+        let token = self.stream.peek();
+        match &token.kind {
             TokenKind::Keyword(kw) => matches!(kw, Goto | Continue | Break | Return),
             _ => false
         }
     }
 
-    pub(crate) fn parse_stmt(&mut self) -> ParserResult<Box<Stmt>> {
-        use TokenKind::*;
-        let lo = self.stream.span();
+    fn check_decl(&self) -> bool {
         let token = self.stream.peek();
-        let kind = if Self::is_labeled_stmt(token) {
+        self.is_type_spec(token) || self.is_type_qual(token) || self.is_storage_spec(token)
+    }
+
+    /// statement
+    /// # Arguments
+    /// only stmt: 只解析stmt无decl
+    pub(crate) fn parse_stmt(&mut self, only_stmt: bool) -> ParserResult<Box<Stmt>> {
+        let lo = self.stream.span();
+        let kind = if self.check_labeled_stmt() {
             self.parse_labeled_stmt()?
-        } else if matches!(token.kind, LBrace) {
-            self.parse_compound_stmt()?
-        } else if Self::is_selection_stmt(token) {
+        } else if self.check(TokenKind::LBrace) {
+            self.parse_compound_stmt(only_stmt)?
+        } else if self.check_selection_stmt() {
             self.parse_selection_stmt()?
-        } else if Self::is_jump_stmt(token) {
+        } else if self.check_jump_stmt() {
             self.parse_jump_stmt()?
         } else {
-            let expr = self.parse_expr()?;
-            let semi = self.expect(Semi)?.span;
+            let expr = match self.check(TokenKind::Semi) {
+                true => None,
+                false => Some(self.parse_expr()?)
+            };
+            let semi = self.expect(TokenKind::Semi)?.span;
             StmtKind::Expr { expr, semi }
         };
         let hi = self.stream.prev_span();
@@ -65,22 +80,28 @@ impl Parser {
         Ok(stmt)
     }
 
-    pub(crate) fn parse_labeled_stmt(&mut self) -> ParserResult<StmtKind> {
+    fn parse_labeled_stmt(&mut self) -> ParserResult<StmtKind> {
         let kind = if let Some(ident) = self.consume_ident() {
-            let ident = ident.kind.into_ident().unwrap();
+            // label:
+            let span = ident.span;
+            let symbol = ident.kind.into_ident().unwrap();
+            let ident = Ident{ symbol, span };
+
             let colon = self.expect(TokenKind::Colon)?.span;
-            let stmt = self.parse_stmt()?;
+            let stmt = self.parse_stmt(false)?;
             StmtKind::Label { ident, colon, stmt }
         } else if let Some(kw_case) = self.consume_keyword(Keyword::Case) {
+            // case 1 :
             let case_span = kw_case.span;
             let expr = self.parse_expr()?;
             let colon = self.expect(TokenKind::Colon)?.span;
-            let stmt = self.parse_stmt()?;
+            let stmt = self.parse_stmt(false)?;
             StmtKind::Case { case_span, expr, colon, stmt }
         } else if let Some(kw_default) = self.consume_keyword(Keyword::Default) {
+            // default:
             let default = kw_default.span;
             let colon = self.expect(TokenKind::Colon)?.span;
-            let stmt = self.parse_stmt()?;
+            let stmt = self.parse_stmt(false)?;
             StmtKind::Default { default, colon, stmt }
         } else {
             unreachable!()
@@ -88,26 +109,46 @@ impl Parser {
         Ok(kind)
     }
 
-    pub(crate) fn parse_compound_stmt(&mut self) -> ParserResult<StmtKind> {
+    fn parse_compound_stmt(&mut self, only_stmt: bool) -> ParserResult<StmtKind> {
         let l = self.expect(TokenKind::LBrace)?.span;
+        let mut stmts = Vec::new();
+        loop {
 
+            let stmt = if self.check(TokenKind::RBrace) {
+                break
+            } else if !only_stmt && self.check_decl() {
+                let lo = self.stream.span();
+                let _decl = self.parse_decl()?;
+                let hi = self.stream.span();
+                let span = Span::span(lo, hi);
+
+                let kind = StmtKind::Decl {};
+                Stmt::new_box(kind, span)
+            } else {
+                self.parse_stmt(false)?
+            };
+            stmts.push(stmt);
+        }
         let r = self.expect(TokenKind::RBrace)?.span;
 
-        todo!()
+        let kind = StmtKind::Compound { l, stmts, r };
+        Ok(kind)
     }
 
-    pub(crate) fn parse_selection_stmt(&mut self) -> ParserResult<StmtKind> {
+    fn parse_selection_stmt(&mut self) -> ParserResult<StmtKind> {
         let kind = if let Some(if_token) = self.consume_keyword(Keyword::If) {
+            // if
             let if_span = if_token.span;
             let l = self.expect(TokenKind::LParen)?.span;
             let cond = self.parse_expr()?;
             let r = self.expect(TokenKind::RParen)?.span;
-            let then_stmt = self.parse_stmt()?;
+            let then_stmt = self.parse_stmt(true)?;
             let else_span;
             let else_stmt;
             if let Some(else_token) = self.consume_keyword(Keyword::Else) {
+                // else
                 else_span = Some(else_token.span);
-                else_stmt = Some(self.parse_stmt()?);
+                else_stmt = Some(self.parse_stmt(true)?);
             } else {
                 else_span = None;
                 else_stmt = None;
@@ -115,11 +156,12 @@ impl Parser {
 
             StmtKind::IfElse { if_span, l, cond, r, then_stmt, else_span, else_stmt }
         } else if let Some(switch) = self.consume_keyword(Keyword::Switch) {
+            // switch
             let switch_span = switch.span;
             let l = self.expect(TokenKind::LParen)?.span;
             let cond = self.parse_expr()?;
             let r = self.expect(TokenKind::RParen)?.span;
-            let body = self.parse_stmt()?;
+            let body = self.parse_stmt(true)?;
 
             StmtKind::Switch { switch_span, l, cond, r, body }
         } else {
@@ -129,18 +171,20 @@ impl Parser {
         Ok(kind)
     }
 
-    pub(crate) fn parse_iteration_stmt(&mut self) -> ParserResult<StmtKind> {
+    fn parse_iteration_stmt(&mut self) -> ParserResult<StmtKind> {
         let kind = if let Some(while_token) = self.consume_keyword(Keyword::While) {
+            // while()
             let while_span = while_token.span;
             let l = self.expect(TokenKind::LParen)?.span;
             let cond = self.parse_expr()?;
             let r = self.expect(TokenKind::RParen)?.span;
-            let body = self.parse_stmt()?;
+            let body = self.parse_stmt(true)?;
 
             StmtKind::While { while_span, l, cond, r, body }
         } else if let Some(do_token) = self.consume_keyword(Keyword::Do) {
+            //do while();
             let do_span = do_token.span;
-            let body = self.parse_stmt()?;
+            let body = self.parse_stmt(true)?;
             let while_span = self.expect_keyword(Keyword::While)?.span;
             let l = self.expect(TokenKind::LParen)?.span;
             let cond = self.parse_expr()?;
@@ -148,7 +192,8 @@ impl Parser {
             let semi = self.expect(TokenKind::Semi)?.span;
 
             StmtKind::DoWhile { do_span, l, body, while_span, cond, r, semi }
-        } else if if let Some(for_token) = self.consume_keyword(Keyword::For) {
+        } else if let Some(for_token) = self.consume_keyword(Keyword::For) {
+            // for(;;)
             let for_span = for_token.span;
             let l = self.expect(TokenKind::LParen)?.span;
 
@@ -167,17 +212,51 @@ impl Parser {
                 false => None
             };
             let r = self.expect(TokenKind::RParen)?.span;
-            let body = self.parse_stmt()?;
+            let body = self.parse_stmt(true)?;
 
             StmtKind::For { for_span, l, init, semi1, cond, semi2, step, r, body }
         } else {
             unreachable!()
         };
+
         Ok(kind)
     }
 
-    pub(crate) fn parse_jump_stmt(&mut self) -> ParserResult<StmtKind> {
-        todo!()
+    fn parse_jump_stmt(&mut self) -> ParserResult<StmtKind> {
+        let kind = if let Some(goto_token) = self.consume_keyword(Keyword::Goto) {
+            // goto label;
+            let goto_span = goto_token.span;
+            let ident = self.expect_ident()?;
+            let span = ident.span;
+            let symbol = ident.kind.into_ident().unwrap();
+            let ident = Ident { span, symbol };
+            let semi = self.expect(TokenKind::Semi)?.span;
+
+            StmtKind::Goto { goto_span, ident, semi }
+        } else if let Some(continue_token) = self.consume_keyword(Keyword::Continue) {
+            // continue;
+            let continue_span = continue_token.span;
+            let semi = self.expect(TokenKind::Semi)?.span;
+            StmtKind::Continue { continue_span, semi }
+        } else if let Some(break_token) = self.consume_keyword(Keyword::Break) {
+            // break;
+            let break_span = break_token.span;
+            let semi = self.expect(TokenKind::Semi)?.span;
+            StmtKind::Break { break_span, semi }
+        } else if let Some(return_token) = self.consume_keyword(Keyword::Return) {
+            // return ;
+            let return_span = return_token.span;
+            let expr= match self.check(TokenKind::Semi) {
+                true => None,
+                false => Some(self.parse_expr()?)
+            };
+            let semi = self.expect(TokenKind::Semi)?.span;
+            StmtKind::Return { return_span, expr , semi }
+        } else {
+            unreachable!()
+        };
+
+        Ok(kind)
     }
 
 

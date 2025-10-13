@@ -1,12 +1,15 @@
 use crate::lex::types::token_kind::Symbol;
 use crate::parser::types::ast::expr::Expr;
+use crate::parser::types::common::Ident;
 use crate::types::span::Span;
 
+#[derive(Clone, Debug)]
 pub enum StmtKind {
-    Label{ ident: Symbol, colon: Span, stmt: Box<Stmt> },
+    Expr{ expr: Option<Box<Expr>>, semi: Span },
+    Decl{ },
+    Label{ ident: Ident, colon: Span, stmt: Box<Stmt> },
     Case{ case_span: Span, expr: Box<Expr>, colon: Span, stmt: Box<Stmt> },
     Default{ default: Span, colon: Span, stmt: Box<Stmt> },
-    Expr{ expr: Box<Expr>, semi: Span },
     IfElse{
         if_span: Span, l: Span, cond: Box<Expr>, r: Span,
         then_stmt: Box<Stmt>,
@@ -36,12 +39,14 @@ pub enum StmtKind {
         r: Span, // )
         body: Box<Stmt>
     },
-    Goto{ goto_span: Span, ident: Symbol, semi: Span },
+    Goto{ goto_span: Span, ident: Ident, semi: Span },
     Continue{ continue_span: Span, semi: Span },
     Break{ break_span: Span, semi: Span },
     Return{ return_span: Span, expr: Option<Box<Expr>>, semi: Span },
+    Compound{ l: Span, stmts: Vec<Box<Stmt>>, r: Span },
 }
 
+#[derive(Clone, Debug)]
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,

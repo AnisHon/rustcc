@@ -17,6 +17,7 @@
       <w>rbracket</w>
       <w>rlexer</w>
       <w>rparen</w>
+      <w>stmts</w>
     </words>
   </dictionary>
 </component>

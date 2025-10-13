@@ -1,11 +1,12 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{LiteralKind, Symbol, TokenKind};
-use crate::parser::types::sema::sema_expr::ValueType;
+use crate::parser::types::common::Ident;
+use crate::parser::types::sema::expr::ValueType;
 use crate::types::span::Span;
 
 #[derive(Clone, Debug)]
 pub enum ExprKind {
-    DeclRef(Symbol),
+    DeclRef(Ident),
     Constant(LiteralKind),
     Paren{ l: Span, expr: Box<Expr>, r: Span },
     ArraySubscript { base: Box<Expr>, l: Span, index: Box<Expr>, r: Span },     // a[]
@@ -22,8 +23,9 @@ pub enum ExprKind {
 
 impl ExprKind {
     pub fn make_decl_ref(ident: Token) -> Self {
-        let ident = ident.kind.into_ident().unwrap();
-        Self::DeclRef(ident)
+        let span = ident.span;
+        let symbol = ident.kind.into_ident().unwrap();
+        Self::DeclRef(Ident { symbol, span })
     }
     
     pub fn make_literal(token: Token) -> Self {

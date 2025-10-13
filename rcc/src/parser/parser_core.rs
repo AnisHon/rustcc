@@ -55,10 +55,11 @@ impl Parser {
         } else {
             let expect: Vec<_> = kinds.iter().map(|x| x.kind_str()).collect();
             let expect = expect.join(", ");
-            let found = self.stream.peek();
+            let found = self.stream.peek().kind.kind_str().to_owned();
 
-            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found: found.kind.kind_str().to_owned() };
-            Err(ParserError::new(found.span, error_kind))
+            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
+            let error = self.error_here(error_kind);
+            Err(error)
         }
     }
 
@@ -70,10 +71,12 @@ impl Parser {
             Ok(self.stream.next())
         } else {
             let expect = kind.kind_str().to_owned();
-            let found = self.stream.peek();
+            let found = self.stream.peek().kind.kind_str().to_owned();
 
-            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found: found.kind.kind_str().to_owned() };
-            Err(ParserError::new(found.span, error_kind))
+            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
+            let error = self.error_here(error_kind);
+            panic!("{error}");
+            Err(error)
         }
     }
 
@@ -86,24 +89,24 @@ impl Parser {
             let expect = "identifier".to_owned();
             let found = self.stream.peek();
 
-            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found: found.kind.kind_str().to_owned() };
-            Err(ParserError::new(found.span, error_kind))
+            let kind = parser_error::ErrorKind::ExpectButFound { expect, found: found.kind.kind_str().to_owned() };
+            let error = self.error_here(kind);
+            Err(error)
         }
     }
 
-    // pub(crate) fn expect_keyword(&mut self, keyword: Keyword) -> ParserResult<Token> {
-    //     let expected = self.stream.peek().kind == TokenKind::Keyword(keyword);
-    //
-    //     if expected {
-    //         Ok(self.stream.next())
-    //     } else {
-    //         let expect = kind.kind_str();
-    //         let found = self.stream.peek();
-    //
-    //         let error_kind = parser_error::ErrorKind::Expect { expect, found: found.kind.kind_str() };
-    //         Err(ParserError::new(found.span, error_kind))
-    //     }
-    // }
+    pub(crate) fn expect_keyword(&mut self, keyword: Keyword) -> ParserResult<Token> {
+        let expected = self.check_keyword(keyword);
+
+        if expected {
+            Ok(self.stream.next())
+        } else {
+            let expect = keyword.kind_str().to_owned();
+            let error_kind = parser_error::ErrorKind::Expect { expect };
+            let error = self.error_here(error_kind);
+            Err(error)
+        }
+    }
 
     /// 同上，不建议用此函数消费TokenKind下的子类型
     pub(crate) fn consumes(&mut self, kind: &[TokenKind]) -> Option<Token> {
@@ -150,6 +153,45 @@ impl Parser {
             false
         } else {
             false
+        }
+    }
+
+    pub fn is_type_spec(&self, token: &Token) -> bool {
+        use Keyword::*;
+        match token.kind {
+            TokenKind::Ident(_) => self.is_type_name(token),
+            TokenKind::Keyword(x) =>
+                matches!(
+                    x,
+                    Char | Short | Int | Long | Float | Double | Void
+                    | Signed | Unsigned | Struct | Union | Enum
+                ),
+            _ => false,
+        }
+    }
+
+    pub fn is_type_qual(&self, token: &Token) -> bool {
+        use Keyword::*;
+        match token.kind {
+            TokenKind::Keyword(x) =>
+                matches!(
+                    x,
+                    Const | Volatile
+                ),
+            _ => false,
+        }
+    }
+
+    pub fn is_storage_spec(&self, token: &Token) -> bool {
+        use Keyword::*;
+        match token.kind {
+            TokenKind::Ident(_) => self.is_type_name(token),
+            TokenKind::Keyword(x) =>
+                matches!(
+                    x,
+                    Typedef | Extern | Static | Auto | Register
+                ),
+            _ => false,
         }
     }
 }
