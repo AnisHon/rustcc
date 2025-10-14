@@ -1,6 +1,7 @@
-use crate::parser::types::ast::decl::{FuncSpec, Initializer, StorageSpec, TypeQual, TypeSpec};
+use crate::parser::types::ast::decl::{Initializer};
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::Ident;
+use crate::parser::types::sema::decl_spec::TypeQual;
 use crate::types::span::Span;
 
 #[derive(Clone, Debug)]
@@ -24,7 +25,7 @@ impl PointerChunk {
 pub enum DeclChunkKind {
     Ident(Ident),
     Paren{ l: Span, declarator: Declarator, r: Span },
-    Array{ l: Span, type_quals: Vec<TypeQual>, expr: Box<Expr>, r: Span },
+    Array{ l: Span, type_quals: Option<Vec<TypeQual>>, expr: Option<Box<Expr>>, r: Span },
     Function{ l: Span, param: ParamDecl, r: Span },
 }
 
@@ -40,47 +41,13 @@ impl DeclChunk {
     }
 }
 
-pub struct DeclSpec {
-    pub storages: Vec<StorageSpec>,
-    pub type_specs: Vec<TypeSpec>,
-    pub type_quals: Vec<TypeQual>,
-    pub func_specs: Vec<FuncSpec>,
-    pub span: Span
-}
 
-impl DeclSpec {
-    pub fn new() -> Self {
-        Self {
-            storages: Vec::new(),
-            type_specs: Vec::new(),
-            type_quals: Vec::new(),
-            func_specs: Vec::new(),
-            span: Span::default()
-        }
-    }
-}
-
-pub struct SpecQualList {
-    pub type_specs: Vec<TypeSpec>,
-    pub type_quals: Vec<TypeQual>,
-    pub span: Span
-}
-
-impl SpecQualList {
-    pub fn new() -> Self {
-        Self {
-            type_specs: Vec::new(),
-            type_quals: Vec::new(),
-            span: Span::default()
-        }
-    }
-}
 
 #[derive(Clone, Debug)]
 pub enum ParamDecl {
-    Idents(Vec<Ident>),
+    Idents(IdentList),
     Params {
-        params: Vec<ParamDecl>,
+        params: Vec<Declarator>,
         commas: Vec<Span>,
         ellipsis: Option<Span>,
     },

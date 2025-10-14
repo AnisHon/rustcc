@@ -1,10 +1,11 @@
 use crate::err::parser_error::ParserResult;
-use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::decl::{Decl, EnumDecl, FuncSpec, Initializer, StorageSpec, TypeQual, TypeSpec, TypeSpecKind};
+use crate::parser::types::ast::decl::{Decl, EnumDecl, Initializer};
+use crate::parser::types::ast::expr::Parameter;
 use crate::parser::types::common::Ident;
-use crate::parser::types::sema::decl_chunk::{DeclChunk, DeclChunkKind, DeclSpec, Declarator, InitDeclarator, InitDeclaratorList, InitializerList, PointerChunk, SpecQualList};
+use crate::parser::types::sema::decl_chunk::{DeclChunk, DeclChunkKind, Declarator, IdentList, InitDeclarator, InitDeclaratorList, InitializerList, ParamDecl, PointerChunk};
+use crate::parser::types::sema::decl_spec::{DeclSpec, FuncSpec, SpecQualList, StorageSpec, TypeQual, TypeSpec, TypeSpecKind};
 use crate::types::span::Span;
 
 impl Parser {
@@ -115,8 +116,8 @@ impl Parser {
         let direct_declarator = self.parse_direct_declarator();
         todo!()
     }
-    
-    fn parse_direct_declarator(&mut self) -> ParserResult<Vec<DeclChunk>> {
+
+    fn parse_direct_declarator_fist(&mut self) -> ParserResult<DeclChunk> {
         let lo = self.stream.span();
         let kind = if let Some(ident) = self.consume_ident() {
             let ident = Ident::new(ident);
@@ -132,8 +133,46 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
         let chunk = DeclChunk::new(kind, span);
-        
-        todo!()
+        Ok(chunk)
+    }
+
+    fn parse_direct_declarator(&mut self) -> ParserResult<Vec<DeclChunk>> {
+        let chunk = self.parse_direct_declarator_fist()?;
+        let mut chunks = vec![chunk];
+
+        loop {
+            let lo = self.stream.span();
+            let kind = if let Some(lbracket) = self.consume(TokenKind::LBracket) {
+                let l = lbracket.span;
+                let type_quals = self.parse_type_qual_list_opt()?;
+                let expr = match self.check(TokenKind::RBracket) {
+                    true => Some(self.parse_assign_expr()?),
+                    false => None
+                };
+                let r = self.expect(TokenKind::RBracket)?.span;
+                DeclChunkKind::Array { l, type_quals, expr, r }
+            } else if let Some(lparen) = self.consume(TokenKind::LParen) {
+                let l = lparen.span;
+                let param = match self.check_ident() {
+                    true => self.parse_parameter_type_list()?,
+                    false => {
+                        let idents = self.parse_ident_list()?;
+                        ParamDecl::Idents(idents)
+                    }
+                };
+                let expr = self.parse_assign_expr()?;
+                let r = self.expect(TokenKind::RParen)?.span;
+                DeclChunkKind::Function { l, param, r }
+            } else {
+                break;
+            };
+            let hi = self.stream.prev_span();
+            let span = Span::span(lo, hi);
+            let chunk = DeclChunk::new(kind, span);
+            chunks.push(chunk)
+        }
+
+        Ok(chunks)
     }
 
     fn parse_pointer(&mut self) -> ParserResult<Vec<PointerChunk>> {
@@ -158,6 +197,14 @@ impl Parser {
 
 
         todo!()
+    }
+
+    fn parse_type_qual_list_opt(&mut self) -> ParserResult<Option<Vec<TypeQual>>> {
+        if self.is_type_qual(self.stream.peek()) {
+            self.parse_type_qual_list().map(|list| Some(list))
+        } else {
+            Ok(None)
+        }
     }
 
     fn parse_type_qual_list(&mut self) -> ParserResult<Vec<TypeQual>> {
@@ -323,16 +370,39 @@ impl Parser {
 
 
 
-    fn parse_parameter_type_list(&mut self) -> ParserResult<()> {
+    fn parse_parameter_type_list(&mut self) -> ParserResult<ParamDecl> {
+        let mut param_decl = self.parse_parameter_decl()?;
+        if let Some(comma) = self.consume(TokenKind::Comma) {
+            let ellipsis_span = self.expect(TokenKind::Ellipsis)?.span;
+            match &mut param_decl {
+                ParamDecl::Idents(_) => unreachable!(),
+                ParamDecl::Params { commas, ellipsis, .. } => {
+                    commas.push(comma.span);
+                    *ellipsis = Some(ellipsis_span);
+                }
+            }
+        }
+        Ok(param_decl)
+    }
+
+    fn parse_parameter_decl(&mut self) -> ParserResult<ParamDecl> {
         todo!()
     }
 
-    fn parse_parameter_decl(&mut self) -> ParserResult<()> {
-        todo!()
-    }
+    fn parse_ident_list(&mut self) -> ParserResult<IdentList> {
+        let mut list = IdentList::new();
+        let ident = self.expect_ident()?;
+        let ident = Ident::new(ident);
+        list.idents.push(ident);
 
-    fn parse_ident_list(&mut self) -> ParserResult<Vec<Ident>> {
-        todo!()
+        while let Some(comma) = self.consume(TokenKind::Comma) {
+            let ident = self.expect_ident()?;
+            let ident = Ident::new(ident);
+            list.idents.push(ident);
+            list.commas.push(comma.span);
+        }
+
+        Ok(list)
     }
 
     pub(crate) fn parse_type_name(&mut self) -> ParserResult<()> {
