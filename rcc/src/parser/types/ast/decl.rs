@@ -61,22 +61,17 @@ pub struct StructField {
     pub semi: Span,
 }
 
-pub struct Enumerator {
-    ident: Ident,
-    eq: Option<Span>,
-    expr: Option<Box<Expr>>,
-    span: Span,
-}
 
-pub struct EnumeratorList {
-    pub enums: Vec<Enumerator>,
-    pub commas: Vec<Span>,
-}
 
-pub struct EnumDecl {
-    pub enum_span: Span,
-    pub l: Span,
-    pub enums: EnumeratorList,
-    pub r: Span,
-    pub span: Span
-}
+// pub struct EnumeratorList {
+//     pub enums: Vec<Enumerator>,
+//     pub commas: Vec<Span>,
+// }
+//
+// pub struct EnumDecl {
+//     pub enum_span: Span,
+//     pub l: Span,
+//     pub enums: EnumeratorList,
+//     pub r: Span,
+//     pub span: Span
+// }
