@@ -92,6 +92,7 @@ impl Parser {
 
             let kind = parser_error::ErrorKind::ExpectButFound { expect, found: found.kind.kind_str().to_owned() };
             let error = self.error_here(kind);
+            panic!("{error}");
             Err(error)
         }
     }
@@ -180,6 +181,11 @@ impl Parser {
         } else {
             false
         }
+    }
+
+    /// (type-specifier | type-qualifier)*
+    pub fn is_spec_qual(&self, token: &Token) -> bool {
+        self.is_type_spec(token) || self.is_type_qual(token)
     }
 
     pub fn is_type_spec(&self, token: &Token) -> bool {

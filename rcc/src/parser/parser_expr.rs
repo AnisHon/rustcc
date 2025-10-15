@@ -169,7 +169,10 @@ impl Parser {
             ExprKind::make_unary(op, expr)
         } else if let Some(sizeof) = self.consume_keyword(Keyword::Sizeof) {
             // sizeof
-            if let Some(lparen) = self.consume(TokenKind::LParen) {
+            let peek_next = self.stream.peek_next();
+            // 要求是 '(' + type_spec => typename
+            if self.check(TokenKind::LParen) && self.is_type_spec(peek_next) {
+                let lparen = self.stream.next();
                 // sizeof typename
                 let type_name = self.parse_type_name()?;
                 let rparen = self.expect(TokenKind::RParen)?;

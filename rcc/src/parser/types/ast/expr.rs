@@ -2,23 +2,23 @@ use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{LiteralKind, Symbol, TokenKind};
 use crate::parser::types::common::Ident;
 use crate::parser::types::sema::expr::ValueType;
-use crate::types::span::Span;
+use crate::types::span::{Pos, Span};
 
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     DeclRef(Ident),
     Constant(LiteralKind),
-    Paren{ l: Span, expr: Box<Expr>, r: Span },
-    ArraySubscript { base: Box<Expr>, l: Span, index: Box<Expr>, r: Span },     // a[]
-    Call{ base: Box<Expr>, l: Span, params: Parameter, r: Span },     // a()
-    MemberAccess { kind: MemberAccessKind, base: Box<Expr>, op: Span, field: Symbol },       // a.b
-    SizeofExpr{ sizeof: Span, expr: Box<Expr> },   // sizeof
-    SizeofType{ sizeof: Span, l: Span, ty: (), r: Span },   // sizeof
+    Paren{ l: Pos, expr: Box<Expr>, r: Pos },
+    ArraySubscript { base: Box<Expr>, l: Pos, index: Box<Expr>, r: Pos },     // a[]
+    Call{ base: Box<Expr>, l: Pos, params: Parameter, r: Pos },     // a()
+    MemberAccess { kind: MemberAccessKind, base: Box<Expr>, op: Span, field: Symbol },       // a.b a->b
+    SizeofExpr{ sizeof: Span, expr: Box<Expr> },   // sizeof expr
+    SizeofType{ sizeof: Span, l: Pos, ty: (), r: Pos },   // sizeof()
     Unary{ op: UnaryOp, rhs: Box<Expr> },
     Binary{ lhs: Box<Expr>, op: BinOp, rhs: Box<Expr> },
-    Assign{ lhs: Box<Expr>, op: AssignOp, rhs: Box<Expr> },
-    Cast{ l: Span, ty: () ,r: Span, expr: Box<Expr> },
-    Ternary{ cond: Box<Expr>, question: Span, then_expr: Box<Expr>, colon: Span ,else_expr: Box<Expr> },
+    Assign{ lhs: Box<Expr>, op: AssignOp, rhs: Box<Expr> }, 
+    Cast{ l: Pos, ty: () ,r: Pos, expr: Box<Expr> }, // (type)
+    Ternary{ cond: Box<Expr>, question: Pos, then_expr: Box<Expr>, colon: Pos ,else_expr: Box<Expr> }, // cond ? a : b
 }
 
 impl ExprKind {
@@ -47,20 +47,20 @@ impl ExprKind {
     }
 
     pub fn make_paren(l: Token, expr: Box<Expr>, r: Token) -> Self {
-        let l = l.span;
-        let r = r.span;
+        let l = l.span.to_pos();
+        let r = r.span.to_pos();
         Self::Paren{ l, expr, r }
     }
 
     pub fn make_index(base: Box<Expr>, l: Token, index: Box<Expr>, r: Token) -> Self {
-        let l = l.span;
-        let r = r.span;
+        let l = l.span.to_pos();
+        let r = r.span.to_pos();
         Self::ArraySubscript { base, l, index, r }
     }
 
     pub fn make_call(base: Box<Expr>, l: Token, params: Parameter, r: Token) -> Self {
-        let l = l.span;
-        let r = r.span;
+        let l = l.span.to_pos();
+        let r = r.span.to_pos();
         Self::Call { base, l, params, r }
     }
 
@@ -79,8 +79,8 @@ impl ExprKind {
 
     pub fn make_size_of_type(sizeof: Token, l: Token, ty: (), r: Token) -> Self {
         let sizeof = sizeof.span;
-        let l = l.span;
-        let r = r.span;
+        let l = l.span.to_pos();
+        let r = r.span.to_pos();
         Self::SizeofType { sizeof, l, ty, r }
     }
 
@@ -120,8 +120,8 @@ impl ExprKind {
     }
     
     pub fn make_cast(l: Token, ty: () ,r: Token, expr: Box<Expr>) -> Self {
-        let l = l.span;
-        let r = r.span;
+        let l = l.span.to_pos();
+        let r = r.span.to_pos();
         Self::Cast { l, ty, expr, r }
     }
     
@@ -131,8 +131,8 @@ impl ExprKind {
     }
 
     pub fn make_ternary(cond: Box<Expr>, question: Token, then_expr: Box<Expr>, colon: Token, else_expr: Box<Expr>) -> Self {
-        let question = question.span;
-        let colon = colon.span;
+        let question = question.span.to_pos();
+        let colon = colon.span.to_pos();
         Self::Ternary { cond, question, then_expr, colon, else_expr }
     }
 }

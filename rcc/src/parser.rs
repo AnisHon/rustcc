@@ -62,6 +62,25 @@ mod test {
 
         println!("{:#?}", parser.parse_stmt(false).unwrap())
     }
+
+    #[test]
+    fn test_decl() {
+        let code = include_str!("../resources/example/declaration.c");
+        let content_manager = Arc::new(ContentManager::new(code.to_string()));
+        let (error_tx, error_rx) = mpsc::channel();
+
+        // 执行lexer
+        let lex = Lex::new(Arc::clone(&content_manager));
+        let tokens = run_lexer(lex, error_tx.clone());
+
+        // for x in &tokens {
+        //     println!("{:?}", x);
+        // }
+
+        let mut parser = Parser::new(tokens, error_tx);
+
+        println!("{:#?}", parser.parse_decl().unwrap())
+    }
 }
 
 

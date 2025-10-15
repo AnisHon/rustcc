@@ -1,6 +1,6 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Symbol;
-use crate::types::span::Span;
+use crate::types::span::{Pos, Span};
 
 #[derive(Clone, Debug)]
 pub struct Ident {
@@ -15,6 +15,25 @@ impl Ident {
         Self {
             symbol,
             span
+        }
+    }
+}
+
+
+#[derive(Clone, Debug)]
+
+pub struct IdentList {
+    pub idents: Vec<Ident>,
+    pub commas: Vec<Pos>,
+    pub span: Span
+}
+
+impl IdentList {
+    pub fn new() -> Self {
+        Self {
+            idents: Vec::new(),
+            commas: Vec::new(),
+            span: Span::default()
         }
     }
 }
