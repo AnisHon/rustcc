@@ -1,22 +1,33 @@
 use crate::lex::types::token::Token;
-use crate::lex::types::token_kind::{Keyword, TokenKind};
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::Ident;
-use crate::parser::types::sema::decl_chunk::InitializerList;
-use crate::types::span::Span;
+use crate::types::span::{Pos, Span};
 
 #[derive(Debug, Clone)]
 pub enum Initializer {
     Expr(Box<Expr>),
-    InitList{ l: Span, inits: InitializerList, r: Span },
+    InitList{ l: Pos, inits: InitializerList, r: Pos },
+}
+
+#[derive(Clone, Debug)]
+pub struct InitializerList {
+    pub inits: Vec<Initializer>,
+    pub commas: Vec<Span>,
+    pub span: Span
+}
+
+impl InitializerList {
+    pub fn new() -> Self {
+        Self { inits: Vec::new(), commas: Vec::new(), span: Span::default() }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Decl {
     pub ident: Ident,
-    pub eq: Span,
+    pub eq: Pos,
     pub init: Option<Initializer>,
-    pub semi: Span,
+    pub semi: Pos,
     pub span: Span,
 }
 
@@ -36,29 +47,30 @@ pub struct StructOrUnion {
     pub span: Span,
 }
 
-pub enum StructOrUnionDeclKind {
+pub enum StructDeclKind {
     Ref {
         ident: Ident,
     },
     Decl {
         ident: Option<Ident>,
         l: Span,
-        fields: Vec<StructField>,
+        fields: Vec<StructVarDecl>,
         r: Span,
     }
 }
 
-pub struct StructOrUnionDecl {
-    struct_or_union: StructOrUnion,
-    kind: StructOrUnionDeclKind,
-    span: Span,
+// struct or union
+pub struct StructDecl {
+    pub struct_or_union: StructOrUnion,
+    pub kind: StructDeclKind,
+    pub span: Span,
 }
 
-pub struct StructField {
+pub struct StructVarDecl {
     pub ident: Option<Ident>,
     pub colon: Option<Token>,
     pub bit_field: Option<Box<Expr>>,
-    pub semi: Span,
+    pub semi: Pos,
 }
 
 

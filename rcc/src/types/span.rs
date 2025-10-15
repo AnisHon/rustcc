@@ -35,6 +35,11 @@ impl Span {
         self.start = self.start.min(other.start);
         self.end = self.end.max(other.end);
     }
+
+    pub fn to_pos(&self) -> Pos {
+        assert_eq!(self.end - self.start, 1);
+        Pos { pos: self.start }
+    }
 }
 
 impl Debug for Span {
@@ -44,23 +49,15 @@ impl Debug for Span {
 }
 
 ///
-/// 对于列表 比如`a, b, c` `a; b; c;`
-/// 该结构负责存储符号位置和列表本身
+/// 对于单字符情况下，使用span浪费空间
 ///
-#[derive(Debug, Clone)]
-pub struct SepList<T> {
-    pub list: Vec<T>,
-    pub sep: Vec<Span>,
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, Copy)]
+pub struct Pos {
+    pub pos: usize,
 }
 
-
-impl<T> Default for SepList<T> {
-    fn default() -> Self {
-        Self { list: Vec::new(), sep: Vec::new() }
+impl Pos {
+    pub fn new(pos: usize) -> Self {
+        Self { pos }
     }
-}
-
-
-pub trait UnwrapSpan {
-    fn unwrap_span(&self) -> Span;
 }

@@ -1,15 +1,18 @@
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
-use crate::lex::types::token_kind::TokenKind::Comma;
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::decl::{Decl, Initializer};
+use crate::parser::types::ast::decl::{Decl, Initializer, InitializerList};
 use crate::parser::types::common::Ident;
-use crate::parser::types::sema::decl_chunk::{DeclSpec, Declarator, DeclaratorChunk, DeclaratorChunkKind, EnumSpec, EnumeratorDecl, EnumeratorDeclList, FuncSpec, IdentList, InitDeclarator, InitDeclaratorList, InitializerList, ParamDecl, StorageSpec, StructDeclarator, StructDeclaratorList, StructOrUnionSpec, StructVarDecl, TypeQual, TypeSpec, TypeSpecKind};
+use crate::parser::types::sema::decl_chunk::*;
 use crate::types::span::Span;
 
 impl Parser {
 
-
+    fn check_abstract_declarator(&self) -> bool {
+        let kind = &self.stream.peek().kind;
+        matches!(kind, TokenKind::LParen | TokenKind::LBrace | TokenKind::LBracket)
+    }
+    
     pub(crate) fn parse_decl(&mut self) -> ParserResult<Decl> {
         let lo = self.stream.span();
         let decl_spec = self.parse_decl_spec()?;
@@ -21,7 +24,7 @@ impl Parser {
         &mut self,
         lo: Span,
         decl_specs: Vec<DeclSpec>,
-        declarator: Declarator
+        declarator: Vec<DeclaratorChunk>
     ) -> ParserResult<Decl> {
         let lo = self.stream.span();
 
@@ -109,7 +112,7 @@ impl Parser {
         Ok(func_spec)
     }
 
-    pub(crate) fn parse_declarator(&mut self) -> ParserResult<Declarator> {
+    pub(crate) fn parse_declarator(&mut self) -> ParserResult<Vec<DeclaratorChunk>> {
         let pointers = match self.check(TokenKind::Star) {
             true => Some(self.parse_pointer()?),
             false => None,
@@ -161,7 +164,10 @@ impl Parser {
                 // func ()
                 let l = lparen.span;
                 let param = match self.check_ident() {
-                    true => self.parse_parameter_type_list()?,
+                    true => {
+                        let list = self.parse_parameter_type_list()?;
+                        ParamDecl::Params(list)
+                    },
                     false => {
                         let idents = self.parse_ident_list()?;
                         ParamDecl::Idents(idents)
@@ -232,8 +238,8 @@ impl Parser {
     }
 
     /// 已经预先解析一个declarator了
-    fn parse_init_declarator(&mut self, declarator: Option<Declarator>) -> ParserResult<InitDeclarator> {
-        let declarator = match declarator {
+    fn parse_init_declarator(&mut self, declarator: Option<Vec<DeclaratorChunk>>) -> ParserResult<InitDeclarator> {
+        let chunks = match declarator {
             None => self.parse_declarator()?,
             Some(x) => x
         };
@@ -246,10 +252,11 @@ impl Parser {
             eq = None;
             init = None;
         }
-        Ok(InitDeclarator { declarator, eq, init })
+        let init_declarator = InitDeclarator { chunks, eq, init };
+        Ok(init_declarator)
     }
 
-    fn parse_init_declarator_list(&mut self, declarator: Declarator) -> ParserResult<InitDeclaratorList> {
+    fn parse_init_declarator_list(&mut self, declarator: Vec<DeclaratorChunk>) -> ParserResult<InitDeclaratorList> {
         let mut list = InitDeclaratorList::new();
         let init = self.parse_init_declarator(Some(declarator))?;
         list.inits.push(init);
@@ -291,7 +298,7 @@ impl Parser {
         Ok(list)
     }
 
-    fn parse_struct_or_union_spec(&mut self) -> ParserResult<StructOrUnionSpec> {
+    fn parse_struct_or_union_spec(&mut self) -> ParserResult<StructSpec> {
         let lo = self.stream.span();
         
         let kw = self.expect_keyword_pair(Keyword::Struct, Keyword::Union)?;
@@ -311,11 +318,11 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let spec = StructOrUnionSpec { struct_span: kw.span, name, l, var_decls, r, span };
+        let spec = StructSpec { struct_span: kw.span, name, l, var_decls, r, span };
         Ok(spec)
     }
 
-    fn parse_struct_decl_list(&mut self) -> ParserResult<Vec<StructVarDecl>> {
+    fn parse_struct_decl_list(&mut self) -> ParserResult<Vec<StructVar>> {
         let mut decls = Vec::new();
 
         if self.check(TokenKind::RBrace) {
@@ -333,16 +340,16 @@ impl Parser {
         Ok(decls)
     }
 
-    fn parse_struct_decl(&mut self) -> ParserResult<StructVarDecl> {
+    fn parse_struct_decl(&mut self) -> ParserResult<StructVar> {
         let lo = self.stream.span();
 
-        let spec_quals = self.parse_decl_spec()?;
+        let decl_spec = self.parse_decl_spec()?;
         let list = self.parse_struct_declarator_list()?;
 
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let var_decl = StructVarDecl { spec_quals, list, span };
+        let var_decl = StructVar { decl_spec, list, span };
         Ok(var_decl)
     }
 
@@ -371,7 +378,7 @@ impl Parser {
     fn parse_struct_declarator(&mut self) -> ParserResult<StructDeclarator> {
         let lo = self.stream.span();
         
-        let mut declarator = None;
+        let mut chunks = None;
         let mut colon = None;
         let mut bit_field = None;
         
@@ -379,7 +386,7 @@ impl Parser {
             colon = Some(colon_token.span);
             bit_field = Some(self.parse_assign_expr()?);
         } else {
-            declarator = Some(self.parse_declarator()?);
+            chunks = Some(self.parse_declarator()?);
             if let Some(colon_token) = self.consume(TokenKind::Colon) {
                 colon = Some(colon_token.span);
                 bit_field = Some(self.parse_assign_expr()?);
@@ -389,7 +396,7 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let struct_declarator = StructDeclarator { declarator, colon, bit_field, span };
+        let struct_declarator = StructDeclarator { chunks, colon, bit_field, span };
         Ok(struct_declarator)
     }
 
@@ -407,7 +414,7 @@ impl Parser {
         todo!()
     }
 
-    fn parse_enumerator_list(&mut self) -> ParserResult<EnumeratorDeclList> {
+    fn parse_enumerator_list(&mut self) -> ParserResult<EnumeratorList> {
         let lo = self.stream.span();
         let mut decls = Vec::new();
         let mut commas = Vec::new();
@@ -426,11 +433,11 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let list = EnumeratorDeclList { decls, commas, span };
+        let list = EnumeratorList { decls, commas, span };
         Ok(list)
     }
 
-    fn parse_enumerator(&mut self) -> ParserResult<EnumeratorDecl> {
+    fn parse_enumerator(&mut self) -> ParserResult<Enumerator> {
         let lo = self.stream.span();
         
         let ident = self.expect_ident()?;
@@ -445,31 +452,53 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let decl = EnumeratorDecl { ident, eq, expr, span };
+        let decl = Enumerator { ident, eq, expr, span };
         Ok(decl)
     }
 
 
 
-    fn parse_parameter_type_list(&mut self) -> ParserResult<ParamDecl> {
-        let mut param_decl = self.parse_parameter_decl()?;
-        if let Some(comma) = self.consume(TokenKind::Comma) {
-            let ellipsis_span = self.expect(TokenKind::Ellipsis)?.span;
-            match &mut param_decl {
-                ParamDecl::Idents(_) => unreachable!(),
-                ParamDecl::Params { commas, ellipsis, .. } => {
-                    commas.push(comma.span);
-                    *ellipsis = Some(ellipsis_span);
-                }
-            }
-        }
+    fn parse_parameter_type_list(&mut self) -> ParserResult<ParamVarDeclList> {
+        let mut param_decl = self.parse_parameter_list()?;
         Ok(param_decl)
     }
 
-    fn parse_parameter_decl(&mut self) -> ParserResult<ParamDecl> {
-        let decl_specs = self.parse_decl_spec();
-        
-        todo!()
+    fn parse_parameter_list(&mut self) -> ParserResult<ParamVarDeclList> {
+        let lo = self.stream.span();
+
+        let mut params = Vec::new();
+        let mut commas = Vec::new();
+        let mut ellipsis = None;
+        let param_decl = self.parse_parameter_decl()?;
+        params.push(param_decl);
+
+        while let Some(comma) = self.consume(TokenKind::Comma) {
+            commas.push(comma.span);
+            if let Some(token) = self.consume(TokenKind::Ellipsis) {
+                ellipsis = Some(token.span);
+                break
+            }
+
+            let param_decl = self.parse_parameter_decl()?;
+            params.push(param_decl);
+        }
+
+        let hi = self.stream.prev_span();
+        let span = Span::span(lo, hi);
+
+        let list = ParamVarDeclList { params, commas, ellipsis, span };
+        Ok(list)
+    }
+
+    fn parse_parameter_decl(&mut self) -> ParserResult<Declarator> {
+        let lo = self.stream.span();
+        let decl_specs = self.parse_decl_spec()?;
+        let chunks = self.parse_declarator()?;
+        let hi = self.stream.prev_span();
+        let span = Span::span(lo, hi);
+
+        let declarator = Declarator::new(decl_specs, chunks, span);
+        Ok(declarator)
     }
 
     fn parse_ident_list(&mut self) -> ParserResult<IdentList> {
@@ -489,17 +518,19 @@ impl Parser {
     }
 
     pub(crate) fn parse_type_name(&mut self) -> ParserResult<()> {
-        // todo
-        self.stream.next();
-        Ok(())
-    }
-
-    fn parse_abstract_declarator(&mut self) -> ParserResult<()> {
+        let lo = self.stream.span();
+        
+        let decl_specs = self.parse_decl_spec()?;
+        let chunks = match self.check_abstract_declarator() {
+            true => self.parse_declarator()?,
+            false => Vec::new(),
+        };
+        
+        let hi = self.stream.prev_span();
+        let span = Span::span(lo, hi);
+        
+        let declarator = Declarator::new(decl_specs, chunks, span);
+        
         todo!()
     }
-
-    fn parse_direct_abstract_declarator(&mut self) -> ParserResult<()> {
-        todo!()
-    }
-
 }

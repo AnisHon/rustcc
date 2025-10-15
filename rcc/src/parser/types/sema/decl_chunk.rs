@@ -57,8 +57,8 @@ pub enum TypeSpecKind {
     Double,
     Signed,
     Unsigned,
-    Struct(StructOrUnionSpec),
-    Union(StructOrUnionSpec),
+    Struct(StructSpec),
+    Union(StructSpec),
     Enum(EnumSpec),
     Typedef(Ident)
 }
@@ -163,7 +163,7 @@ impl Declarator {
 #[derive(Clone, Debug)]
 pub enum DeclaratorChunkKind {
     Ident(Ident),
-    Paren { l: Span, declarator: Declarator, r: Span },
+    Paren { l: Span, declarator: Vec<DeclaratorChunk>, r: Span },
     Array { l: Span, type_quals: Option<Vec<TypeQual>>, expr: Option<Box<Expr>>, r: Span },
     Pointer { star: Span, type_quals: Vec<TypeQual> },
     Function { l: Span, param: ParamDecl, r: Span },
@@ -186,33 +186,38 @@ impl DeclaratorChunk {
 #[derive(Clone, Debug)]
 pub enum ParamDecl {
     Idents(IdentList),
-    Params {
-        params: Vec<Declarator>,
-        commas: Vec<Span>,
-        ellipsis: Option<Span>,
-    },
+    Params(ParamVarDeclList),
 }
 
 #[derive(Clone, Debug)]
-pub struct StructOrUnionSpec {
+pub struct ParamVarDeclList {
+    pub params: Vec<Declarator>,
+    pub commas: Vec<Span>,
+    pub ellipsis: Option<Span>,
+    pub span: Span,
+}
+
+// struct or union
+#[derive(Clone, Debug)]
+pub struct StructSpec {
     pub struct_span: Span,
     pub name: Option<Ident>,
     pub l: Option<Span>,
-    pub var_decls: Option<Vec<StructVarDecl>>,
+    pub var_decls: Option<Vec<StructVar>>,
     pub r: Option<Span>,
     pub span: Span
 }
 
 #[derive(Clone, Debug)]
-pub struct StructVarDecl {
-    pub spec_quals: Vec<DeclSpec>,
+pub struct StructVar {
+    pub decl_spec: Vec<DeclSpec>,
     pub list: StructDeclaratorList,
     pub span: Span,
 }
 
 #[derive(Clone, Debug)]
 pub struct StructDeclarator {
-    pub declarator: Option<Declarator>,
+    pub chunks: Option<Vec<DeclaratorChunk>>,
     pub colon: Option<Span>,
     pub bit_field: Option<Box<Expr>>,
     pub span: Span,
@@ -227,18 +232,24 @@ pub struct StructDeclaratorList {
 
 #[derive(Clone, Debug)]
 pub struct EnumSpec {
-    
+    pub name: Option<Ident>,
+    pub l: Option<Span>,
+    pub enumerators: Option<EnumeratorList>,
+    pub r: Option<Span>,
+    pub span: Span
 }
 
-pub struct EnumeratorDecl {
+#[derive(Clone, Debug)]
+pub struct Enumerator {
     pub ident: Ident,
     pub eq: Option<Span>,
     pub expr: Option<Box<Expr>>,
     pub span: Span,
 }
 
-pub struct EnumeratorDeclList {
-    pub decls: Vec<EnumeratorDecl>,
+#[derive(Clone, Debug)]
+pub struct EnumeratorList {
+    pub decls: Vec<Enumerator>,
     pub commas: Vec<Span>,
     pub span: Span
 }
@@ -263,7 +274,7 @@ impl IdentList {
 
 #[derive(Clone, Debug)]
 pub struct InitDeclarator {
-    pub declarator: Declarator,
+    pub chunks: Vec<DeclaratorChunk>,
     pub eq: Option<Span>,
     pub init: Option<Initializer>,
 }
@@ -281,16 +292,5 @@ impl InitDeclaratorList {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct InitializerList {
-    pub inits: Vec<Initializer>,
-    pub commas: Vec<Span>,
-    pub span: Span
-}
 
-impl InitializerList {
-    pub fn new() -> Self {
-        Self { inits: Vec::new(), commas: Vec::new(), span: Span::default() }
-    }
-}
 
