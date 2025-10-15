@@ -2,7 +2,7 @@ use std::rc::Rc;
 use crate::parser::types::ast::decl::Initializer;
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::{Ident};
-use crate::parser::types::decl_spec::{DeclSpec, ParamDecl, TypeQual};
+use crate::parser::types::decl_spec::{DeclSpec, ParamDecl, TypeQual, TypeQualType};
 use crate::types::span::{Pos, Span};
 
 #[derive(Clone, Debug)]
@@ -28,8 +28,8 @@ impl Declarator {
 #[derive(Clone, Debug)]
 pub enum DeclaratorChunkKind {
     Paren { l: Pos, r: Pos }, // 纯用来保存括号信息了
-    Array { l: Pos, type_quals: Option<Vec<TypeQual>>, expr: Option<Box<Expr>>, r: Pos },
-    Pointer { star: Pos, type_quals: Vec<TypeQual> },
+    Array { l: Pos, type_qual: Option<TypeQualType>, expr: Option<Box<Expr>>, r: Pos },
+    Pointer { star: Pos, type_qual: TypeQualType },
     Function { l: Pos, param: ParamDecl, r: Pos },
 }
 
@@ -46,7 +46,7 @@ impl DeclaratorChunk {
 }
 #[derive(Clone, Debug)]
 pub struct InitDeclarator {
-    pub chunks: Vec<DeclaratorChunk>,
+    pub declarator: Declarator,
     pub eq: Option<Pos>,
     pub init: Option<Initializer>,
 }

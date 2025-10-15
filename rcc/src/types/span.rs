@@ -51,7 +51,7 @@ impl Debug for Span {
 ///
 /// 对于单字符情况下，使用span浪费空间
 ///
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, Copy)]
+#[derive(Default, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct Pos {
     pub pos: usize,
 }
@@ -59,5 +59,10 @@ pub struct Pos {
 impl Pos {
     pub fn new(pos: usize) -> Self {
         Self { pos }
+    }
+}
+impl Debug for Pos {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Pos({})", self.pos)
     }
 }

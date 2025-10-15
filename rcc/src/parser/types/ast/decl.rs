@@ -12,7 +12,7 @@ pub enum Initializer {
 #[derive(Clone, Debug)]
 pub struct InitializerList {
     pub inits: Vec<Initializer>,
-    pub commas: Vec<Span>,
+    pub commas: Vec<Pos>,
     pub span: Span
 }
 
@@ -35,6 +35,11 @@ impl Decl {
     // pub fn new(ident: Token, eq: Token, ) -> Span {
     //
     // }
+}
+
+pub struct DeclGroup {
+    pub decls: Vec<Decl>,
+    
 }
 
 pub enum StructOrUnionKind {

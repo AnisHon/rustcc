@@ -122,6 +122,7 @@ impl Parser {
             let expect = format!("{}, {}", kw1.kind_str(), kw2.kind_str());
             let error_kind = parser_error::ErrorKind::Expect { expect };
             let error = self.error_here(error_kind);
+            panic!("{error}");
             Err(error)
         }
     }

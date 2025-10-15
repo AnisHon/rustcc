@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
@@ -6,11 +7,13 @@ use crate::parser::types::common::{Ident, IdentList};
 use crate::parser::types::declarator::*;
 use crate::types::span::{Pos, Span};
 
+pub type TypeQualType = [Option<TypeQual>; 3];
+
 #[derive(Debug, Clone)]
 pub struct DeclSpec {
     pub storage: StorageSpec,
     pub type_spec: TypeSpec,
-    pub type_quals: [Option<TypeQual>; 3],
+    pub type_quals: TypeQualType,
     pub func_spec: Option<FuncSpec>,
     pub span: Span
 }
@@ -28,6 +31,15 @@ pub enum StorageSpecKind {
 pub struct StorageSpec {
     pub kind: StorageSpecKind,
     pub span: Span,
+}
+
+impl Default for StorageSpec {
+    fn default() -> StorageSpec {
+        Self {
+            kind: StorageSpecKind::Extern,
+            span: Span::default(),
+        }
+    }
 }
 
 impl StorageSpec {
@@ -173,24 +185,31 @@ pub struct StructSpec {
 
 #[derive(Clone, Debug)]
 pub struct StructVar {
-    pub decl_spec: Vec<DeclSpec>,
-    pub list: StructDeclaratorList,
+    pub decl_spec: Rc<DeclSpec>,
+    pub declarators: Vec<StructDeclarator>,
+    pub commas: Vec<Pos>,
+    pub semi: Pos,
     pub span: Span,
+}
+
+impl StructVar {
+    pub fn new(decl_spec: Rc<DeclSpec>) -> Self {
+        Self {
+            decl_spec,
+            declarators: Vec::new(),
+            commas: Vec::new(),
+            semi: Pos::default(),
+            span: Span::default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct StructDeclarator {
-    pub chunks: Option<Vec<DeclaratorChunk>>,
+    pub declarator: Declarator,
     pub colon: Option<Pos>,
     pub bit_field: Option<Box<Expr>>,
     pub span: Span,
-}
-
-#[derive(Clone, Debug)]
-pub struct StructDeclaratorList {
-    pub declarators: Vec<StructDeclarator>,
-    pub commas: Vec<Pos>,
-    pub span: Span
 }
 
 #[derive(Clone, Debug)]
