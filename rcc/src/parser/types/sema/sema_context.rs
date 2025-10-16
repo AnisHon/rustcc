@@ -1,6 +1,9 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use crate::err::parser_error::ParserResult;
+use crate::parser::types::sema::decl_context::DeclContext;
 
-pub enum ContextType {
+pub enum DeclContextType {
     Struct,
     Enum,
     Parameter,
@@ -8,7 +11,7 @@ pub enum ContextType {
 }
 
 pub struct SemaContext {
-    
+    curr_decl: Rc<RefCell<dyn DeclContext>>
 }
 
 impl SemaContext {
@@ -16,7 +19,7 @@ impl SemaContext {
         todo!()
     }
 
-    pub fn enter(&mut self, context: ContextType) -> ParserResult<()>{
+    pub fn enter(&mut self, context: DeclContextType) -> ParserResult<()>{
         todo!()
     }
 
@@ -24,3 +27,4 @@ impl SemaContext {
         todo!()
     }
 }
+

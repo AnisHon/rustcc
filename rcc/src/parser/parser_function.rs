@@ -5,7 +5,7 @@ use crate::parser::types::ast::decl::{DeclGroup};
 use crate::parser::types::ast::func::{ExternalDecl, FuncDef, TranslationUnit};
 use crate::parser::types::ast::stmt::Stmt;
 use crate::parser::types::declarator::Declarator;
-use crate::parser::types::sema::sema_context::ContextType;
+use crate::parser::types::sema::sema_context::DeclContextType;
 use crate::types::span::Span;
 
 impl Parser {
@@ -34,7 +34,7 @@ impl Parser {
         
         let external_decl = if self.check_decl_spec() || self.check(TokenKind::LBrace) {
             // 进入函数体上下文
-            self.sema_context.enter(ContextType::FuncBody)?;
+            self.sema_context.enter(DeclContextType::FuncBody)?;
             let func_decl = self.sema_context.act_on_declarator(declarator)?;
             // 函数定义
             let decl_list = match self.check_decl_spec() { 

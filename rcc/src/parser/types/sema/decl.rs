@@ -1,12 +1,13 @@
 use crate::err::parser_error::ParserResult;
 use crate::parser::types::ast::decl::{Decl, EnumField};
-use crate::parser::types::decl_spec::{EnumSpec, Enumerator, ParamDecl, ParamList, StructDeclarator, StructSpec};
+use crate::parser::types::decl_spec::{EnumSpec, Enumerator, StructDeclarator, StructSpec};
 use crate::parser::types::declarator::{Declarator, InitDeclarator};
 use crate::parser::types::sema::sema_context::SemaContext;
 
 impl SemaContext {
 
     pub fn act_on_declarator(&mut self, declarator: Declarator) -> ParserResult<Decl> {
+        // declarator.decl_spec.type_spec
         todo!()
     }
 

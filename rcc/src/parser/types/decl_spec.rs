@@ -10,10 +10,21 @@ use crate::types::span::{Pos, Span};
 
 pub type TypeQualType = [Option<TypeQual>; 3];
 
+///
+/// # Members
+/// - `storage`:
+/// - `type_base`: Void Int Double Enum Struct TypeName
+/// - `type_size`: Char Short Long Longlong Float Double LongDouble
+/// - `signed`: Signed Unsigned
+/// - `type_quals`: 
+/// - `func_spec`: 
+/// - `span`: 
 #[derive(Debug, Clone)]
 pub struct DeclSpec {
     pub storage: Option<StorageSpec>, // 全局上下文的时候默认extern
-    pub type_spec: TypeSpec,
+    pub type_base: Option<TypeSpec>,
+    pub type_size: Option<TypeSpec>,
+    pub signed: Option<TypeSpec>, 
     pub type_quals: TypeQualType,
     pub func_spec: Option<FuncSpec>,
     pub span: Span
@@ -80,20 +91,16 @@ pub enum TypeSpecKind {
     Short,
     Int,
     Long,
+    LongLong,
     Float,
     Double,
+    LongDouble,
     Signed,
     Unsigned,
     Struct(Decl),
     Union(Decl),
     Enum(Decl),
     TypeName(Ident)
-}
-
-impl TypeSpecKind {
-    pub fn is_same(&self, other: &Self) -> bool {
-        std::mem::discriminant(self) == std::mem::discriminant(other)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -135,10 +142,15 @@ impl TypeSpec {
             TypeSpecKind::Struct(_) => "struct",
             TypeSpecKind::Union(_) => "union",
             TypeSpecKind::Enum(_) => "enum",
-            TypeSpecKind::TypeName(_) => "type-name"
+            TypeSpecKind::TypeName(_) => "type-name",
+            TypeSpecKind::LongLong => "long long",
+            TypeSpecKind::LongDouble => "long double"
         }
     }
-
+    
+    pub fn is(&self, kind: &TypeSpecKind) -> bool {
+        std::mem::discriminant(&self.kind) == std::mem::discriminant(kind)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

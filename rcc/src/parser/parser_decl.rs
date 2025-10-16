@@ -6,7 +6,7 @@ use crate::parser::types::ast::decl::{Decl, DeclGroup, EnumField, Initializer, I
 use crate::parser::types::common::{Ident, IdentList};
 use crate::parser::types::decl_spec::*;
 use crate::parser::types::declarator::*;
-use crate::parser::types::sema::sema_context::ContextType;
+use crate::parser::types::sema::sema_context::DeclContextType;
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
 
@@ -71,18 +71,24 @@ impl Parser {
         Ok(group)
     }
 
+
     pub(crate) fn parse_decl_spec(&mut self) -> ParserResult<Rc<DeclSpec>> {
         const  CONTEXT: &str = "declaration specifier";
 
         let lo = self.stream.span();
 
         let mut storage: Option<StorageSpec> = None;
-        let mut type_spec: Option<TypeSpec> = None;
+        let mut type_base: Option<TypeSpec> = None;
+        let mut type_size: Option<TypeSpec> = None;
+        let mut signed: Option<TypeSpec> = None;
         let mut type_quals: [Option<TypeQual>; 3] = [None; 3];
         let mut func_spec: Option<FuncSpec> = None;
+
+
         loop {
             let token = self.stream.peek();
             if self.is_storage_spec(token) {
+                // typedef extern static auto register
                 let spec = self.parse_storage_spec()?;
 
                 if let Some(storage) = &storage {
@@ -91,24 +97,71 @@ impl Parser {
                     } else {
                         combine_error!(storage, CONTEXT)
                     };
-
                     self.send_error(error)
                 }
                 storage = Some(spec);
             } else if self.is_type_spec(token) {
+                use TypeSpecKind::*;
+                // 类型
                 let spec = self.parse_type_spec()?;
+                match &spec.kind {
+                    Void | Int | Double | TypeName(_)
+                    | Struct(_) | Union(_) | Enum(_) => {
+                        if let Some(base) = &type_base {
+                            let error = if base.is(&spec.kind) {
+                                dup_error!(spec, CONTEXT)
+                            } else {
+                                combine_error!(spec, CONTEXT)
+                            };
+                            self.send_error(error)
+                        }
+                        type_base = Some(spec);
+                    }
+                    Signed | Unsigned => {
+                        if let Some(signed) = &signed {
+                            let error = if signed.is(&spec.kind) {
+                                dup_error!(spec, CONTEXT)
+                            } else {
+                                combine_error!(spec, CONTEXT)
+                            };
+                            self.send_error(error)
+                        }
+                        signed = Some(spec);
+                    }
 
-                if let Some(type_spec) = &type_spec {
-                    let error = if spec.kind.is_same(&type_spec.kind) {
-                        dup_error!(spec, CONTEXT)
-                    } else {
-                        combine_error!(type_spec, CONTEXT)
-                    };
-                    self.send_error(error)
+                    Char | Short | Long | LongLong
+                    | Float | LongDouble => {
+                        if let Some(size) = &type_size {
+                            let kind = if size.is(&Long) && spec.is(&Long) {
+                                LongLong
+                            } else if size.is(&Long) && spec.is(&Double) {
+                                LongDouble
+                            } else if size.is(&Double) && spec.is(&Long) {
+                                LongDouble
+                            } else if size.is(&spec.kind) {
+                                let error = dup_error!(size, CONTEXT);
+                                self.send_error(error);
+                                continue;
+                            } else {
+                                let error = combine_error!(size, CONTEXT);
+                                self.send_error(error);
+                                continue;
+                            };
+                            let span = size.span.merge(&spec.span);
+                            type_size = Some(TypeSpec { kind, span });
+                            
+                            
+                        } else  {
+                            type_size = Some(spec);
+                        }
+                    }
+
                 }
 
-                type_spec = Some(spec);
+
+
             } else if self.is_type_qual(token) {
+                // const restrict volatile
                 let qual = self.parse_type_qual()?;
                 let idx = qual.kind as usize;
 
@@ -132,20 +185,16 @@ impl Parser {
             };
         }
 
-        if type_spec.is_none() {
-            let kind = parser_error::ErrorKind::TypeSpecifierMissing;
-            let error = self.error_here(kind);
-            return Err(error);
-        }
 
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let type_spec = type_spec.unwrap();
 
         let decl_spec = Rc::new(DeclSpec {
             storage,
-            type_spec,
+            type_base,
+            type_size,
+            signed,
             type_quals,
             func_spec,
             span
@@ -431,7 +480,7 @@ impl Parser {
 
     fn parse_struct_or_union_spec(&mut self) -> ParserResult<Decl> {
         // 进入struct上下文
-        self.sema_context.enter(ContextType::Struct)?;
+        self.sema_context.enter(DeclContextType::Struct)?;
         let lo = self.stream.span();
         
         // 消耗struct union关键字
@@ -546,7 +595,7 @@ impl Parser {
 
     fn parse_enum_spec(&mut self) -> ParserResult<Decl> {
         // 准备枚举上下文
-        self.sema_context.enter(ContextType::Enum)?;
+        self.sema_context.enter(DeclContextType::Enum)?;
         let lo = self.stream.span();
 
         let kw = self.expect_keyword(Keyword::Enum)?;
@@ -622,7 +671,7 @@ impl Parser {
     /// 函数列表，不包含左右括号
     fn parse_parameter_list(&mut self) -> ParserResult<ParamList> {
         // 进入函数列表上下文
-        self.sema_context.enter(ContextType::Parameter)?;
+        self.sema_context.enter(DeclContextType::Parameter)?;
         
         let lo = self.stream.span();
 
