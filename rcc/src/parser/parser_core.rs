@@ -6,19 +6,28 @@ use crate::lex::token_stream::TokenStream;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
 use std::sync::mpsc;
+use crate::parser::types::sema::sema_context::SemaContext;
 
 pub struct Parser {
     pub(crate) stream: TokenStream,
+    pub(crate) sema_context: SemaContext,
     pub(crate) error_tx: mpsc::Sender<GlobalError>,
 }
 impl Parser {
-    pub fn new(tokens: Vec<Token>, error_tx: mpsc::Sender<GlobalError>) -> Parser {
+    pub fn new(stream: TokenStream, sema_context: SemaContext, error_tx: mpsc::Sender<GlobalError>) -> Parser {
         Self {
-            stream: TokenStream::new(tokens),
+            stream,
+            sema_context,
             error_tx,
         }
     }
 
+    pub fn send_error(&mut self, err: ParserError) {
+        todo!()
+    }
+    
+    
+    /// 根据条件决定是否next
     pub(crate) fn next_conditional(&mut self, cond: bool) -> Option<Token> {
         match cond {
             true => Some(self.stream.next()),
@@ -223,6 +232,18 @@ impl Parser {
                 matches!(
                     x,
                     Typedef | Extern | Static | Auto | Register
+                ),
+            _ => false,
+        }
+    }
+    
+    pub fn is_func_spec(&self, token: &Token) -> bool {
+        match token.kind {
+            TokenKind::Ident(_) => self.is_type_name(token),
+            TokenKind::Keyword(x) =>
+                matches!(
+                    x,
+                    Keyword::Inline
                 ),
             _ => false,
         }

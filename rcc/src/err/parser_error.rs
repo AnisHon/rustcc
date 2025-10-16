@@ -1,4 +1,4 @@
-use crate::types::span::Span;
+use crate::types::span::{Pos, Span};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
@@ -12,7 +12,12 @@ pub enum ErrorKind {
     Expect { expect: String },
     #[error("{ty} is not assignable")]
     NotAssignable { ty: String },
-
+    #[error("Type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int")]
+    TypeSpecifierMissing,
+    #[error("Cannot combine with previous '{prev}' {context}")]
+    NonCombinable { prev: String, context: String },
+    #[error("Duplicate '{item}' {context}")]
+    Duplicate { item: String, context: String },
 }
 #[derive(Debug)]
 pub enum ErrorLevel {
@@ -28,7 +33,10 @@ impl ErrorLevel {
         match kind {
             ExpectButFound { .. }
             | Expect { .. }
-            | NotAssignable { .. } => Error,
+            | NotAssignable { .. } 
+            | TypeSpecifierMissing 
+            | NonCombinable { .. } => Error,
+            Duplicate { .. } => Warning,
         }
     }
 }

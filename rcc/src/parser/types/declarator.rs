@@ -49,6 +49,7 @@ pub struct InitDeclarator {
     pub declarator: Declarator,
     pub eq: Option<Pos>,
     pub init: Option<Initializer>,
+    pub span: Span
 }
 
 #[derive(Clone, Debug)]

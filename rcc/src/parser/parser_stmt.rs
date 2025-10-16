@@ -111,7 +111,7 @@ impl Parser {
         Ok(kind)
     }
 
-    fn parse_compound_stmt(&mut self, only_stmt: bool) -> ParserResult<StmtKind> {
+    pub(crate) fn parse_compound_stmt(&mut self, only_stmt: bool) -> ParserResult<StmtKind> {
         let l = self.expect(TokenKind::LBrace)?.span.to_pos();
         let mut stmts = Vec::new();
         loop {

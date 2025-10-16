@@ -1,6 +1,9 @@
+use std::rc::Rc;
 use crate::lex::types::token::Token;
+use crate::lex::types::token_kind::Keyword;
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::Ident;
+use crate::parser::types::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 
 #[derive(Debug, Clone)]
@@ -23,72 +26,87 @@ impl InitializerList {
 }
 
 #[derive(Debug, Clone)]
+pub struct VarDecl {
+    ty: Rc<Type>,
+    ident: Option<Ident>,
+    init: Option<Initializer>,
+}
+
+pub struct FieldDecl {
+    ident: Option<Ident>, 
+    colon: Option<Pos>, 
+    bit_field: Option<usize>, 
+    semi: Pos
+}
+
+#[derive(Debug, Clone)]
+pub enum DeclKind {
+    Var(VarDecl), // int a = 10;
+    Field {  }, // int a : 10;
+    Struct { kind: StructOrUnion, name: Option<Ident>, l: Pos, fields: Vec<Decl>, r: Pos, },
+    StructRef { kind: StructOrUnion, name: Ident }, // struct name;
+    Enum { kw: Span, name: Option<Ident>, l: Pos, enums: Vec<EnumField>, r: Pos,  }, // enum name { ... } 
+}
+
+#[derive(Debug, Clone)]
 pub struct Decl {
-    pub ident: Ident,
-    pub eq: Pos,
-    pub init: Option<Initializer>,
-    pub semi: Pos,
+    pub kind: DeclKind,
+    pub ty: Option<Rc<Type>>,
     pub span: Span,
 }
 
 impl Decl {
-    // pub fn new(ident: Token, eq: Token, ) -> Span {
-    //
-    // }
+    pub fn new(kind: DeclKind, span: Span) -> Self {
+        Self { kind, ty: None, span }
+    }
 }
 
+#[derive(Debug, Clone)]
 pub struct DeclGroup {
     pub decls: Vec<Decl>,
-    
+    pub commas: Vec<Pos>,
+    pub semi: Pos,
+    pub span: Span
 }
 
+impl Default for DeclGroup {
+    fn default() -> Self {
+        Self {
+            decls: Vec::new(),
+            commas: Vec::new(),
+            semi: Pos::default(),
+            span: Span::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum StructOrUnionKind {
     Struct,
     Union,
 }
 
+#[derive(Debug, Clone)]
 pub struct StructOrUnion {
     pub kind: StructOrUnionKind,
     pub span: Span,
 }
 
-pub enum StructDeclKind {
-    Ref {
-        ident: Ident,
-    },
-    Decl {
-        ident: Option<Ident>,
-        l: Span,
-        fields: Vec<StructVarDecl>,
-        r: Span,
+impl StructOrUnion {
+    pub fn new(token: Token) -> Self {
+        let kind = match token.kind.into_keyword().unwrap() {
+            Keyword::Struct => StructOrUnionKind::Struct,
+            Keyword::Union => StructOrUnionKind::Union,
+            _ => unreachable!()
+        };
+        Self { kind, span: token.span }
     }
 }
 
 // struct or union
-pub struct StructDecl {
-    pub struct_or_union: StructOrUnion,
-    pub kind: StructDeclKind,
-    pub span: Span,
+#[derive(Debug, Clone)]
+pub struct EnumField {
+    pub name: Ident,
+    pub eq: Option<Pos>,
+    pub expr: Expr,
 }
-
-pub struct StructVarDecl {
-    pub ident: Option<Ident>,
-    pub colon: Option<Token>,
-    pub bit_field: Option<Box<Expr>>,
-    pub semi: Pos,
-}
-
-
-
-// pub struct EnumeratorList {
-//     pub enums: Vec<Enumerator>,
-//     pub commas: Vec<Span>,
-// }
-//
-// pub struct EnumDecl {
-//     pub enum_span: Span,
-//     pub l: Span,
-//     pub enums: EnumeratorList,
-//     pub r: Span,
-//     pub span: Span
-// }
