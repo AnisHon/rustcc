@@ -2,10 +2,12 @@ use std::rc::Rc;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
-use crate::parser::types::ast::decl::{Decl, DeclGroup, EnumField};
+use crate::parser::types::ast::decl::{Decl, DeclGroup, EnumField, EnumFieldList};
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::{Ident, IdentList};
 use crate::parser::types::declarator::*;
+use crate::parser::types::sema::decl::decl_context::{DeclContext, DeclContextRef};
+use crate::parser::types::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 
 pub type TypeQualType = [Option<TypeQual>; 3];
@@ -97,9 +99,9 @@ pub enum TypeSpecKind {
     LongDouble,
     Signed,
     Unsigned,
-    Struct(Decl),
-    Union(Decl),
-    Enum(Decl),
+    Struct(Rc<Decl>),
+    Union(Rc<Decl>),
+    Enum(Rc<Decl>),
     TypeName(Ident)
 }
 
@@ -229,16 +231,17 @@ pub enum ParamDecl {
 
 #[derive(Clone, Debug)]
 pub struct ParamList {
-    pub params: Vec<Decl>,
+    pub params: Vec<Rc<Decl>>,
     pub commas: Vec<Pos>,
     pub ellipsis: Option<Span>,
+    pub decl_context: DeclContextRef,
     pub span: Span,
 }
 
 #[derive(Clone, Debug)]
 pub struct StructSpecBody {
     pub l: Pos,
-    pub group: Vec<DeclGroup>,
+    pub groups: Vec<DeclGroup>,
     pub r: Pos,
 }
 
@@ -293,29 +296,4 @@ pub struct EnumSpec {
     pub name: Option<Ident>,
     pub body: Option<EnumSpecBody>,
     pub span: Span
-}
-
-#[derive(Clone, Debug)]
-pub struct Enumerator {
-    pub ident: Ident,
-    pub eq: Option<Pos>,
-    pub expr: Option<Box<Expr>>,
-    pub span: Span,
-}
-
-#[derive(Clone, Debug)]
-pub struct EnumFieldList {
-    pub decls: Vec<EnumField>,
-    pub commas: Vec<Pos>,
-    pub span: Span
-}
-
-impl Default for EnumFieldList {
-    fn default() -> Self {
-        Self {
-            decls: Vec::new(),
-            commas: Vec::new(),
-            span: Span::default(),
-        }
-    }
 }

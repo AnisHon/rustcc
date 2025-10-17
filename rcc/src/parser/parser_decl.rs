@@ -2,11 +2,11 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::{Keyword, TokenKind};
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::decl::{Decl, DeclGroup, EnumField, Initializer, InitializerList};
+use crate::parser::types::ast::decl::{Decl, DeclGroup, DeclKind, EnumField, EnumFieldList, Initializer, InitializerList, StructOrUnion};
 use crate::parser::types::common::{Ident, IdentList};
 use crate::parser::types::decl_spec::*;
 use crate::parser::types::declarator::*;
-use crate::parser::types::sema::sema_context::DeclContextType;
+use crate::parser::types::sema::decl::decl_context::DeclContextKind;
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
 
@@ -421,9 +421,10 @@ impl Parser {
     /// # Arguments
     /// - `decl_spec`: DeclSpec引用
     /// - `declarator`: 传入None表示无Declarator
-    fn parse_init_declarator(&mut self, decl_spec: Rc<DeclSpec>, declarator: Option<Declarator>) -> ParserResult<Decl> {
+    fn parse_init_declarator(&mut self, decl_spec: Rc<DeclSpec>, declarator: Option<Declarator>) -> ParserResult<Rc<Decl>> {
         let lo = self.stream.span();
 
+        // 解析declarator
         let declarator = match declarator {
             Some(x) => x,
             None => {
@@ -432,10 +433,10 @@ impl Parser {
                 declarator
             }
         };
-
         let mut eq: Option<Pos> = None;
         let mut init: Option<Initializer> = None;
         if let Some(assign_token) = self.consume(TokenKind::Assign) {
+            // 解析initializer部分
             eq = Some(assign_token.span.to_pos());
             init = Some(self.parse_initializer()?);
         }
@@ -443,9 +444,11 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let init_declarator = InitDeclarator { declarator, eq, init, span };
-
-        let decl = self.sema_context.act_on_init_declarator(init_declarator)?;
+        // let init_declarator = InitDeclarator { declarator, eq, init, span };
+        let var = self.sema.act_on_declarator(declarator)?;
+        let kind = DeclKind::VarInit { var, eq, init } ;
+        let ty = self.sema.act_on_var_init(&kind)?;
+        let decl = Decl::new_rc(kind, ty, span);
         Ok(decl)
     }
 
@@ -478,13 +481,14 @@ impl Parser {
         Ok(list)
     }
 
-    fn parse_struct_or_union_spec(&mut self) -> ParserResult<Decl> {
+    fn parse_struct_or_union_spec(&mut self) -> ParserResult<Rc<Decl>> {
         // 进入struct上下文
-        self.sema_context.enter(DeclContextType::Struct)?;
+        self.sema.decl_enter(DeclContextKind::Struct);
         let lo = self.stream.span();
         
         // 消耗struct union关键字
         let kw = self.expect_keyword_pair(Keyword::Struct, Keyword::Union)?;
+        let record_kind = StructOrUnion::new(kw);
         let name = self.consume_ident().map(Ident::new); // 尝试解析名字
         let mut body = None;
         // 尝试解析内部声明
@@ -492,19 +496,30 @@ impl Parser {
             let r = lbrace.span.to_pos(); 
             let group = self.parse_struct_decl_list()?;
             let l = self.expect(TokenKind::RBrace)?.span.to_pos();
-            body = Some(StructSpecBody { r, group, l })
+            body = Some(StructSpecBody { r, groups: group, l })
         }
 
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
-        
-        // 语义分析
-        let spec = StructSpec { kw, name, body, span };
-        let decl = self.sema_context.act_on_finish_struct(spec)?;
 
         // 退出struct上下文
-        self.sema_context.exit()?;
+        let decl_context = self.sema.decl_exit();
         
+        // 语义分析
+        let kind = match body {
+            None => DeclKind::RecordRef { kind: record_kind, name: name.unwrap() },
+            Some(body) => DeclKind::Record {
+                kind: record_kind,
+                name,
+                l: body.l,
+                fields: body.groups,
+                r: body.r,
+                decl_context
+            }
+        };
+        
+        let ty = self.sema.act_on_record(&kind)?;
+        let decl = Decl::new_rc(kind, ty, span);
         Ok(decl)
     }
 
@@ -562,9 +577,8 @@ impl Parser {
         Ok(())
     }
     
-    /// 
-
-    fn parse_struct_declarator(&mut self, decl_spec: Rc<DeclSpec>) -> ParserResult<Decl> {
+    ///
+    fn parse_struct_declarator(&mut self, decl_spec: Rc<DeclSpec>) -> ParserResult<Rc<Decl>> {
         let mut declarator = Declarator::new(decl_spec);
         
         let lo = self.stream.span();
@@ -584,27 +598,33 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-
-        let struct_declarator = StructDeclarator { declarator, colon, bit_field, span };
-
-        let decl = self.sema_context.act_on_struct_declarator(struct_declarator)?;
-        
+        // 语义分析，获取类型
+        let var = self.sema.act_on_declarator(declarator)?;
+        let kind = DeclKind::Field { var, colon, bit_field };
+        let ty = self.sema.act_on_field(&kind)?;
+        let decl = Decl::new_rc(kind, ty, span);
         Ok(decl)
     }
 
 
-    fn parse_enum_spec(&mut self) -> ParserResult<Decl> {
+    fn parse_enum_spec(&mut self) -> ParserResult<Rc<Decl>> {
         // 准备枚举上下文
-        self.sema_context.enter(DeclContextType::Enum)?;
+        self.sema.decl_enter(DeclContextKind::Enum);
         let lo = self.stream.span();
+        
+        let kw = self.expect_keyword(Keyword::Enum)?.span;
 
-        let kw = self.expect_keyword(Keyword::Enum)?;
+        // 检查是否合法
+        if self.check_ident() || self.check(TokenKind::LBrace) {
+            let kind = parser_error::ErrorKind::Expect { expect: "identifier or '{'".to_owned() };
+            return Err(self.error_here(kind));
+        }
+
         let name= self.consume_ident().map(Ident::new);
         let body;
         if let Some(lbrace) = self.consume(TokenKind::LBrace) {
-            let mut list = EnumFieldList::default();
             let l = lbrace.span.to_pos();
-            self.parse_enumerator_list(&mut list)?;
+            let list = self.parse_enumerator_list()?;
             let r = self.expect(TokenKind::RBrace)?.span.to_pos();
             body = Some(EnumSpecBody { l, list, r });
         } else {
@@ -618,18 +638,26 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        // 枚举语义分析
-        let spec = EnumSpec { enum_span: kw.span, name, body, span };
-        let decl = self.sema_context.act_on_finish_enum(spec)?;
-
         // 结束枚举上下文
-        self.sema_context.exit()?;
+        let decl_context = self.sema.decl_exit();
+        
+        // 枚举语义分析
+        let kind = match body {
+            None => DeclKind::EnumRef { kw, name: name.unwrap() },
+            Some(body) => DeclKind::Enum { kw, name, l: body.l, enums: body.list, r: body.r, decl_context }
+        };
+        
+        let ty = self.sema.act_on_enum(&kind)?;
+        let decl = Decl::new_rc(kind, ty, span);
+        
         Ok(decl)
     }
 
-    fn parse_enumerator_list(&mut self, list: &mut EnumFieldList) -> ParserResult<()> {
+    fn parse_enumerator_list(&mut self) -> ParserResult<EnumFieldList> {
         let lo = self.stream.span();
 
+        let mut list = EnumFieldList::default();
+        
         loop {
             let decl = self.parse_enumerator()?;
             list.decls.push(decl);
@@ -645,14 +673,14 @@ impl Parser {
         let span = Span::span(lo, hi);
         list.span = span;
 
-        Ok(())
+        Ok(list)
     }
 
     fn parse_enumerator(&mut self) -> ParserResult<EnumField> {
         let lo = self.stream.span();
         
         let ident = self.expect_ident()?;
-        let ident = Ident::new(ident);
+        let name = Ident::new(ident);
         let mut eq = None;
         let mut expr = None;
         if let Some(assign_token) = self.consume(TokenKind::Assign) {
@@ -663,42 +691,46 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
         
-        let enumerator = Enumerator { ident, eq, expr, span };
-        let field = self.sema_context.act_on_enum_field(enumerator)?;
+        let field = EnumField { name, eq, expr, span };
         Ok(field)
     }
 
     /// 函数列表，不包含左右括号
     fn parse_parameter_list(&mut self) -> ParserResult<ParamList> {
         // 进入函数列表上下文
-        self.sema_context.enter(DeclContextType::Parameter)?;
+        self.sema.decl_enter(DeclContextKind::Param);
         
         let lo = self.stream.span();
 
-        let mut params = Vec::new();
+        let mut params: Vec<Rc<Decl>> = Vec::new();
         let mut commas = Vec::new();
         let mut ellipsis = None;
-        self.parse_parameter_decl(&mut params)?;
 
+        // 解析第一个参数声明
+        let decl = self.parse_parameter_decl()?;
+        params.push(decl);
+
+        // 解析后续参数声明
         while let Some(comma) = self.consume(TokenKind::Comma) {
             commas.push(comma.span.to_pos());
             if let Some(token) = self.consume(TokenKind::Ellipsis) {
                 ellipsis = Some(token.span);
                 break
             }
-
-            self.parse_parameter_decl(&mut params)?;
+            let decl = self.parse_parameter_decl()?;
+            params.push(decl);
         }
 
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let list = ParamList { params, commas, ellipsis, span };
-        self.sema_context.act_on_finish_parameter()?;
+        let decl_context = self.sema.decl_exit();
+        let list = ParamList { params, commas, ellipsis, decl_context, span };
+
         Ok(list)
     }
 
-    fn parse_parameter_decl(&mut self, params: &mut Vec<Decl>) -> ParserResult<()> {
+    fn parse_parameter_decl(&mut self) -> ParserResult<Rc<Decl>> {
         let lo = self.stream.span();
 
         let decl_spec = self.parse_decl_spec()?;
@@ -709,10 +741,8 @@ impl Parser {
         let span = Span::span(lo, hi);
 
         declarator.span = span;
-        let decl = self.sema_context.act_on_declarator(declarator)?;
-        params.push(decl);
-
-        Ok(())
+        let decl = self.sema.act_on_declarator(declarator)?;
+        Ok(decl)
     }
 
     fn parse_ident_list(&mut self) -> ParserResult<IdentList> {

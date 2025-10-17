@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use crate::parser::types::ast::decl::{Decl, DeclGroup};
 use crate::parser::types::ast::stmt::Stmt;
 use crate::types::span::Span;
@@ -12,7 +13,7 @@ pub enum ExternalDecl {
 
 #[derive(Clone, Debug)]
 pub struct FuncDef {
-    pub func_decl: Decl,
+    pub func_decl: Rc<Decl>,
     pub decl_list: Vec<DeclGroup>, // K&R 函数定义
     pub body: Box<Stmt>,
     pub span: Span

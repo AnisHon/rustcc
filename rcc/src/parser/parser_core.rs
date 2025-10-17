@@ -1,24 +1,19 @@
-use std::fmt::format;
-use crate::err::global_err::GlobalError;
 use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::token_stream::TokenStream;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
-use std::sync::mpsc;
-use crate::parser::types::sema::sema_context::SemaContext;
+use crate::parser::types::sema::Sema;
 
 pub struct Parser {
     pub(crate) stream: TokenStream,
-    pub(crate) sema_context: SemaContext,
-    pub(crate) error_tx: mpsc::Sender<GlobalError>,
+    pub(crate) sema: Sema
 }
 impl Parser {
-    pub fn new(stream: TokenStream, sema_context: SemaContext, error_tx: mpsc::Sender<GlobalError>) -> Parser {
+    pub fn new(stream: TokenStream, sema: Sema) -> Parser {
         Self {
             stream,
-            sema_context,
-            error_tx,
+            sema,
         }
     }
 
