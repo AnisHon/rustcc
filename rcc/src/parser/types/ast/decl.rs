@@ -4,7 +4,7 @@ use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::Ident;
-use crate::parser::types::sema::decl::decl_context::{DeclContext, DeclContextRef};
+use crate::parser::types::sema::decl::decl_context::{DeclContext, DeclContextRef, EnumDeclContext, RecordDeclContext};
 use crate::parser::types::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 
@@ -32,10 +32,11 @@ impl InitializerList {
 pub enum DeclKind {
     VarDecl { name: Option<Ident> },
     VarInit { var: Rc<Decl>, eq: Option<Pos>, init: Option<Initializer>, }, // int a = 10;
-    Field { var: Rc<Decl>, colon: Option<Pos>, bit_field: Option<Box<Expr>> }, // int a : 10;
-    Record { kind: StructOrUnion, name: Option<Ident>, l: Pos, fields: Vec<DeclGroup>, r: Pos, decl_context: DeclContextRef },
+    RecordField { var: Rc<Decl>, colon: Option<Pos>, bit_field: Option<Box<Expr>> }, // int a : 10;
+    Record { kind: StructOrUnion, name: Option<Ident>, l: Pos, fields: Vec<DeclGroup>, r: Pos, decl_context: RecordDeclContext },
     RecordRef { kind: StructOrUnion, name: Ident }, // struct name;
-    Enum { kw: Span, name: Option<Ident>, l: Pos, enums: EnumFieldList, r: Pos, decl_context: DeclContextRef }, // enum name { ... } 
+    EnumField { name: Ident, eq: Option<Pos>, expr: Option<Box<Expr>> },
+    Enum { kw: Span, name: Option<Ident>, l: Pos, enums: EnumFieldList, r: Pos, decl_context: EnumDeclContext }, // enum name { ... } 
     EnumRef { kw: Span, name: Ident },
 }
 
@@ -62,9 +63,10 @@ impl Decl {
             | Record { name, .. }
             | Enum { name, .. } => name.as_ref(),
             RecordRef { name, .. }
-            | EnumRef { name, .. } => Some(name), 
+            | EnumRef { name, .. } 
+            | EnumField { name, .. } => Some(name), 
             VarInit { var, .. }
-            | Field { var, .. } => var.get_name()
+            | RecordField { var, .. } => var.get_name(),
         }
     }
 }

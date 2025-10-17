@@ -1,6 +1,8 @@
 use crate::types::span::{Pos, Span};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
+use crate::err::parser_error;
+use crate::lex::types::token_kind::Symbol;
 
 pub type ParserResult<T> = Result<T, ParserError>;
 
@@ -18,7 +20,17 @@ pub enum ErrorKind {
     NonCombinable { prev: String, context: String },
     #[error("Duplicate '{item}' {context}")]
     Duplicate { item: String, context: String },
+    #[error("Redefinition of '{symbol}'")]
+    Redefinition { symbol: String }
 }
+
+impl ErrorKind {
+    pub fn redefinition(symbol: Symbol) -> ErrorKind {
+        let symbol = symbol.get().to_owned();
+        ErrorKind::Redefinition { symbol }
+    }
+}
+
 #[derive(Debug)]
 pub enum ErrorLevel {
     Note,
@@ -35,7 +47,8 @@ impl ErrorLevel {
             | Expect { .. }
             | NotAssignable { .. } 
             | TypeSpecifierMissing 
-            | NonCombinable { .. } => Error,
+            | NonCombinable { .. }
+            | Redefinition { .. } => Error,
             Duplicate { .. } => Warning,
         }
     }
@@ -54,13 +67,13 @@ impl Display for ErrorLevel {
 
 #[derive(Debug)]
 pub struct ParserError {
-    pub span: Span,
     pub error_kind: ErrorKind,    // 错误信息
-    pub level: ErrorLevel
+    pub level: ErrorLevel,
+    pub span: Span,
 }
 
 impl ParserError {
-    pub fn new(span: Span, error_kind: ErrorKind) -> Self {
+    pub fn new(error_kind: ErrorKind, span: Span) -> Self {
         let level = ErrorLevel::from_kind(&error_kind);
         Self { span, error_kind, level }
     }

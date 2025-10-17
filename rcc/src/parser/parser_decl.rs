@@ -14,7 +14,7 @@ macro_rules! dup_error {
     ($ele:expr, $context:expr) => {{
         let item = $ele.kind_str().to_owned();
         let kind = parser_error::ErrorKind::Duplicate { item, context: $context.to_owned() };
-        ParserError::new($ele.span, kind)
+        ParserError::new(kind, $ele.span)
     }};
 }
 
@@ -22,7 +22,7 @@ macro_rules! combine_error {
     ($ele:expr, $context:expr) => {{
         let prev = $ele.kind_str().to_owned();
         let kind = parser_error::ErrorKind::NonCombinable { prev , context: $context.to_owned() };
-        ParserError::new($ele.span, kind)
+        ParserError::new(kind, $ele.span)
     }};
 }
 
@@ -483,7 +483,7 @@ impl Parser {
 
     fn parse_struct_or_union_spec(&mut self) -> ParserResult<Rc<Decl>> {
         // 进入struct上下文
-        self.sema.decl_enter(DeclContextKind::Struct);
+        self.sema.decl_enter(DeclContextKind::Record);
         let lo = self.stream.span();
         
         // 消耗struct union关键字
@@ -600,7 +600,7 @@ impl Parser {
 
         // 语义分析，获取类型
         let var = self.sema.act_on_declarator(declarator)?;
-        let kind = DeclKind::Field { var, colon, bit_field };
+        let kind = DeclKind::RecordField { var, colon, bit_field };
         let ty = self.sema.act_on_field(&kind)?;
         let decl = Decl::new_rc(kind, ty, span);
         Ok(decl)

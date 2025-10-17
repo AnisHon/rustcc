@@ -6,7 +6,7 @@ use crate::parser::types::ast::decl::{Decl, DeclGroup, EnumField, EnumFieldList}
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::{Ident, IdentList};
 use crate::parser::types::declarator::*;
-use crate::parser::types::sema::decl::decl_context::{DeclContext, DeclContextRef};
+use crate::parser::types::sema::decl::decl_context::{CommonDeclContext, DeclContext, DeclContextRef};
 use crate::parser::types::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 
@@ -234,7 +234,7 @@ pub struct ParamList {
     pub params: Vec<Rc<Decl>>,
     pub commas: Vec<Pos>,
     pub ellipsis: Option<Span>,
-    pub decl_context: DeclContextRef,
+    pub decl_context: CommonDeclContext,
     pub span: Span,
 }
 
