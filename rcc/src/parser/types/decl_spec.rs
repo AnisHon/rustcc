@@ -1,14 +1,14 @@
-use std::rc::Rc;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
-use crate::parser::types::ast::decl::{Decl, DeclGroup, EnumField, EnumFieldList};
+use crate::parser::types::ast::decl::{Decl, DeclGroup, EnumFieldList, StructOrUnion};
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::{Ident, IdentList};
 use crate::parser::types::declarator::*;
-use crate::parser::types::sema::decl::decl_context::{CommonDeclContext, DeclContext, DeclContextRef};
-use crate::parser::types::sema::sema_type::Type;
+use crate::parser::types::sema::decl::decl_context::DeclContextRef;
 use crate::types::span::{Pos, Span};
+use std::rc::Rc;
+use enum_as_inner::EnumAsInner;
 
 pub type TypeQualType = [Option<TypeQual>; 3];
 
@@ -24,9 +24,7 @@ pub type TypeQualType = [Option<TypeQual>; 3];
 #[derive(Debug, Clone)]
 pub struct DeclSpec {
     pub storage: Option<StorageSpec>, // 全局上下文的时候默认extern
-    pub type_base: Option<TypeSpec>,
-    pub type_size: Option<TypeSpec>,
-    pub signed: Option<TypeSpec>, 
+    pub type_specs: Vec<TypeSpec>,
     pub type_quals: TypeQualType,
     pub func_spec: Option<FuncSpec>,
     pub span: Span
@@ -58,16 +56,6 @@ impl StorageSpec {
         }
     }
 }
-
-impl Default for StorageSpec {
-    fn default() -> StorageSpec {
-        Self {
-            kind: StorageSpecKind::Extern,
-            span: Span::default(),
-        }
-    }
-}
-
 impl StorageSpec {
     pub fn new(token: Token) -> Self {
         use crate::lex::types::token_kind::Keyword::*;
@@ -84,25 +72,30 @@ impl StorageSpec {
         };
         Self { kind, span: token.span }
     }
+
+    pub fn from_kind(kind: StorageSpecKind) -> Self {
+        Self {
+            kind,
+            span: Span::default(),
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumAsInner)]
 pub enum TypeSpecKind {
     Void,
     Char,
     Short,
     Int,
     Long,
-    LongLong,
     Float,
     Double,
-    LongDouble,
     Signed,
     Unsigned,
     Struct(Rc<Decl>),
     Union(Rc<Decl>),
     Enum(Rc<Decl>),
-    TypeName(Ident)
+    TypeName(Ident, Rc<Decl>)
 }
 
 #[derive(Debug, Clone)]
@@ -130,6 +123,13 @@ impl TypeSpec {
         Self { kind, span: token.span }
     }
 
+    pub fn from_kind(kind: TypeSpecKind) -> Self {
+        Self {
+            kind,
+            span: Span::default(),
+        }
+    }
+
     pub fn kind_str(&self) -> &'static str {
         match &self.kind {
             TypeSpecKind::Void => "void",
@@ -144,9 +144,7 @@ impl TypeSpec {
             TypeSpecKind::Struct(_) => "struct",
             TypeSpecKind::Union(_) => "union",
             TypeSpecKind::Enum(_) => "enum",
-            TypeSpecKind::TypeName(_) => "type-name",
-            TypeSpecKind::LongLong => "long long",
-            TypeSpecKind::LongDouble => "long double"
+            TypeSpecKind::TypeName(_, _) => "type-name",
         }
     }
     
@@ -234,7 +232,7 @@ pub struct ParamList {
     pub params: Vec<Rc<Decl>>,
     pub commas: Vec<Pos>,
     pub ellipsis: Option<Span>,
-    pub decl_context: CommonDeclContext,
+    pub decl_context: DeclContextRef,
     pub span: Span,
 }
 
@@ -248,31 +246,10 @@ pub struct StructSpecBody {
 // struct or union
 #[derive(Clone, Debug)]
 pub struct StructSpec {
-    pub kw: Token,
+    pub kind: StructOrUnion,
     pub name: Option<Ident>,
     pub body: Option<StructSpecBody>,
     pub span: Span
-}
-
-#[derive(Clone, Debug)]
-pub struct StructVar {
-    pub decl_spec: Rc<DeclSpec>,
-    pub declarators: Vec<StructDeclarator>,
-    pub commas: Vec<Pos>,
-    pub semi: Pos,
-    pub span: Span,
-}
-
-impl StructVar {
-    pub fn new(decl_spec: Rc<DeclSpec>) -> Self {
-        Self {
-            decl_spec,
-            declarators: Vec::new(),
-            commas: Vec::new(),
-            semi: Pos::default(),
-            span: Span::default(),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]

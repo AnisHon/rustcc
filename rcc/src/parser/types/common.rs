@@ -2,7 +2,7 @@ use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Symbol;
 use crate::types::span::{Pos, Span};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Ident {
     pub symbol: Symbol,
     pub span: Span,

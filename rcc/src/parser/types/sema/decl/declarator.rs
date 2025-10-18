@@ -1,47 +1,39 @@
 use std::rc::Rc;
 use crate::err::parser_error::ParserResult;
 use crate::parser::types::ast::decl::{Decl, DeclKind};
+use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::Ident;
-use crate::parser::types::declarator::Declarator;
+use crate::parser::types::decl_spec::{EnumSpec, StorageSpec, StorageSpecKind, StructDeclarator, StructSpec};
+use crate::parser::types::declarator::{Declarator, InitDeclarator};
 use crate::parser::types::sema::decl::decl_context::DeclContextKind;
 use crate::parser::types::sema::Sema;
 use crate::parser::types::sema::sema_type::Type;
+use crate::types::span::Pos;
 
 impl Sema {
 
-    pub fn act_on_enum(&mut self, kind: &DeclKind) -> ParserResult<Rc<Type>> {
-        match kind {
-            DeclKind::Enum { .. } => {}
-            DeclKind::EnumRef { .. } => {}
-            _ => unreachable!()
-        }
+   
+    
+   
+
+
+
+    pub fn act_on_init_declarator(&mut self, declarator: InitDeclarator) -> ParserResult<Rc<Decl>> {
+        todo!()
+    }
+    pub fn act_on_record_field(&mut self, struct_declarator: StructDeclarator) -> ParserResult<Rc<Decl>> {
         todo!()
     }
     
-    pub fn act_on_field(&mut self, kind: &DeclKind) -> ParserResult<Rc<Type>> {
-        let (decl, colon, bit_field) = kind.as_record_field().unwrap();
-        
+    pub fn act_on_finish_record(&mut self, spec: StructSpec) -> ParserResult<Rc<Decl>> {
+        let decl_context = self.decl_exit();
         todo!()
     }
     
-    pub fn act_on_record(&mut self, kind: &DeclKind) -> ParserResult<Rc<Type>> {
+    pub fn act_on_finish_enum(&mut self, decl: EnumSpec) -> ParserResult<Rc<Decl>> {
+        let decl_context = self.decl_exit();
         todo!()
     }
-
-    pub fn act_on_declarator(&mut self, declarator: Declarator) -> ParserResult<Rc<Decl>> {
-        let kind = self.curr_decl.borrow().get_kind();
-        let decl = match kind {
-            DeclContextKind::Global => self.act_on_global_declarator(declarator)?,
-            DeclContextKind::Block => self.act_on_block_declarator(declarator)?,
-            DeclContextKind::Record => self.act_on_struct_declarator(declarator)?,
-            DeclContextKind::Enum => self.act_on_enum_declarator(declarator)?,
-            DeclContextKind::Param => self.act_on_param_declarator(declarator)?,
-        };
-        self.add_decl(Rc::clone(&decl))?;
-
-        Ok(decl)
-    }
-
     fn add_decl(&mut self, decl: Rc<Decl>) -> ParserResult<()> {
         let mut context = self.curr_decl.borrow_mut();
 
@@ -66,11 +58,25 @@ impl Sema {
         Ok(())
     }
 
-    pub fn act_on_var_init(&mut self, kind: &DeclKind) -> ParserResult<Rc<Type>> {
-        todo!()
+    pub fn act_on_declarator(&mut self, declarator: Declarator) -> ParserResult<Rc<Decl>> {
+        let kind = self.curr_decl.borrow().get_kind();
+        let decl = match kind {
+            DeclContextKind::Global => self.act_on_global_declarator(declarator)?,
+            DeclContextKind::Block => self.act_on_block_declarator(declarator)?,
+            DeclContextKind::Record => self.act_on_struct_declarator(declarator)?,
+            DeclContextKind::Enum => self.act_on_enum_declarator(declarator)?,
+            DeclContextKind::Param => self.act_on_param_declarator(declarator)?,
+        };
+
+        Ok(decl)
     }
 
     fn act_on_global_declarator(&mut self, declarator: Declarator) -> ParserResult<Rc<Decl>> {
+        let storage = declarator.decl_spec.storage.clone()
+            .unwrap_or(StorageSpec::from_kind(StorageSpecKind::Extern));
+        
+        
+        // Decl {  }
         todo!()
     }
 

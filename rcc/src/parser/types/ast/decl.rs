@@ -1,12 +1,13 @@
-use std::rc::Rc;
-use enum_as_inner::EnumAsInner;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::Ident;
-use crate::parser::types::sema::decl::decl_context::{DeclContext, DeclContextRef, EnumDeclContext, RecordDeclContext};
+use crate::parser::types::decl_spec::StorageSpec;
+use crate::parser::types::sema::decl::decl_context::DeclContextRef;
 use crate::parser::types::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
+use enum_as_inner::EnumAsInner;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Initializer {
@@ -30,44 +31,35 @@ impl InitializerList {
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum DeclKind {
-    VarDecl { name: Option<Ident> },
-    VarInit { var: Rc<Decl>, eq: Option<Pos>, init: Option<Initializer>, }, // int a = 10;
-    RecordField { var: Rc<Decl>, colon: Option<Pos>, bit_field: Option<Box<Expr>> }, // int a : 10;
-    Record { kind: StructOrUnion, name: Option<Ident>, l: Pos, fields: Vec<DeclGroup>, r: Pos, decl_context: RecordDeclContext },
+    VarInit { eq: Option<Pos>, init: Option<Initializer>, }, // int a = 10;
+    RecordField { colon: Option<Pos>, bit_field: Option<Box<Expr>> }, // int a : 10;
+    Record { kind: StructOrUnion, name: Option<Ident>, l: Pos, fields: Vec<DeclGroup>, r: Pos, decl_context: DeclContextRef },
     RecordRef { kind: StructOrUnion, name: Ident }, // struct name;
-    EnumField { name: Ident, eq: Option<Pos>, expr: Option<Box<Expr>> },
-    Enum { kw: Span, name: Option<Ident>, l: Pos, enums: EnumFieldList, r: Pos, decl_context: EnumDeclContext }, // enum name { ... } 
-    EnumRef { kw: Span, name: Ident },
+    EnumField { eq: Option<Pos>, expr: Option<Box<Expr>> },
+    Enum { kw: Span, l: Pos, enums: EnumFieldList, r: Pos, decl_context: DeclContextRef }, // enum name { ... }
+    EnumRef { kw: Span },
 }
 
 #[derive(Debug, Clone)]
 pub struct Decl {
+    pub storage: Option<StorageSpec>,
+    pub name: Option<Ident>,
     pub kind: DeclKind,
     pub ty: Option<Rc<Type>>,
     pub span: Span,
 }
 
 impl Decl {
-    pub fn new(kind: DeclKind, ty: Rc<Type>, span: Span) -> Self {
-        Self { kind, ty: Some(ty), span }
+    pub fn new(kind: DeclKind, name: Option<Ident>, span: Span) -> Self {
+        Self { storage: None, name: None, kind, ty: None, span }
     }
     
-    pub fn new_rc(kind: DeclKind, ty: Rc<Type>, span: Span) -> Rc<Self> {
-        Rc::new(Self::new(kind, ty, span))
+    pub fn new_rc(kind: DeclKind, name: Option<Ident>, span: Span) -> Rc<Self> {
+        Rc::new(Self::new(kind, name, span))
     }
     
     pub fn get_name(&self) -> Option<&Ident> {
-        use DeclKind::*;
-        match &self.kind {
-            VarDecl { name }
-            | Record { name, .. }
-            | Enum { name, .. } => name.as_ref(),
-            RecordRef { name, .. }
-            | EnumRef { name, .. } 
-            | EnumField { name, .. } => Some(name), 
-            VarInit { var, .. }
-            | RecordField { var, .. } => var.get_name(),
-        }
+        self.name.as_ref()
     }
 }
 

@@ -18,7 +18,7 @@ pub enum DeclContextKind {
     Param,
 }
 
-pub trait DeclContext {
+pub trait DeclContext: Debug {
     fn get_decls(&self) -> &FxHashMap<Symbol, Rc<Decl>>;
     // fn get_decls_mut(&mut self) -> &mut FxHashMap<Symbol, Rc<Decl>>;
     fn get_kind(&self) -> DeclContextKind;

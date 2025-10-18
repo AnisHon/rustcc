@@ -78,9 +78,7 @@ impl Parser {
         let lo = self.stream.span();
 
         let mut storage: Option<StorageSpec> = None;
-        let mut type_base: Option<TypeSpec> = None;
-        let mut type_size: Option<TypeSpec> = None;
-        let mut signed: Option<TypeSpec> = None;
+        let mut type_specs: Vec<TypeSpec> = Vec::new();
         let mut type_quals: [Option<TypeQual>; 3] = [None; 3];
         let mut func_spec: Option<FuncSpec> = None;
 
@@ -101,64 +99,9 @@ impl Parser {
                 }
                 storage = Some(spec);
             } else if self.is_type_spec(token) {
-                use TypeSpecKind::*;
                 // 类型
                 let spec = self.parse_type_spec()?;
-                match &spec.kind {
-                    Void | Int | Double | TypeName(_)
-                    | Struct(_) | Union(_) | Enum(_) => {
-                        if let Some(base) = &type_base {
-                            let error = if base.is(&spec.kind) {
-                                dup_error!(spec, CONTEXT)
-                            } else {
-                                combine_error!(spec, CONTEXT)
-                            };
-                            self.send_error(error)
-                        }
-                        type_base = Some(spec);
-                    }
-                    Signed | Unsigned => {
-                        if let Some(signed) = &signed {
-                            let error = if signed.is(&spec.kind) {
-                                dup_error!(spec, CONTEXT)
-                            } else {
-                                combine_error!(spec, CONTEXT)
-                            };
-                            self.send_error(error)
-                        }
-                        signed = Some(spec);
-                    }
-
-                    Char | Short | Long | LongLong
-                    | Float | LongDouble => {
-                        if let Some(size) = &type_size {
-                            let kind = if size.is(&Long) && spec.is(&Long) {
-                                LongLong
-                            } else if size.is(&Long) && spec.is(&Double) {
-                                LongDouble
-                            } else if size.is(&Double) && spec.is(&Long) {
-                                LongDouble
-                            } else if size.is(&spec.kind) {
-                                let error = dup_error!(size, CONTEXT);
-                                self.send_error(error);
-                                continue;
-                            } else {
-                                let error = combine_error!(size, CONTEXT);
-                                self.send_error(error);
-                                continue;
-                            };
-                            let span = size.span.merge(&spec.span);
-                            type_size = Some(TypeSpec { kind, span });
-                            
-                            
-                        } else  {
-                            type_size = Some(spec);
-                        }
-                    }
-
-                }
-
-
+                type_specs.push(spec);
 
             } else if self.is_type_qual(token) {
                 // const restrict volatile
@@ -192,9 +135,7 @@ impl Parser {
 
         let decl_spec = Rc::new(DeclSpec {
             storage,
-            type_base,
-            type_size,
-            signed,
+            type_specs,
             type_quals,
             func_spec,
             span
@@ -215,7 +156,11 @@ impl Parser {
             TokenKind::Ident(_) => {
                 let symbol = self.stream.next().kind.into_ident().unwrap();
                 let ident = Ident { symbol, span };
-                let kind = TypeSpecKind::TypeName(ident);
+                let decl = match self.sema.curr_decl.borrow().lookup_chain(symbol) {
+                    Some(x) => x,
+                    None => todo!()
+                };
+                let kind = TypeSpecKind::TypeName(ident, decl);
                 TypeSpec { kind, span }
             }
             TokenKind::Keyword(kw) => match kw {
@@ -444,11 +389,8 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        // let init_declarator = InitDeclarator { declarator, eq, init, span };
-        let var = self.sema.act_on_declarator(declarator)?;
-        let kind = DeclKind::VarInit { var, eq, init } ;
-        let ty = self.sema.act_on_var_init(&kind)?;
-        let decl = Decl::new_rc(kind, ty, span);
+        let init_declarator = InitDeclarator { declarator, eq, init, span };
+        let decl = self.sema.act_on_init_declarator(init_declarator)?;
         Ok(decl)
     }
 
@@ -506,20 +448,9 @@ impl Parser {
         let decl_context = self.sema.decl_exit();
         
         // 语义分析
-        let kind = match body {
-            None => DeclKind::RecordRef { kind: record_kind, name: name.unwrap() },
-            Some(body) => DeclKind::Record {
-                kind: record_kind,
-                name,
-                l: body.l,
-                fields: body.groups,
-                r: body.r,
-                decl_context
-            }
-        };
+        let spec = StructSpec { kind: record_kind, name, body, span  };
         
-        let ty = self.sema.act_on_record(&kind)?;
-        let decl = Decl::new_rc(kind, ty, span);
+        let decl = self.sema.act_on_finish_record(spec)?;
         Ok(decl)
     }
 
@@ -598,11 +529,10 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
+        let struct_declarator = StructDeclarator { declarator, colon, bit_field, span };
+
         // 语义分析，获取类型
-        let var = self.sema.act_on_declarator(declarator)?;
-        let kind = DeclKind::RecordField { var, colon, bit_field };
-        let ty = self.sema.act_on_field(&kind)?;
-        let decl = Decl::new_rc(kind, ty, span);
+        let decl = self.sema.act_on_record_field(struct_declarator)?;
         Ok(decl)
     }
 
@@ -638,18 +568,10 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        // 结束枚举上下文
-        let decl_context = self.sema.decl_exit();
-        
-        // 枚举语义分析
-        let kind = match body {
-            None => DeclKind::EnumRef { kw, name: name.unwrap() },
-            Some(body) => DeclKind::Enum { kw, name, l: body.l, enums: body.list, r: body.r, decl_context }
-        };
-        
-        let ty = self.sema.act_on_enum(&kind)?;
-        let decl = Decl::new_rc(kind, ty, span);
-        
+
+        let spec = EnumSpec { enum_span: kw, name, body, span };
+        // 完成并结束枚举上下文
+        let decl = self.sema.act_on_finish_enum(spec)?;
         Ok(decl)
     }
 

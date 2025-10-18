@@ -44,6 +44,7 @@ impl DeclaratorChunk {
         Self { kind, span }
     }
 }
+
 #[derive(Clone, Debug)]
 pub struct InitDeclarator {
     pub declarator: Declarator,
@@ -64,6 +65,4 @@ impl InitDeclaratorList {
         Self { inits: Vec::new(), commas: Vec::new(), span: Span::default() }
     }
 }
-
-
 
