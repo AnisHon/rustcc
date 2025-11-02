@@ -1,14 +1,13 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
-use crate::parser::types::ast::decl::{Decl, DeclGroup, EnumFieldList, StructOrUnion};
+use crate::parser::types::ast::decl::{Decl, DeclGroup, StructOrUnion};
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::{Ident, IdentList};
 use crate::parser::types::declarator::*;
-use crate::parser::types::sema::decl::decl_context::DeclContextRef;
 use crate::types::span::{Pos, Span};
-use std::rc::Rc;
 use enum_as_inner::EnumAsInner;
+use std::rc::Rc;
 
 pub type TypeQualType = [Option<TypeQual>; 3];
 
@@ -232,8 +231,18 @@ pub struct ParamList {
     pub params: Vec<Rc<Decl>>,
     pub commas: Vec<Pos>,
     pub ellipsis: Option<Span>,
-    pub decl_context: DeclContextRef,
     pub span: Span,
+}
+
+impl Default for ParamList {
+    fn default() -> Self {
+        Self {
+            params: Vec::new(),
+            commas: Vec::new(),
+            ellipsis: None,
+            span: Span::default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -263,8 +272,17 @@ pub struct StructDeclarator {
 #[derive(Clone, Debug)]
 pub struct EnumSpecBody {
     pub l: Pos,
-    pub list: EnumFieldList,
+    pub decls: Vec<Rc<Decl>>,
+    pub commas: Vec<Pos>,
     pub r: Pos,
+}
+
+#[derive(Clone, Debug)]
+pub struct Enumerator {
+    pub name: Ident,
+    pub eq: Option<Pos>,
+    pub expr: Option<Box<Expr>>,
+    pub span: Span
 }
 
 #[derive(Clone, Debug)]

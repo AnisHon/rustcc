@@ -89,7 +89,7 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let expr = Expr::new_box(kind, span);
+        let expr = self.sema.make_expr(kind, span);
         Ok(expr)
     }
 
@@ -124,7 +124,7 @@ impl Parser {
             };
             let hi = self.stream.prev_span();
             let span = Span::span(lo, hi);
-            lhs = Expr::new_box(kind, span);
+            lhs = self.sema.make_expr(kind, span);
         }
 
         Ok(lhs)
@@ -188,7 +188,7 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let expr = Expr::new_box(kind, span);
+        let expr = self.sema.make_expr(kind, span);
         Ok(expr)
     }
 
@@ -206,7 +206,7 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let expr = Expr::new_box(kind, span);
+        let expr = self.sema.make_expr(kind, span);
         Ok(expr)
     }
 
@@ -220,7 +220,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
 
             return self.parse_multiplicative_expr_rhs(expr, lo);
         }
@@ -243,7 +243,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
 
             return self.parse_additive_expr_rhs(expr, lo);
         }
@@ -266,7 +266,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
 
             return self.parse_shift_expr_rhs(expr, lo);
         }
@@ -288,7 +288,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
             
             return self.parse_relational_expr_rhs(expr, lo);
         }
@@ -310,7 +310,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
             
             return self.parse_equality_expr_rhs(expr, lo);
         }
@@ -332,7 +332,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
             
             return self.parse_and_expr_rhs(expr, lo);
         }
@@ -355,7 +355,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
             
             return self.parse_exclusive_or_expr_rhs(expr, lo);
         }
@@ -377,7 +377,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
             
             return self.parse_inclusive_or_expr_rhs(expr, lo);
         }
@@ -400,7 +400,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
             
             return self.parse_logical_and_expr_rhs(expr, lo);
         }
@@ -422,7 +422,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
             
             return self.parse_logical_or_expr_rhs(expr, lo);
         }
@@ -456,7 +456,7 @@ impl Parser {
         let span = Span::span(lo, hi);
         
         let kind = ExprKind::make_ternary(cond, question, then_expr, colon, else_expr);
-        let expr = Expr::new_box(kind, span);
+        let expr = self.sema.make_expr(kind, span);
         
         Ok(expr)
     }
@@ -481,7 +481,7 @@ impl Parser {
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_assign(lhs, assign_op, rhs);
-        let expr = Expr::new_box(kind, span);
+        let expr = self.sema.make_expr(kind, span);
         
         Ok(expr)
     }
@@ -493,7 +493,7 @@ impl Parser {
             let span = Span::span(lo, hi);
 
             let kind = ExprKind::make_binary(lhs, op, rhs);
-            let expr = Expr::new_box(kind, span);
+            let expr = self.sema.make_expr(kind, span);
 
             return self.parse_expr_rhs(expr, lo);
         }

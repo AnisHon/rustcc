@@ -11,15 +11,5 @@ mod types;
 mod parser_stmt;
 mod parser_function;
 
-#[cfg(test)]
-mod test {
-    use std::sync::{mpsc, Arc};
-    use crate::content_manager::ContentManager;
-    use crate::lex::lex_core::{run_lexer, Lex};
-    use crate::lex::types::token_kind::TokenKind;
-    use crate::parser::parser_core::Parser;
-
-
-}
-
-
+pub use crate::parser::types::sema::Sema;
+pub use crate::parser::types::ast;

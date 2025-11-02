@@ -1,32 +1,63 @@
-use crate::parser::types::sema::decl::decl_context::{DeclContext, DeclContextKind, DeclContextRef, CommonDeclContext};
+use crate::parser::types::sema::decl::decl_context::{CommonDeclContext, DeclContextKind, DeclContextRef, EnumDeclContext, ParamDeclContext, RecordDeclContext};
+use crate::parser::types::sema::ty::type_context::TypeContext;
 use std::cell::RefCell;
 use std::rc::Rc;
-
+use crate::err::parser_error::ParserResult;
+use crate::lex::types::token_kind::Symbol;
+use crate::parser::types::ast::decl::Decl;
 
 pub struct Sema {
-    pub(crate) curr_decl: DeclContextRef
+    pub(crate) curr_decl: DeclContextRef,
+    pub(crate) type_context: TypeContext,
 }
 impl Sema {
     pub fn new() -> Self {
-        let curr_decl = Rc::new(RefCell::new(CommonDeclContext::new(DeclContextKind::Global, None)));
+        let curr_decl = Rc::new(RefCell::new(CommonDeclContext::new(DeclContextKind::File, None)));
+        let type_context = TypeContext::new();
         Self {
-            curr_decl
+            curr_decl,
+            type_context,
         }
     }
     
-    pub fn decl_enter(&mut self, kind: DeclContextKind) {
-        // self.curr_decl = Rc::new(RefCell::new(DeclContext::new(kind, Some(Rc::clone(&self.curr_decl)))));
-        todo!()
-    }
     
-    pub fn decl_exit(&mut self) -> DeclContextRef {
+    /// 进入decl
+    /// # Arguments
+    /// - `kind`: 类型
+    /// - `context`: 继承上下文
+    pub fn enter_decl(&mut self, kind: DeclContextKind) {
+        use DeclContextKind::*;
+        let curr = Rc::clone(&self.curr_decl);
+
+        let context: DeclContextRef = match kind {
+            File | Block => Rc::new(RefCell::new(CommonDeclContext::new(kind, Some(curr)))),
+            Record => Rc::new(RefCell::new(RecordDeclContext::new(curr))),
+            Enum => Rc::new(RefCell::new(EnumDeclContext::new(curr))),
+        };
+        self.curr_decl = context;
+        // println!("into decl: {:?}", self.curr_decl);
+    }
+
+    pub fn exit_decl(&mut self) -> DeclContextRef {
         let curr_decl = Rc::clone(&self.curr_decl);
         let curr_decl_mut = curr_decl.borrow();
-        assert_ne!(curr_decl_mut.get_kind(), DeclContextKind::Global); // 不允许退出全局
+        assert_ne!(curr_decl_mut.get_kind(), DeclContextKind::File); // 不允许退出全局
         let parent = curr_decl_mut.get_parent().unwrap();
         drop(curr_decl_mut);
         self.curr_decl = parent;
         curr_decl
+    }
+
+    pub fn get_decl_context(&self) -> DeclContextRef {
+        Rc::clone(&self.curr_decl)
+    }
+    
+    pub fn insert_decl(&mut self, decl: Rc<Decl>) -> ParserResult<()> {
+        self.curr_decl.borrow_mut().insert(decl)
+    }
+
+    pub fn look_up_chain(&mut self, symbol: Symbol) -> Option<Rc<Decl>> {
+        self.curr_decl.borrow().lookup_chain(symbol)
     }
     
 }

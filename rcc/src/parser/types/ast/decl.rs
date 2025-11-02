@@ -8,6 +8,7 @@ use crate::parser::types::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
 use std::rc::Rc;
+use crate::parser::types::ast::stmt::Stmt;
 
 #[derive(Debug, Clone)]
 pub enum Initializer {
@@ -31,12 +32,48 @@ impl InitializerList {
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum DeclKind {
-    VarInit { eq: Option<Pos>, init: Option<Initializer>, }, // int a = 10;
-    RecordField { colon: Option<Pos>, bit_field: Option<Box<Expr>> }, // int a : 10;
-    Record { kind: StructOrUnion, name: Option<Ident>, l: Pos, fields: Vec<DeclGroup>, r: Pos, decl_context: DeclContextRef },
-    RecordRef { kind: StructOrUnion, name: Ident }, // struct name;
-    EnumField { eq: Option<Pos>, expr: Option<Box<Expr>> },
-    Enum { kw: Span, l: Pos, enums: EnumFieldList, r: Pos, decl_context: DeclContextRef }, // enum name { ... }
+    ParamVar,
+    VarInit {  // int a = 10;
+        eq: Option<Pos>, 
+        init: Option<Initializer>, 
+    },
+    FuncRef { // 函数声明
+        ret_ty: Rc<Type>,
+        params: Vec<Rc<Decl>>,
+        is_variadic: bool,
+    },
+    Func { // 函数定义
+        ret_ty: Rc<Type>,
+        params: Vec<Rc<Decl>>,
+        is_variadic: bool,
+        body: Box<Stmt>,
+    },
+    RecordField {  // int a : 10;
+        colon: Option<Pos>, 
+        bit_field: Option<Box<Expr>> 
+    },
+    Record { 
+        kind: StructOrUnion, 
+        l: Pos,
+        fields: Vec<DeclGroup>,
+        r: Pos,
+        decl_context: DeclContextRef
+    },
+    RecordRef { 
+        kind: StructOrUnion, 
+    }, // struct name;
+    EnumField { 
+        eq: Option<Pos>, 
+        expr: Option<Box<Expr>>
+    },
+    Enum { // enum name { ... } 
+        kw: Span, 
+        l: Pos,
+        enums: Vec<Rc<Decl>>,
+        commas: Vec<Pos>, 
+        r: Pos,
+        decl_context: DeclContextRef
+    }, 
     EnumRef { kw: Span },
 }
 
@@ -45,19 +82,11 @@ pub struct Decl {
     pub storage: Option<StorageSpec>,
     pub name: Option<Ident>,
     pub kind: DeclKind,
-    pub ty: Option<Rc<Type>>,
+    pub ty: Rc<Type>,
     pub span: Span,
 }
 
 impl Decl {
-    pub fn new(kind: DeclKind, name: Option<Ident>, span: Span) -> Self {
-        Self { storage: None, name: None, kind, ty: None, span }
-    }
-    
-    pub fn new_rc(kind: DeclKind, name: Option<Ident>, span: Span) -> Rc<Self> {
-        Rc::new(Self::new(kind, name, span))
-    }
-    
     pub fn get_name(&self) -> Option<&Ident> {
         self.name.as_ref()
     }
@@ -102,32 +131,5 @@ impl StructOrUnion {
             _ => unreachable!()
         };
         Self { kind, span: token.span }
-    }
-}
-
-// struct or union
-#[derive(Debug, Clone)]
-pub struct EnumField {
-    pub name: Ident,
-    pub eq: Option<Pos>,
-    pub expr: Option<Box<Expr>>,
-    pub span: Span,
-}
-
-
-#[derive(Clone, Debug)]
-pub struct EnumFieldList {
-    pub decls: Vec<EnumField>,
-    pub commas: Vec<Pos>,
-    pub span: Span
-}
-
-impl Default for EnumFieldList {
-    fn default() -> Self {
-        Self {
-            decls: Vec::new(),
-            commas: Vec::new(),
-            span: Span::default(),
-        }
     }
 }

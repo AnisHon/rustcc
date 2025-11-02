@@ -1,9 +1,10 @@
-use std::rc::Rc;
 use crate::parser::types::ast::decl::Initializer;
 use crate::parser::types::ast::expr::Expr;
-use crate::parser::types::common::{Ident};
-use crate::parser::types::decl_spec::{DeclSpec, ParamDecl, TypeQual, TypeQualType};
+use crate::parser::types::common::Ident;
+use crate::parser::types::decl_spec::{DeclSpec, ParamDecl, TypeQualType};
 use crate::types::span::{Pos, Span};
+use std::rc::Rc;
+use crate::parser::types::sema::decl::decl_context::DeclContextRef;
 
 #[derive(Clone, Debug)]
 pub struct Declarator {
@@ -66,3 +67,6 @@ impl InitDeclaratorList {
     }
 }
 
+pub struct FunctionDeclarator {
+
+}

@@ -176,13 +176,14 @@ impl Parser {
 
     pub(crate) fn error_here(&mut self, kind: parser_error::ErrorKind) -> ParserError {
         let span = self.stream.peek().span;
-        ParserError::new(span, kind)
+        ParserError::new(kind, span)
     }
 
     pub(crate) fn is_type_name(&self, token: &Token) -> bool {
-        // todo
         if let TokenKind::Ident(symbol) = token.kind {
-            false
+            self.sema.curr_decl.borrow() // 检查符号表
+                .lookup_chain(symbol)
+                .is_some()
         } else {
             false
         }

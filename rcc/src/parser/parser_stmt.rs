@@ -1,10 +1,9 @@
 use crate::err::parser_error::ParserResult;
-use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
-
 use crate::parser::parser_core::Parser;
 use crate::parser::types::ast::stmt::{Stmt, StmtKind};
 use crate::parser::types::common::Ident;
+use crate::parser::types::sema::decl::decl_context::DeclContextKind;
 use crate::types::span::Span;
 
 impl Parser {
@@ -60,7 +59,7 @@ impl Parser {
         let kind = if self.check_labeled_stmt() {
             self.parse_labeled_stmt()?
         } else if self.check(TokenKind::LBrace) {
-            self.parse_compound_stmt(only_stmt)?
+            self.parse_compound_stmt(only_stmt, true)?
         } else if self.check_selection_stmt() {
             self.parse_selection_stmt()?
         } else if self.check_jump_stmt() {
@@ -111,7 +110,15 @@ impl Parser {
         Ok(kind)
     }
 
-    pub(crate) fn parse_compound_stmt(&mut self, only_stmt: bool) -> ParserResult<StmtKind> {
+    /// 解析 compound 语句, 负责退出decl_context
+    /// # Arguments
+    /// - `only_stmt`: 是否只应该解析statement
+    /// - `new_context`: 是否开上下文
+    pub(crate) fn parse_compound_stmt(&mut self, only_stmt: bool, new_context: bool) -> ParserResult<StmtKind> {
+        if new_context {
+            self.sema.enter_decl(DeclContextKind::Block);
+        }
+        
         let l = self.expect(TokenKind::LBrace)?.span.to_pos();
         let mut stmts = Vec::new();
         loop {
@@ -120,11 +127,11 @@ impl Parser {
                 break
             } else if !only_stmt && self.check_decl() {
                 let lo = self.stream.span();
-                let _decl = self.parse_decl()?;
+                let decl = self.parse_decl()?;
                 let hi = self.stream.span();
                 let span = Span::span(lo, hi);
-
-                let kind = StmtKind::Decl {};
+                
+                let kind = StmtKind::Decl { decl };
                 Stmt::new_box(kind, span)
             } else {
                 self.parse_stmt(false)?
@@ -133,7 +140,9 @@ impl Parser {
         }
         let r = self.expect(TokenKind::RBrace)?.span.to_pos();
 
-        let kind = StmtKind::Compound { l, stmts, r };
+        let context = self.sema.exit_decl();
+        
+        let kind = StmtKind::Compound { l, stmts, r, context };
         Ok(kind)
     }
 

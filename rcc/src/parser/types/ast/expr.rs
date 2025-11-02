@@ -1,24 +1,34 @@
+use crate::err::parser_error::ParserResult;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{LiteralKind, Symbol, TokenKind};
 use crate::parser::types::common::Ident;
-use crate::parser::types::sema::expr::ValueType;
+use crate::parser::types::sema::sema_type::{Type};
 use crate::types::span::{Pos, Span};
+use enum_as_inner::EnumAsInner;
+use std::rc::Rc;
+use crate::parser::types::sema::expr::value_type::ValueType;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumAsInner)]
 pub enum ExprKind {
     DeclRef(Ident),
     Constant(LiteralKind),
-    Paren{ l: Pos, expr: Box<Expr>, r: Pos },
+    Paren { l: Pos, expr: Box<Expr>, r: Pos },
     ArraySubscript { base: Box<Expr>, l: Pos, index: Box<Expr>, r: Pos },     // a[]
-    Call{ base: Box<Expr>, l: Pos, params: Parameter, r: Pos },     // a()
+    Call { base: Box<Expr>, l: Pos, params: Parameter, r: Pos },     // a()
     MemberAccess { kind: MemberAccessKind, base: Box<Expr>, op: Span, field: Symbol },       // a.b a->b
-    SizeofExpr{ sizeof: Span, expr: Box<Expr> },   // sizeof expr
-    SizeofType{ sizeof: Span, l: Pos, ty: (), r: Pos },   // sizeof()
-    Unary{ op: UnaryOp, rhs: Box<Expr> },
-    Binary{ lhs: Box<Expr>, op: BinOp, rhs: Box<Expr> },
-    Assign{ lhs: Box<Expr>, op: AssignOp, rhs: Box<Expr> }, 
-    Cast{ l: Pos, ty: () ,r: Pos, expr: Box<Expr> }, // (type)
-    Ternary{ cond: Box<Expr>, question: Pos, then_expr: Box<Expr>, colon: Pos ,else_expr: Box<Expr> }, // cond ? a : b
+    SizeofExpr { sizeof: Span, expr: Box<Expr> },   // sizeof expr
+    SizeofType { sizeof: Span, l: Pos, ty: Rc<Type>, r: Pos },   // sizeof()
+    Unary { op: UnaryOp, rhs: Box<Expr> },
+    Binary { lhs: Box<Expr>, op: BinOp, rhs: Box<Expr> },
+    Assign { lhs: Box<Expr>, op: AssignOp, rhs: Box<Expr> },
+    Cast { l: Pos, ty: Rc<Type> ,r: Pos, expr: Box<Expr> }, // (type)
+    Ternary { // cond ? a : b
+        cond: Box<Expr>,
+        question: Pos,
+        then_expr: Box<Expr>,
+        colon: Pos,
+        else_expr: Box<Expr>
+    },
 }
 
 impl ExprKind {
@@ -77,7 +87,7 @@ impl ExprKind {
 
 
 
-    pub fn make_size_of_type(sizeof: Token, l: Token, ty: (), r: Token) -> Self {
+    pub fn make_size_of_type(sizeof: Token, l: Token, ty: Rc<Type>, r: Token) -> Self {
         let sizeof = sizeof.span;
         let l = l.span.to_pos();
         let r = r.span.to_pos();
@@ -119,7 +129,7 @@ impl ExprKind {
         Self::Binary { lhs, op, rhs }
     }
     
-    pub fn make_cast(l: Token, ty: () ,r: Token, expr: Box<Expr>) -> Self {
+    pub fn make_cast(l: Token, ty: Rc<Type> ,r: Token, expr: Box<Expr>) -> Self {
         let l = l.span.to_pos();
         let r = r.span.to_pos();
         Self::Cast { l, ty, expr, r }
@@ -140,20 +150,73 @@ impl ExprKind {
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
+    pub ty: Rc<Type>,
     pub span: Span,
 }
 
 impl Expr {
-    pub fn new(kind: ExprKind, span: Span) -> Self {
-        Self { kind, span }
+    pub fn new(kind: ExprKind, ty: Rc<Type>, span: Span) -> Self {
+        Self { kind, ty, span }
     }
     
-    pub fn new_box(kind: ExprKind, span: Span) -> Box<Self> {
-        Box::new(Self::new(kind, span))
+    pub fn new_box(kind: ExprKind, ty: Rc<Type>, span: Span) -> Box<Self> {
+        Box::new(Self::new(kind, ty, span))
     }
 
     pub fn is_lvalue(&self) -> bool {
         ValueType::value_type(self) == ValueType::LValue
+    }
+    
+    pub fn is_int_constant(&self) -> bool {
+        let ty = &self.ty;
+        if ty.is_unknown() {
+            todo!()
+        }
+
+        if !ty.kind.is_integer() {
+            return false;
+        }
+        
+        let constant = match &self.kind { 
+            ExprKind::Constant(x) => x,
+            _ => return false,
+        };
+
+        constant.is_integer() || constant.is_char()
+    }
+    
+    pub fn get_int_constant(&self) -> ParserResult<u64> {
+        let ty = &self.ty;
+        if ty.is_unknown() {
+            todo!()
+        }
+
+        if !ty.kind.is_integer() {
+            // todo 类型不对
+            todo!()
+        }
+
+        let constant = match &self.kind {
+            ExprKind::Constant(x) => x,
+            _ => {
+                // 不是 constant
+                todo!()
+            },
+        };
+
+        let num = match constant {
+            LiteralKind::Integer { value, .. } => *value,
+            LiteralKind::Char { value } => {
+                // char转换为num
+                todo!()
+            }
+            _ => {
+                // 不是int类型
+                todo!()
+            }
+        };
+        
+        Ok(num)
     }
 }
 

@@ -1,8 +1,8 @@
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::TokenKind;
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::decl::{DeclGroup};
-use crate::parser::types::ast::func::{ExternalDecl, FuncDef, TranslationUnit};
+use crate::parser::types::ast::decl::DeclGroup;
+use crate::parser::types::ast::func::{ExternalDecl, FuncDecl, FuncDef, TranslationUnit};
 use crate::parser::types::ast::stmt::Stmt;
 use crate::parser::types::declarator::Declarator;
 use crate::parser::types::sema::decl::decl_context::DeclContextKind;
@@ -33,27 +33,40 @@ impl Parser {
         self.parse_declarator(&mut declarator)?;
         
         let external_decl = if self.check_decl_spec() || self.check(TokenKind::LBrace) {
-            // 进入函数体上下文
-            self.sema.decl_enter(DeclContextKind::Block);
-            let func_decl = self.sema.act_on_declarator(declarator)?;
-            // 函数定义
+            // 进入decl
+            self.sema.enter_decl(DeclContextKind::Block);
+            // KR函数的参数
             let decl_list = match self.check_decl_spec() { 
-                true => self.parse_decl_list()?,
-                false => Vec::new()
+                true => Some(self.parse_decl_list()?),
+                false => None,
             };
-            
-            let lo = self.stream.span();
-            let kind = self.parse_compound_stmt(false)?;
+
+            let hi = self.stream.prev_span();
+            let span = Span::span(lo, hi);
+
+            let func_decl = FuncDecl {
+                declarator,
+                decl_list,
+                span
+            };
+
+            // 函数声明
+            let decl = self.sema.act_on_func_decl(func_decl)?;
+
+            // compound stmt会调用exit_decl
+            let kind = self.parse_compound_stmt(false, false)?;
+
             let hi = self.stream.prev_span();
             let span = Span::span(lo, hi);
 
             let body = Stmt::new_box(kind, span);
-            let func_def = FuncDef { func_decl, decl_list, body, span };
+            let def = FuncDef {
+                decl,
+                body,
+                span
+            };
             
-            // 退出函数体上下文
-            self.sema.decl_exit();
-            
-            ExternalDecl::FunctionDefinition(func_def)
+            ExternalDecl::FunctionDefinition(def)
         } else {
             // 声明
             let group = self.parse_decl_after_declarator(lo, declarator)?;

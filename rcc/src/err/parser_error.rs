@@ -1,8 +1,7 @@
-use crate::types::span::{Pos, Span};
+use crate::lex::types::token_kind::Symbol;
+use crate::types::span::Span;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
-use crate::err::parser_error;
-use crate::lex::types::token_kind::Symbol;
 
 pub type ParserResult<T> = Result<T, ParserError>;
 

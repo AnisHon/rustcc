@@ -1,6 +1,9 @@
 use crate::content_manager::ContentManager;
 use crate::lex::lex_core::{run_lexer, Lex};
 use std::sync::{mpsc, Arc};
+use crate::lex::token_stream::TokenStream;
+use crate::parser::parser_core::Parser;
+use crate::parser::Sema;
 
 ///
 /// 编译器主流程
@@ -36,7 +39,13 @@ impl CCompiler<> {
 
         // 执行lexer
         let lex = Lex::new(Arc::clone(&content_manager));
-        let _tokens = run_lexer(lex, error_tx);
+        let tokens = run_lexer(lex, error_tx);
+
+        let sema = Sema::new();
+        let token_stream = TokenStream::new(tokens);
+        let mut parser = Parser::new(token_stream, sema);
+
+        println!("{:#?}", parser.parse_translation_unit());
 
         for x in error_rx {
             eprintln!("{x:?}")

@@ -1,12 +1,13 @@
-use crate::lex::types::token_kind::Symbol;
+use crate::parser::types::ast::decl::DeclGroup;
 use crate::parser::types::ast::expr::Expr;
 use crate::parser::types::common::Ident;
+use crate::parser::types::sema::decl::decl_context::DeclContextRef;
 use crate::types::span::{Pos, Span};
 
 #[derive(Clone, Debug)]
 pub enum StmtKind {
     Expr{ expr: Option<Box<Expr>>, semi: Pos }, // expr ;
-    Decl{ },
+    Decl{ decl: DeclGroup },
     Label{ ident: Ident, colon: Pos, stmt: Box<Stmt> }, // LABEL: 
     Case{ case_span: Span, expr: Box<Expr>, colon: Pos, stmt: Box<Stmt> }, // case: 
     Default{ default: Span, colon: Pos, stmt: Box<Stmt> }, // default: 
@@ -39,11 +40,11 @@ pub enum StmtKind {
         r: Pos, // )
         body: Box<Stmt>
     },
-    Goto{ goto_span: Span, ident: Ident, semi: Pos }, // goto LABEL;
-    Continue{ continue_span: Span, semi: Pos }, // continue;
-    Break{ break_span: Span, semi: Pos }, // break;
-    Return{ return_span: Span, expr: Option<Box<Expr>>, semi: Pos }, // return expr;
-    Compound{ l: Pos, stmts: Vec<Box<Stmt>>, r: Pos }, // { ... }
+    Goto { goto_span: Span, ident: Ident, semi: Pos }, // goto LABEL;
+    Continue { continue_span: Span, semi: Pos }, // continue;
+    Break { break_span: Span, semi: Pos }, // break;
+    Return { return_span: Span, expr: Option<Box<Expr>>, semi: Pos }, // return expr;
+    Compound { l: Pos, stmts: Vec<Box<Stmt>>, r: Pos, context: DeclContextRef }, // { ... }
 }
 
 #[derive(Clone, Debug)]

@@ -2,13 +2,15 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::{Keyword, TokenKind};
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::decl::{Decl, DeclGroup, DeclKind, EnumField, EnumFieldList, Initializer, InitializerList, StructOrUnion};
+use crate::parser::types::ast::decl::{Decl, DeclGroup, Initializer, InitializerList, StructOrUnion};
 use crate::parser::types::common::{Ident, IdentList};
 use crate::parser::types::decl_spec::*;
 use crate::parser::types::declarator::*;
 use crate::parser::types::sema::decl::decl_context::DeclContextKind;
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
+use crate::parser::types::sema::decl::declarator::PartialDecl;
+use crate::parser::types::sema::sema_type::Type;
 
 macro_rules! dup_error {
     ($ele:expr, $context:expr) => {{
@@ -156,9 +158,9 @@ impl Parser {
             TokenKind::Ident(_) => {
                 let symbol = self.stream.next().kind.into_ident().unwrap();
                 let ident = Ident { symbol, span };
-                let decl = match self.sema.curr_decl.borrow().lookup_chain(symbol) {
+                let decl = match self.sema.look_up_chain(symbol) {
                     Some(x) => x,
-                    None => todo!()
+                    None => todo!() // 不是类型，出错
                 };
                 let kind = TypeSpecKind::TypeName(ident, decl);
                 TypeSpec { kind, span }
@@ -264,17 +266,21 @@ impl Parser {
             } else if let Some(lparen) = self.consume(TokenKind::LParen) {
                 // func ()
                 let l = lparen.span.to_pos();
-                // 是否是K&R那种定义
-                let param = match self.check_ident() {
-                    true => {
-                        let idents = self.parse_ident_list()?;
-                        ParamDecl::Idents(idents)
-                    },
-                    false => {
-                        let list = self.parse_parameter_list()?;
-                        ParamDecl::Params(list)
-                    }
+
+                // 参数类型
+                let param = if self.is_type_spec(self.stream.peek()) {
+                    // 普通函数参数
+                    let list = self.parse_parameter_list()?;
+                    ParamDecl::Params(list)
+                } else if self.check_ident() {
+                    // K&R函数定义参数
+                    let idents = self.parse_ident_list()?;
+                    ParamDecl::Idents(idents)
+                } else {
+                    // 没有参数使用默认
+                    ParamDecl::Params(ParamList::default())
                 };
+
                 let r = self.expect(TokenKind::RParen)?.span.to_pos();
                 
                 DeclaratorChunkKind::Function { l, param, r }
@@ -424,8 +430,7 @@ impl Parser {
     }
 
     fn parse_struct_or_union_spec(&mut self) -> ParserResult<Rc<Decl>> {
-        // 进入struct上下文
-        self.sema.decl_enter(DeclContextKind::Record);
+       
         let lo = self.stream.span();
         
         // 消耗struct union关键字
@@ -433,6 +438,18 @@ impl Parser {
         let record_kind = StructOrUnion::new(kw);
         let name = self.consume_ident().map(Ident::new); // 尝试解析名字
         let mut body = None;
+
+        let hi = self.stream.prev_span();
+        let span = Span::span(lo, hi);
+
+        // 进入struct上下文
+        self.sema.enter_decl(DeclContextKind::Record);
+
+        // 如果没有名字不需要处理声明
+        if let Some(name) = &name {
+            self.sema.act_on_record_ref(record_kind.clone(), name.clone(), span)?;
+        }
+        
         // 尝试解析内部声明
         if let Some(lbrace) = self.consume(TokenKind::LBrace) { 
             let r = lbrace.span.to_pos(); 
@@ -443,9 +460,6 @@ impl Parser {
 
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
-
-        // 退出struct上下文
-        let decl_context = self.sema.decl_exit();
         
         // 语义分析
         let spec = StructSpec { kind: record_kind, name, body, span  };
@@ -492,10 +506,8 @@ impl Parser {
 
     /// 结构体声明declarator列表形如 *a, **b, **c 
     fn parse_struct_declarator_list(&mut self, group: &mut DeclGroup, decl_spec: Rc<DeclSpec>) -> ParserResult<()> {
-
         // 构建declarator
-        
-        let decl = self.parse_struct_declarator(Rc::clone(&decl_spec))?; 
+        let decl = self.parse_struct_declarator(Rc::clone(&decl_spec))?;
         group.decls.push(decl);
 
         while let Some(comma) = self.consume(TokenKind::Comma) {
@@ -508,7 +520,7 @@ impl Parser {
         Ok(())
     }
     
-    ///
+    /// 解析struct的成员，负责插入符号表
     fn parse_struct_declarator(&mut self, decl_spec: Rc<DeclSpec>) -> ParserResult<Rc<Decl>> {
         let mut declarator = Declarator::new(decl_spec);
         
@@ -537,9 +549,10 @@ impl Parser {
     }
 
 
+    /// 解析enum声明或定义
     fn parse_enum_spec(&mut self) -> ParserResult<Rc<Decl>> {
         // 准备枚举上下文
-        self.sema.decl_enter(DeclContextKind::Enum);
+        self.sema.enter_decl(DeclContextKind::Enum);
         let lo = self.stream.span();
         
         let kw = self.expect_keyword(Keyword::Enum)?.span;
@@ -551,12 +564,19 @@ impl Parser {
         }
 
         let name= self.consume_ident().map(Ident::new);
+        
+        // todo 添加声明，目前也许不需要
+        
         let body;
         if let Some(lbrace) = self.consume(TokenKind::LBrace) {
+            let mut decls = Vec::new();
+            let mut commas = Vec::new();
+
             let l = lbrace.span.to_pos();
-            let list = self.parse_enumerator_list()?;
+            // 解析枚举列表
+            self.parse_enumerator_list(&mut decls, &mut commas)?;
             let r = self.expect(TokenKind::RBrace)?.span.to_pos();
-            body = Some(EnumSpecBody { l, list, r });
+            body = Some(EnumSpecBody { l, decls, commas, r });
         } else {
             // 出错
             let expect = "identifier or '{'".to_owned();
@@ -575,30 +595,22 @@ impl Parser {
         Ok(decl)
     }
 
-    fn parse_enumerator_list(&mut self) -> ParserResult<EnumFieldList> {
-        let lo = self.stream.span();
-
-        let mut list = EnumFieldList::default();
-        
+    fn parse_enumerator_list(&mut self, decls: &mut Vec<Rc<Decl>>, commas: &mut Vec<Pos>) -> ParserResult<()> {
         loop {
             let decl = self.parse_enumerator()?;
-            list.decls.push(decl);
+            decls.push(decl);
 
             if let Some(comma) = self.consume(TokenKind::Comma) { 
-                list.commas.push(comma.span.to_pos());
+                commas.push(comma.span.to_pos());
             } else {
                 break;
             }
         }
-        
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-        list.span = span;
-
-        Ok(list)
+        Ok(())
     }
 
-    fn parse_enumerator(&mut self) -> ParserResult<EnumField> {
+    // 解析枚举的成员，负责插入符号表
+    fn parse_enumerator(&mut self) -> ParserResult<Rc<Decl>> {
         let lo = self.stream.span();
         
         let ident = self.expect_ident()?;
@@ -612,16 +624,14 @@ impl Parser {
 
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
-        
-        let field = EnumField { name, eq, expr, span };
-        Ok(field)
+
+        let enumerator = Enumerator { name, eq, expr, span };
+        let decl = self.sema.act_on_enumerator(enumerator)?;
+        Ok(decl)
     }
 
-    /// 函数列表，不包含左右括号
+    /// 函数列表，不包含左右括号，负责构建符号表
     fn parse_parameter_list(&mut self) -> ParserResult<ParamList> {
-        // 进入函数列表上下文
-        self.sema.decl_enter(DeclContextKind::Param);
-        
         let lo = self.stream.span();
 
         let mut params: Vec<Rc<Decl>> = Vec::new();
@@ -630,6 +640,7 @@ impl Parser {
 
         // 解析第一个参数声明
         let decl = self.parse_parameter_decl()?;
+        
         params.push(decl);
 
         // 解析后续参数声明
@@ -646,12 +657,11 @@ impl Parser {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let decl_context = self.sema.decl_exit();
-        let list = ParamList { params, commas, ellipsis, decl_context, span };
-
+        let list = ParamList { params, commas, ellipsis, span };
         Ok(list)
     }
 
+    /// 解析函数参数声明，负责插入符号表
     fn parse_parameter_decl(&mut self) -> ParserResult<Rc<Decl>> {
         let lo = self.stream.span();
 
@@ -663,7 +673,9 @@ impl Parser {
         let span = Span::span(lo, hi);
 
         declarator.span = span;
-        let decl = self.sema.act_on_declarator(declarator)?;
+
+        let decl = self.sema.act_on_param_var(declarator)?;
+
         Ok(decl)
     }
 
@@ -683,7 +695,7 @@ impl Parser {
         Ok(list)
     }
 
-    pub(crate) fn parse_type_name(&mut self) -> ParserResult<()> {
+    pub(crate) fn parse_type_name(&mut self) -> ParserResult<Rc<Type>> {
         let lo = self.stream.span();
 
         let decl_specs = self.parse_decl_spec()?;
@@ -697,6 +709,10 @@ impl Parser {
 
         declarator.span = span;
 
-        todo!()
+
+        let PartialDecl {
+            ty, ..
+        } = self.sema.act_on_declarator(declarator)?;
+        Ok(ty)
     }
 }

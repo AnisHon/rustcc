@@ -20,5 +20,6 @@ regex = "1.11.1"
 askama = "0.14.0"
 unescape = "0.1.0"
 thiserror = "2.0.16"
+petgraph = "0.8.3"
 
 
