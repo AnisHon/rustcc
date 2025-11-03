@@ -3,7 +3,7 @@ use crate::err::parser_error::{ParserResult};
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, LiteralKind, TokenKind};
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::expr::{Expr, ExprKind, Parameter};
+use crate::parser::semantic::ast::expr::{Expr, ExprKind, Parameter};
 use crate::types::span::Span;
 
 impl Parser {

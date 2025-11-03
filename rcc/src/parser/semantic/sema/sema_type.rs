@@ -1,7 +1,7 @@
-use crate::parser::types::common::Ident;
+use crate::parser::semantic::common::Ident;
 use enum_as_inner::EnumAsInner;
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
+use std::rc::Weak;
 
 ///
 /// # Members
@@ -13,7 +13,7 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 pub struct RecordField {
     pub name: Option<Ident>,
-    pub ty: Rc<Type>,
+    pub ty: Weak<Type>,
     pub bit_field: Option<u64>,
     pub offset: u64,
 }
@@ -22,7 +22,7 @@ impl RecordField {
     pub fn to_code(&self) -> String {
         let mut code = String::new();
 
-        let ty = self.ty.to_code();
+        let ty = self.ty.upgrade().unwrap().to_code();
         let name = self.name.as_ref().map(|x| x.symbol.get()).unwrap_or_default();
 
         code.push_str(&ty);
@@ -44,7 +44,7 @@ impl RecordField {
 
 impl PartialEq for RecordField {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && Rc::as_ptr(&self.ty) == Rc::as_ptr(&other.ty)
+        self.name == other.name && self.ty.as_ptr() == other.ty.as_ptr()
     }
 }
 
@@ -53,7 +53,7 @@ impl Eq for RecordField {}
 impl Hash for RecordField {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
-        Rc::as_ptr(&self.ty).hash(state);
+        &self.ty.as_ptr().hash(state);
     }
 }
 
@@ -119,11 +119,11 @@ pub enum TypeKind {
     Void,
     Integer { is_signed: bool, size: IntegerSize },
     Floating { size: FloatSize },
-    Pointer { elem_ty: Rc<Type> },
-    Array { elem_ty: Rc<Type>, size: ArraySize },
+    Pointer { elem_ty: Weak<Type> },
+    Array { elem_ty: Weak<Type>, size: ArraySize },
     Function { 
-        ret_ty: Rc<Type>, 
-        params: Vec<Rc<Type>>, 
+        ret_ty: Weak<Type>,
+        params: Vec<Weak<Type>>,
         is_variadic: bool,
     },
     Struct { 
@@ -168,17 +168,17 @@ impl Hash for TypeKind {
             }
             Pointer { elem_ty } => {
                 3u8.hash(state);
-                Rc::as_ptr(elem_ty).hash(state);
+                elem_ty.as_ptr().hash(state);
             }
             Array { elem_ty, size } => {
                 4u8.hash(state);
-                Rc::as_ptr(elem_ty).hash(state);
+                elem_ty.as_ptr().hash(state);
                 size.hash(state);
             }
             Function { ret_ty, params, is_variadic, .. } => {
                 5u8.hash(state);
-                Rc::as_ptr(ret_ty).hash(state);
-                params.hash(state);
+                ret_ty.as_ptr().hash(state);
+                params.iter().for_each(|x| x.as_ptr().hash(state));
                 is_variadic.hash(state);
             }
             StructRef { name } => {
@@ -229,15 +229,17 @@ impl PartialEq for TypeKind {
             (
                 Pointer { elem_ty: ty1 },
                 Pointer { elem_ty: ty2 }
-            ) => Rc::as_ptr(ty1) == Rc::as_ptr(ty2),
+            ) => ty1.as_ptr() == ty2.as_ptr(),
             (
                 Array { elem_ty: ty1, size: size1 },
                 Array { elem_ty: ty2, size: size2 }
-            ) => Rc::as_ptr(ty1) == Rc::as_ptr(ty2) && size1 == size2,
+            ) => ty1.as_ptr() == ty2.as_ptr() && size1 == size2,
             (
                 Function { ret_ty: ty1, params: params1, is_variadic: variadic1, .. },
                 Function { ret_ty: ty2, params: params2, is_variadic: variadic2, .. }
-            ) => Rc::as_ptr(ty1) == Rc::as_ptr(ty2) && params1 == params2 && variadic1 == variadic2,
+            ) => ty1.as_ptr() == ty2.as_ptr()
+                && params1.iter().map(|x| x.as_ptr()).eq(params2.iter().map(|x| x.as_ptr()))
+                && variadic1 == variadic2,
             (
                 StructRef { name: name1 },
                 StructRef { name: name2 },
@@ -287,11 +289,16 @@ impl Type {
             Integer{ .. } => Some(4),
             Floating{ .. } => Some(4),
             Pointer{ .. } => Some(8),
-            Array{ size, elem_ty } => elem_ty.align().map(|x| x * size.get_static()),
+            Array{ size, elem_ty } =>
+                elem_ty.upgrade().unwrap().align().map(|x| x * size.get_static()),
             Function{ .. } => Some(8),
-            Struct{ fields, .. } => Some(fields.iter().map(|x| x.ty.align().unwrap()).sum()),
+            Struct{ fields, .. } => Some(
+                fields.iter()
+                    .map(|x| x.ty.upgrade().unwrap().align().unwrap())
+                    .sum()
+            ),
             StructRef{ .. } => None,
-            Union{ fields, .. } => fields.iter().map(|x| x.ty.align().unwrap()).max(),
+            Union{ fields, .. } => fields.iter().map(|x| x.ty.upgrade().unwrap().align().unwrap()).max(),
             UnionRef{ .. } => None,
             Enum{ .. } => Some(8),
             EnumRef{ .. } => None,
@@ -325,21 +332,24 @@ impl Type {
             }
             TypeKind::Pointer{ elem_ty } => {
                 code.push('*');
-                code.push_str(&elem_ty.to_code());
+                code.push_str(&elem_ty.upgrade().unwrap().to_code());
                 code.push(' ');
             }
             TypeKind::Array{ size, elem_ty } => {
-                code.push_str(&elem_ty.to_code());
+                code.push_str(&elem_ty.upgrade().unwrap().to_code());
                 code.push_str(&size.to_code());
                 code.push(' ');
             }
             TypeKind::Function{ ret_ty, params, is_variadic } => {
                 code.push_str("fn ");
-                let param = params.iter().map(|x| x.to_code()).collect::<Vec<_>>().join(",");
+                let param = params.iter()
+                    .map(|x| x.upgrade().unwrap().to_code())
+                    .collect::<Vec<_>>()
+                    .join(",");
                 let variadic = is_variadic.then(|| ",...").unwrap_or_default();
                 code.push_str(&format!("({}{})", param, variadic));
                 code.push_str(" -> ");
-                code.push_str(&ret_ty.to_code());
+                code.push_str(&ret_ty.upgrade().unwrap().to_code());
                 code.push(' ');
             }
             TypeKind::Struct{ name, fields } => {

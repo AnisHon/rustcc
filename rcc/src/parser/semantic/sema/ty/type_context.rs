@@ -1,14 +1,15 @@
 use crate::err::parser_error::ParserResult;
-use crate::parser::types::ast::decl::{Decl, StructOrUnion, StructOrUnionKind};
-use crate::parser::types::decl_spec::{DeclSpec, EnumSpec, ParamDecl, StructSpec, TypeQualKind, TypeQualType, TypeSpec, TypeSpecKind};
-use crate::parser::types::declarator::{Declarator, DeclaratorChunkKind};
-use crate::parser::types::sema::sema_type::{ArraySize, EnumField, FloatSize, IntegerSize, Qualifier, RecordField, Type, TypeKind};
+use crate::parser::ast::decl::DeclRef;
+use crate::parser::semantic::ast::decl::{StructOrUnion, StructOrUnionKind};
+use crate::parser::semantic::common::Ident;
+use crate::parser::semantic::decl_spec::{DeclSpec, EnumSpec, ParamDecl, StructSpec, TypeQualKind, TypeQualType, TypeSpec, TypeSpecKind};
+use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind};
+use crate::parser::semantic::sema::sema_type::{ArraySize, EnumField, FloatSize, IntegerSize, Qualifier, RecordField, Type, TypeKind};
 use rustc_hash::FxHashSet;
 use std::rc::Rc;
-use crate::parser::types::common::Ident;
 
 pub struct TypeContext {
-    types: FxHashSet<Rc<Type>>
+    types: FxHashSet<Rc<Type>>,
 }
 
 impl TypeContext {
@@ -70,7 +71,7 @@ impl TypeContext {
         let mut int = None;
         let mut signed = None;
         let mut state = TypeSpecState::Init;
-        let mut decl: Option<&Rc<Decl>> = None;
+        let mut decl: Option<_> = None;
 
         for spec in specs {
             let next_state = match &spec.kind {
@@ -98,19 +99,19 @@ impl TypeContext {
                 TypeSpecKind::Float => TypeSpecState::Float,
                 TypeSpecKind::Double => TypeSpecState::Double,
                 TypeSpecKind::Struct(x) => {
-                    decl = Some(x);
+                    decl = Some(x.borrow());
                     TypeSpecState::Struct
                 },
                 TypeSpecKind::Union(x) => {
-                    decl = Some(x);
+                    decl = Some(x.borrow());
                     TypeSpecState::Union
                 },
                 TypeSpecKind::Enum(x) => {
-                    decl = Some(x);
+                    decl = Some(x.borrow());
                     TypeSpecState::Enum
                 },
                 TypeSpecKind::TypeName(_, x) => {
-                    decl = Some(x);
+                    decl = Some(x.borrow());
                     TypeSpecState::TypeName
                 },
             };
@@ -182,7 +183,7 @@ impl TypeContext {
     /// 解析declarator
     pub fn resolve_declarator(&mut self, declarator: &Declarator) -> ParserResult<Rc<Type>> {
         let base_ty = self.resolve_decl_spec(&declarator.decl_spec)?;
-        let mut ty = base_ty;
+        let mut ty = Rc::clone(&base_ty);
         // 解析chunks，这里一定要反着解析
         for chunk in declarator.chunks.iter().rev() {
             let new_ty = match &chunk.kind {
@@ -216,12 +217,12 @@ impl TypeContext {
                             }
                         }
                     };
-                    let kind = TypeKind::Array { elem_ty: ty, size };
+                    let kind = TypeKind::Array { elem_ty: Rc::downgrade(&ty), size };
                     Type::new(qualifier, kind)
                 }
                 DeclaratorChunkKind::Pointer { type_qual, .. } => {
                     let qualifier = self.resolve_qualifier(type_qual);
-                    let pointer = TypeKind::Pointer { elem_ty: ty };
+                    let pointer = TypeKind::Pointer { elem_ty: Rc::downgrade(&ty) };
                     Type::new(qualifier, pointer)
                 }
                 DeclaratorChunkKind::Function { param, .. } => {
@@ -230,11 +231,12 @@ impl TypeContext {
                         ParamDecl::Idents(_) => todo!() // 声明不能用K&R参数
                     };
                     let is_variadic = list.ellipsis.is_some();
-                    let params: Vec<Rc<Type>> = list.params.iter()
-                        .map(|x| Rc::clone(&x.ty))
+                    let params: Vec<_> = list.params.iter()
+                        .cloned()
+                        .map(|x| Rc::downgrade(&x.borrow().ty))
                         .collect();
                     let func = TypeKind::Function { 
-                        ret_ty: ty,
+                        ret_ty: Rc::downgrade(&ty),
                         params,
                         is_variadic,
                     };
@@ -249,11 +251,12 @@ impl TypeContext {
     }
 
     /// 不负责设置offset
-    pub fn resolve_record_field(&mut self, field: &Decl) -> ParserResult<RecordField> {
+    pub fn resolve_record_field(&mut self, decl: DeclRef) -> ParserResult<RecordField> {
+        let field = decl.borrow();
         assert!(field.kind.is_record_field());
         let (_, bit_field) = field.kind.as_record_field().unwrap();
         let name  = field.name.clone();
-        let ty = Rc::clone(&field.ty);
+        let ty = Rc::downgrade(&field.ty);
         let bit_field = match bit_field {
             None => None,
             Some(x) => Some(x.get_int_constant()?)
@@ -288,10 +291,10 @@ impl TypeContext {
             Some(x) => x
         };
         for group in body.groups.iter() {
-            for decl in group.decls.iter() {
+            for decl in group.decls.iter().cloned() {
                 let mut field = self.resolve_record_field(decl)?;
                 field.offset = offset;
-                let align = match field.ty.align() {
+                let align = match field.ty.upgrade().unwrap().align() {
                     None => todo!(),
                     Some(x) => x
                 };
@@ -320,7 +323,8 @@ impl TypeContext {
             }
             Some(body) => { // Enum定义
                 let mut fields = Vec::new();
-                for decl in body.decls.iter() {
+                for decl_ref in body.decls.iter() {
+                    let decl = decl_ref.borrow();
                     // enum 声明一定有名字，expr必须是constant表达式
                     let name = decl.name.clone().unwrap();
                     let (_, expr) = decl.kind.as_enum_field().unwrap();

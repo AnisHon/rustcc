@@ -1,14 +1,15 @@
+use std::cell::RefCell;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
-use crate::parser::types::ast::expr::Expr;
-use crate::parser::types::common::Ident;
-use crate::parser::types::decl_spec::StorageSpec;
-use crate::parser::types::sema::decl::decl_context::DeclContextRef;
-use crate::parser::types::sema::sema_type::Type;
+use crate::parser::semantic::ast::expr::Expr;
+use crate::parser::semantic::common::Ident;
+use crate::parser::semantic::decl_spec::StorageSpec;
+use crate::parser::semantic::sema::decl::decl_context::DeclContextRef;
+use crate::parser::semantic::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
 use std::rc::Rc;
-use crate::parser::types::ast::stmt::Stmt;
+use crate::parser::semantic::ast::stmt::Stmt;
 
 #[derive(Debug, Clone)]
 pub enum Initializer {
@@ -32,6 +33,7 @@ impl InitializerList {
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum DeclKind {
+    TypeDef,
     ParamVar,
     VarInit {  // int a = 10;
         eq: Option<Pos>, 
@@ -39,12 +41,12 @@ pub enum DeclKind {
     },
     FuncRef { // 函数声明
         ret_ty: Rc<Type>,
-        params: Vec<Rc<Decl>>,
+        params: Vec<DeclRef>,
         is_variadic: bool,
     },
     Func { // 函数定义
         ret_ty: Rc<Type>,
-        params: Vec<Rc<Decl>>,
+        params: Vec<DeclRef>,
         is_variadic: bool,
         body: Box<Stmt>,
     },
@@ -69,13 +71,16 @@ pub enum DeclKind {
     Enum { // enum name { ... } 
         kw: Span, 
         l: Pos,
-        enums: Vec<Rc<Decl>>,
+        enums: Vec<DeclRef>,
         commas: Vec<Pos>, 
         r: Pos,
         decl_context: DeclContextRef
     }, 
     EnumRef { kw: Span },
 }
+
+pub type DeclRef = Rc<RefCell<Decl>>;
+
 
 #[derive(Debug, Clone)]
 pub struct Decl {
@@ -90,11 +95,15 @@ impl Decl {
     pub fn get_name(&self) -> Option<&Ident> {
         self.name.as_ref()
     }
+
+    pub fn new_ref(decl: Self) -> DeclRef {
+        Rc::new(RefCell::new(decl))
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct DeclGroup {
-    pub decls: Vec<Rc<Decl>>,
+    pub decls: Vec<DeclRef>,
     pub commas: Vec<Pos>,
     pub semi: Pos,
     pub span: Span

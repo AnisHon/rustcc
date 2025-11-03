@@ -20,7 +20,7 @@ fn main() {
 
     let dfa = lex.get_dfa();
 
-    // let char_class_set = types.get_char_class_set();
+    // let char_class_set = semantic.get_char_class_set();
     // let mut state = dfa.get_init_state();
     // for chr in "// 123".chars() {
     //     println!("{:?}", state);

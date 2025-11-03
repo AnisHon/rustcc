@@ -7,9 +7,8 @@ use crate::parser::parser_core::Parser;
 mod parser_decl;
 mod parser_expr;
 pub mod parser_core;
-mod types;
+mod semantic;
 mod parser_stmt;
 mod parser_function;
 
-pub use crate::parser::types::sema::Sema;
-pub use crate::parser::types::ast;
+pub use crate::parser::semantic::{ast, sema::Sema};

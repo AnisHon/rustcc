@@ -2,15 +2,16 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::{Keyword, TokenKind};
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::decl::{Decl, DeclGroup, Initializer, InitializerList, StructOrUnion};
-use crate::parser::types::common::{Ident, IdentList};
-use crate::parser::types::decl_spec::*;
-use crate::parser::types::declarator::*;
-use crate::parser::types::sema::decl::decl_context::DeclContextKind;
+use crate::parser::semantic::ast::decl::{DeclGroup, Initializer, InitializerList, StructOrUnion};
+use crate::parser::semantic::common::{Ident, IdentList};
+use crate::parser::semantic::decl_spec::*;
+use crate::parser::semantic::declarator::*;
+use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
+use crate::parser::semantic::sema::decl::declarator::PartialDecl;
+use crate::parser::semantic::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
-use crate::parser::types::sema::decl::declarator::PartialDecl;
-use crate::parser::types::sema::sema_type::Type;
+use crate::parser::ast::decl::DeclRef;
 
 macro_rules! dup_error {
     ($ele:expr, $context:expr) => {{
@@ -372,7 +373,7 @@ impl Parser {
     /// # Arguments
     /// - `decl_spec`: DeclSpec引用
     /// - `declarator`: 传入None表示无Declarator
-    fn parse_init_declarator(&mut self, decl_spec: Rc<DeclSpec>, declarator: Option<Declarator>) -> ParserResult<Rc<Decl>> {
+    fn parse_init_declarator(&mut self, decl_spec: Rc<DeclSpec>, declarator: Option<Declarator>) -> ParserResult<DeclRef> {
         let lo = self.stream.span();
 
         // 解析declarator
@@ -429,7 +430,7 @@ impl Parser {
         Ok(list)
     }
 
-    fn parse_struct_or_union_spec(&mut self) -> ParserResult<Rc<Decl>> {
+    fn parse_struct_or_union_spec(&mut self) -> ParserResult<DeclRef> {
        
         let lo = self.stream.span();
         
@@ -521,7 +522,7 @@ impl Parser {
     }
     
     /// 解析struct的成员，负责插入符号表
-    fn parse_struct_declarator(&mut self, decl_spec: Rc<DeclSpec>) -> ParserResult<Rc<Decl>> {
+    fn parse_struct_declarator(&mut self, decl_spec: Rc<DeclSpec>) -> ParserResult<DeclRef> {
         let mut declarator = Declarator::new(decl_spec);
         
         let lo = self.stream.span();
@@ -550,7 +551,7 @@ impl Parser {
 
 
     /// 解析enum声明或定义
-    fn parse_enum_spec(&mut self) -> ParserResult<Rc<Decl>> {
+    fn parse_enum_spec(&mut self) -> ParserResult<DeclRef> {
         // 准备枚举上下文
         self.sema.enter_decl(DeclContextKind::Enum);
         let lo = self.stream.span();
@@ -595,7 +596,7 @@ impl Parser {
         Ok(decl)
     }
 
-    fn parse_enumerator_list(&mut self, decls: &mut Vec<Rc<Decl>>, commas: &mut Vec<Pos>) -> ParserResult<()> {
+    fn parse_enumerator_list(&mut self, decls: &mut Vec<DeclRef>, commas: &mut Vec<Pos>) -> ParserResult<()> {
         loop {
             let decl = self.parse_enumerator()?;
             decls.push(decl);
@@ -610,7 +611,7 @@ impl Parser {
     }
 
     // 解析枚举的成员，负责插入符号表
-    fn parse_enumerator(&mut self) -> ParserResult<Rc<Decl>> {
+    fn parse_enumerator(&mut self) -> ParserResult<DeclRef> {
         let lo = self.stream.span();
         
         let ident = self.expect_ident()?;
@@ -634,7 +635,7 @@ impl Parser {
     fn parse_parameter_list(&mut self) -> ParserResult<ParamList> {
         let lo = self.stream.span();
 
-        let mut params: Vec<Rc<Decl>> = Vec::new();
+        let mut params: Vec<DeclRef> = Vec::new();
         let mut commas = Vec::new();
         let mut ellipsis = None;
 
@@ -662,7 +663,7 @@ impl Parser {
     }
 
     /// 解析函数参数声明，负责插入符号表
-    fn parse_parameter_decl(&mut self) -> ParserResult<Rc<Decl>> {
+    fn parse_parameter_decl(&mut self) -> ParserResult<DeclRef> {
         let lo = self.stream.span();
 
         let decl_spec = self.parse_decl_spec()?;

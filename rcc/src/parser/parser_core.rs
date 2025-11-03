@@ -3,11 +3,11 @@ use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::token_stream::TokenStream;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
-use crate::parser::types::sema::Sema;
+use crate::parser::semantic::sema::Sema;
 
 pub struct Parser {
     pub(crate) stream: TokenStream,
-    pub(crate) sema: Sema
+    pub(crate) sema: Sema,
 }
 impl Parser {
     pub fn new(stream: TokenStream, sema: Sema) -> Parser {
@@ -183,7 +183,7 @@ impl Parser {
         if let TokenKind::Ident(symbol) = token.kind {
             self.sema.curr_decl.borrow() // 检查符号表
                 .lookup_chain(symbol)
-                .is_some()
+                .is_some_and(|x| x.borrow().kind.is_type_def())
         } else {
             false
         }

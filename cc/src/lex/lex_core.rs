@@ -353,7 +353,7 @@ impl<R: Read> Lex<R> {
 /// 异步lex
 ///
 /// # Members
-/// - `types`: lexer
+/// - `semantic`: lexer
 /// - `token_tx`: token channel，总体速度匹配，但防止积压，使用有界队列
 /// - `error_tx`: 错误channel
 ///

@@ -1,5 +1,5 @@
-use crate::parser::types::ast::expr::{Expr, ExprKind};
-use crate::parser::types::sema::Sema;
+use crate::parser::semantic::ast::expr::{Expr, ExprKind};
+use crate::parser::semantic::sema::Sema;
 use crate::types::span::Span;
 
 impl Sema {

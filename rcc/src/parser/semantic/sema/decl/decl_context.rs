@@ -1,7 +1,8 @@
 use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::Symbol;
-use crate::parser::types::ast::decl::{Decl, DeclKind};
+use crate::parser::semantic::ast::decl::DeclKind;
+use crate::parser::semantic::sema::sema_struct::DeclRef;
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::fmt::{Debug, Formatter};
@@ -18,19 +19,19 @@ pub enum DeclContextKind {
 }
 
 pub trait DeclContext: Debug {
-    fn get_decls(&self) -> &FxHashMap<Symbol, Rc<Decl>>;
-    // fn get_decls_mut(&mut self) -> &mut FxHashMap<Symbol, Rc<Decl>>;
+    fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef>;
+    // fn get_decls_mut(&mut self) -> &mut FxHashMap<Symbol, DeclKey>;
     fn get_kind(&self) -> DeclContextKind;
     fn get_parent(&self) -> Option<DeclContextRef>;
 
-    fn insert(&mut self, decl: Rc<Decl>) -> ParserResult<()>;
+    fn insert(&mut self, decl: DeclRef) -> ParserResult<()>;
 
-    fn lookup(&self, name: Symbol) -> Option<Rc<Decl>> {
+    fn lookup(&self, name: Symbol) -> Option<DeclRef> {
         let decls = self.get_decls();
         decls.get(&name).cloned()
     }
 
-    fn lookup_chain(&self, name: Symbol) -> Option<Rc<Decl>> {
+    fn lookup_chain(&self, name: Symbol) -> Option<DeclRef> {
         lookup_chain(name, self.get_decls(), self.get_parent())
     }
 }
@@ -38,7 +39,7 @@ pub trait DeclContext: Debug {
 #[derive(Clone)]
 pub struct CommonDeclContext {
     kind: DeclContextKind,
-    decls: FxHashMap<Symbol, Rc<Decl>>,
+    decls: FxHashMap<Symbol, DeclRef>,
     parent: Option<DeclContextRef>,
 }
 
@@ -60,7 +61,7 @@ impl CommonDeclContext {
 
 impl DeclContext for CommonDeclContext {
 
-    fn get_decls(&self) -> &FxHashMap<Symbol, Rc<Decl>> {
+    fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef> {
         &self.decls
     }
     fn get_kind(&self) -> DeclContextKind {
@@ -72,20 +73,24 @@ impl DeclContext for CommonDeclContext {
     }
 
     /// 添加decl定义，如果没有名字就忽略
-    fn insert(&mut self, decl: Rc<Decl>) -> ParserResult<()> {
+    fn insert(&mut self, decl_ref: DeclRef) -> ParserResult<()> {
+        let decl = decl_ref.borrow();
         use DeclKind::*;
         let name = match decl.get_name() {
             Some(x) => x.symbol,
             None => return Ok(())
         };
 
-        let lookup = match self.lookup(name) {
+        let lookup_ref = match self.lookup(name) {
             Some(x) => x,
             None => {
-                self.decls.insert(name, decl);
+                drop(decl);
+                self.decls.insert(name, decl_ref);
                 return Ok(())
             }
         };
+
+        let mut lookup = lookup_ref.borrow_mut();
 
 
         match (&lookup.kind, &decl.kind) {
@@ -97,16 +102,18 @@ impl DeclContext for CommonDeclContext {
             (EnumRef { .. }, Enum { .. })
             | (RecordRef { .. }, Record { .. })
             => {
-                self.decls.remove(&name);
-                self.decls.insert(name, decl);
+                // 覆盖原来的声明
+                *lookup = decl.clone();
             }
             (FuncRef { .. }, FuncRef { .. }, ) => {
                 // 如果类型不同出错，
                 if lookup.ty.ne(&decl.ty) {
                     // todo
                 }
+                // 覆盖原来的声明
+                *lookup = decl.clone();
             }
-            (_, _) => {
+            (_, _) => { // 重定义出错
                 let kind = parser_error::ErrorKind::redefinition(name);
                 let error = ParserError::new(kind, decl.span);
                 return Err(error)
@@ -115,12 +122,12 @@ impl DeclContext for CommonDeclContext {
         Ok(())
     }
 
-    fn lookup(&self, name: Symbol) -> Option<Rc<Decl>> {
+    fn lookup(&self, name: Symbol) -> Option<DeclRef> {
         self.decls.get(&name).cloned()
     }
 
     /// global没有parent
-    fn lookup_chain(&self, name: Symbol) -> Option<Rc<Decl>> {
+    fn lookup_chain(&self, name: Symbol) -> Option<DeclRef> {
         self.lookup(name)
     }
 }
@@ -133,7 +140,7 @@ impl Debug for CommonDeclContext {
 
 #[derive(Clone)]
 pub struct RecordDeclContext {
-    decls: FxHashMap<Symbol, Rc<Decl>>,
+    decls: FxHashMap<Symbol, DeclRef>,
     parent: DeclContextRef,
 }
 
@@ -153,7 +160,7 @@ impl Debug for RecordDeclContext {
 }
 
 impl DeclContext for RecordDeclContext {
-    fn get_decls(&self) -> &FxHashMap<Symbol, Rc<Decl>> {
+    fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef> {
         &self.decls
     }
 
@@ -165,7 +172,8 @@ impl DeclContext for RecordDeclContext {
         Some(Rc::clone(&self.parent))
     }
 
-    fn insert(&mut self, decl: Rc<Decl>) -> ParserResult<()> {
+    fn insert(&mut self, decl_ref: DeclRef) -> ParserResult<()> {
+        let decl = decl_ref.borrow();
         match &decl.kind {
             DeclKind::EnumField { .. }
             | DeclKind::RecordRef{ .. }
@@ -173,7 +181,8 @@ impl DeclContext for RecordDeclContext {
             | DeclKind::EnumRef { .. }
             | DeclKind::Enum{ .. } => {
                 // 这些声明都放到父作用域
-                return self.parent.borrow_mut().insert(decl);
+                drop(decl);
+                return self.parent.borrow_mut().insert(decl_ref);
             }
             DeclKind::RecordField { .. } => {} // 交给下面做
             _ => unreachable!()
@@ -191,7 +200,8 @@ impl DeclContext for RecordDeclContext {
             return Err(error);
         };
 
-        self.decls.insert(name, decl);
+        drop(decl);
+        self.decls.insert(name, decl_ref);
         
         Ok(())
     }
@@ -200,7 +210,7 @@ impl DeclContext for RecordDeclContext {
 
 #[derive(Clone)]
 pub struct EnumDeclContext {
-    decls: FxHashMap<Symbol, Rc<Decl>>,
+    decls: FxHashMap<Symbol, DeclRef>,
     parent: DeclContextRef,
 }
 
@@ -220,7 +230,7 @@ impl Debug for EnumDeclContext {
 }
 
 impl DeclContext for EnumDeclContext {
-    fn get_decls(&self) -> &FxHashMap<Symbol, Rc<Decl>> {
+    fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef> {
         &self.decls
     }
 
@@ -232,63 +242,66 @@ impl DeclContext for EnumDeclContext {
         Some(Rc::clone(&self.parent))
     }
 
-    fn insert(&mut self, decl: Rc<Decl>) -> ParserResult<()> {
+    fn insert(&mut self, decl: DeclRef) -> ParserResult<()> {
         // 直接插到父作用域
         self.parent.borrow_mut().insert(decl)
     }
 }
 
-#[derive(Clone)]
-pub struct ParamDeclContext {
-    decls: FxHashMap<Symbol, Rc<Decl>>,
-    parent: DeclContextRef,
-}
+// #[derive(Clone)]
+// pub struct ParamDeclContext {
+//     decls: FxHashMap<Symbol, DeclRef>,
+//     parent: DeclContextRef,
+// }
+//
+// impl ParamDeclContext {
+//     pub fn new(parent: DeclContextRef) -> Self {
+//         Self {
+//             decls: FxHashMap::default(),
+//             parent
+//         }
+//     }
+// }
 
-impl ParamDeclContext {
-    pub fn new(parent: DeclContextRef) -> Self {
-        Self {
-            decls: FxHashMap::default(),
-            parent
-        }
-    }
-}
+// impl Debug for ParamDeclContext {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{{ decls: {:?} kind: {:?} }}", self.decls, self.get_kind())
+//     }
+// }
 
-impl Debug for ParamDeclContext {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ decls: {:?} kind: {:?} }}", self.decls, self.get_kind())
-    }
-}
+// impl DeclContext for ParamDeclContext {
+//     fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef> {
+//         &self.decls
+//     }
+//
+//     fn get_kind(&self) -> DeclContextKind {
+//         DeclContextKind::Enum
+//     }
+//
+//     fn get_parent(&self) -> Option<DeclContextRef> {
+//         Some(Rc::clone(&self.parent))
+//     }
+//
+//     fn insert(&mut self, decl_ref: DeclRef) -> ParserResult<()> {
+//         let decl = decl_ref.borrow();
+//         if !decl.kind.is_param_var() {
+//             // 不是函数参数声明不能
+//             todo!()
+//         }
+//
+//         match &decl.name {
+//             None => {}
+//             Some(x) => {
+//                 let name = x.symbol;
+//                 drop(decl);
+//                 self.decls.insert(name, decl_ref);
+//             }
+//         }
+//         Ok(())
+//     }
+// }
 
-impl DeclContext for ParamDeclContext {
-    fn get_decls(&self) -> &FxHashMap<Symbol, Rc<Decl>> {
-        &self.decls
-    }
-
-    fn get_kind(&self) -> DeclContextKind {
-        DeclContextKind::Enum
-    }
-
-    fn get_parent(&self) -> Option<DeclContextRef> {
-        Some(Rc::clone(&self.parent))
-    }
-
-    fn insert(&mut self, decl: Rc<Decl>) -> ParserResult<()> {
-        if !decl.kind.is_param_var() {
-            // 不是函数参数声明不能
-            todo!()
-        }
-
-        match &decl.name {
-            None => {}
-            Some(x) => {
-                self.decls.insert(x.symbol, Rc::clone(&decl));   
-            }
-        }
-        Ok(())
-    }
-}
-
-fn lookup_chain(name: Symbol, decls: &FxHashMap<Symbol, Rc<Decl>>, parent: Option<DeclContextRef>) -> Option<Rc<Decl>> {
+fn lookup_chain(name: Symbol, decls: &FxHashMap<Symbol, DeclRef>, parent: Option<DeclContextRef>) -> Option<DeclRef> {
     // 查找当前表
     if let Some(v) = decls.get(&name) {
         return Some(Rc::clone(v));

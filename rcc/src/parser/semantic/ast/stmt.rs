@@ -1,7 +1,7 @@
-use crate::parser::types::ast::decl::DeclGroup;
-use crate::parser::types::ast::expr::Expr;
-use crate::parser::types::common::Ident;
-use crate::parser::types::sema::decl::decl_context::DeclContextRef;
+use crate::parser::semantic::ast::decl::DeclGroup;
+use crate::parser::semantic::ast::expr::Expr;
+use crate::parser::semantic::common::Ident;
+use crate::parser::semantic::sema::decl::decl_context::DeclContextRef;
 use crate::types::span::{Pos, Span};
 
 #[derive(Clone, Debug)]

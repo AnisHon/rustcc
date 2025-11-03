@@ -1,9 +1,7 @@
-use std::rc::Rc;
-use crate::parser::types::ast::decl::{Decl, DeclGroup};
-use crate::parser::types::ast::stmt::Stmt;
-use crate::parser::types::common::Ident;
-use crate::parser::types::declarator::Declarator;
-use crate::parser::types::sema::sema_type::Type;
+use crate::parser::ast::decl::DeclRef;
+use crate::parser::semantic::ast::decl::{DeclGroup};
+use crate::parser::semantic::ast::stmt::Stmt;
+use crate::parser::semantic::declarator::Declarator;
 use crate::types::span::Span;
 
 pub type TranslationUnit = Vec<ExternalDecl>;
@@ -23,7 +21,7 @@ pub struct FuncDecl {
 
 #[derive(Clone, Debug)]
 pub struct FuncDef {
-    pub decl: Rc<Decl>,
+    pub decl: DeclRef,
     pub body: Box<Stmt>,
     pub span: Span
 }

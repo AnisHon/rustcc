@@ -1,11 +1,11 @@
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::TokenKind;
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::decl::DeclGroup;
-use crate::parser::types::ast::func::{ExternalDecl, FuncDecl, FuncDef, TranslationUnit};
-use crate::parser::types::ast::stmt::Stmt;
-use crate::parser::types::declarator::Declarator;
-use crate::parser::types::sema::decl::decl_context::DeclContextKind;
+use crate::parser::semantic::ast::decl::DeclGroup;
+use crate::parser::semantic::ast::func::{ExternalDecl, FuncDecl, FuncDef, TranslationUnit};
+use crate::parser::semantic::ast::stmt::Stmt;
+use crate::parser::semantic::declarator::Declarator;
+use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
 use crate::types::span::Span;
 
 impl Parser {

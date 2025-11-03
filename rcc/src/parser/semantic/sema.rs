@@ -4,4 +4,4 @@ pub mod decl;
 mod sema_struct;
 pub mod ty;
 
-pub use sema_struct::Sema;
+pub use sema_struct::{Sema};

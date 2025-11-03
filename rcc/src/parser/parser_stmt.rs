@@ -1,9 +1,9 @@
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
 use crate::parser::parser_core::Parser;
-use crate::parser::types::ast::stmt::{Stmt, StmtKind};
-use crate::parser::types::common::Ident;
-use crate::parser::types::sema::decl::decl_context::DeclContextKind;
+use crate::parser::semantic::ast::stmt::{Stmt, StmtKind};
+use crate::parser::semantic::common::Ident;
+use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
 use crate::types::span::Span;
 
 impl Parser {

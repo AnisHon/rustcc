@@ -1,1 +1,1 @@
-mod ast_graph;
+pub mod ast_graph;

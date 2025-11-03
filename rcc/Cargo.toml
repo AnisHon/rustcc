@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 indexmap.workspace = true
 macros.workspace = true
+slotmap.workspace = true
 petgraph.workspace = true
 enum-as-inner = "0.6.1"
 num-derive = "0.4.2"
@@ -16,3 +17,4 @@ crossbeam-channel = "0.5.15"
 phf = { version = "0.13.1", features = ["macros"] }
 unicode-ident = "1.0.19"
 rustc-hash = "2.1.1"
+bumpalo = "3.19.0"

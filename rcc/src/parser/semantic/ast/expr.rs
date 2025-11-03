@@ -1,12 +1,12 @@
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{LiteralKind, Symbol, TokenKind};
-use crate::parser::types::common::Ident;
-use crate::parser::types::sema::sema_type::{Type};
+use crate::parser::semantic::common::Ident;
+use crate::parser::semantic::sema::sema_type::{Type};
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
 use std::rc::Rc;
-use crate::parser::types::sema::expr::value_type::ValueType;
+use crate::parser::semantic::sema::expr::value_type::ValueType;
 
 #[derive(Clone, Debug, EnumAsInner)]
 pub enum ExprKind {

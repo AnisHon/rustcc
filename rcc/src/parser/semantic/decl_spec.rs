@@ -1,13 +1,13 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
-use crate::parser::types::ast::decl::{Decl, DeclGroup, StructOrUnion};
-use crate::parser::types::ast::expr::Expr;
-use crate::parser::types::common::{Ident, IdentList};
-use crate::parser::types::declarator::*;
+use crate::parser::ast::decl::DeclRef;
+use crate::parser::semantic::ast::decl::{DeclGroup, StructOrUnion};
+use crate::parser::semantic::ast::expr::Expr;
+use crate::parser::semantic::common::{Ident, IdentList};
+use crate::parser::semantic::declarator::*;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
-use std::rc::Rc;
 
 pub type TypeQualType = [Option<TypeQual>; 3];
 
@@ -29,7 +29,7 @@ pub struct DeclSpec {
     pub span: Span
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, EnumAsInner)]
 pub enum StorageSpecKind {
     Typedef,
     Extern,
@@ -91,10 +91,10 @@ pub enum TypeSpecKind {
     Double,
     Signed,
     Unsigned,
-    Struct(Rc<Decl>),
-    Union(Rc<Decl>),
-    Enum(Rc<Decl>),
-    TypeName(Ident, Rc<Decl>)
+    Struct(DeclRef),
+    Union(DeclRef),
+    Enum(DeclRef),
+    TypeName(Ident, DeclRef)
 }
 
 #[derive(Debug, Clone)]
@@ -228,7 +228,7 @@ pub enum ParamDecl {
 
 #[derive(Clone, Debug)]
 pub struct ParamList {
-    pub params: Vec<Rc<Decl>>,
+    pub params: Vec<DeclRef>,
     pub commas: Vec<Pos>,
     pub ellipsis: Option<Span>,
     pub span: Span,
@@ -272,7 +272,7 @@ pub struct StructDeclarator {
 #[derive(Clone, Debug)]
 pub struct EnumSpecBody {
     pub l: Pos,
-    pub decls: Vec<Rc<Decl>>,
+    pub decls: Vec<DeclRef>,
     pub commas: Vec<Pos>,
     pub r: Pos,
 }

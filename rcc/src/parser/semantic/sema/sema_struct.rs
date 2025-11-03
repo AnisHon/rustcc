@@ -1,10 +1,10 @@
-use crate::parser::types::sema::decl::decl_context::{CommonDeclContext, DeclContextKind, DeclContextRef, EnumDeclContext, ParamDeclContext, RecordDeclContext};
-use crate::parser::types::sema::ty::type_context::TypeContext;
-use std::cell::RefCell;
-use std::rc::Rc;
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::Symbol;
-use crate::parser::types::ast::decl::Decl;
+use crate::parser::semantic::sema::decl::decl_context::*;
+use crate::parser::semantic::sema::ty::type_context::TypeContext;
+use std::cell::RefCell;
+use std::rc::Rc;
+pub(crate) use crate::parser::ast::decl::DeclRef;
 
 pub struct Sema {
     pub(crate) curr_decl: DeclContextRef,
@@ -14,12 +14,12 @@ impl Sema {
     pub fn new() -> Self {
         let curr_decl = Rc::new(RefCell::new(CommonDeclContext::new(DeclContextKind::File, None)));
         let type_context = TypeContext::new();
+        
         Self {
             curr_decl,
             type_context,
         }
     }
-    
     
     /// 进入decl
     /// # Arguments
@@ -52,11 +52,11 @@ impl Sema {
         Rc::clone(&self.curr_decl)
     }
     
-    pub fn insert_decl(&mut self, decl: Rc<Decl>) -> ParserResult<()> {
+    pub fn insert_decl(&mut self, decl: DeclRef) -> ParserResult<()> {
         self.curr_decl.borrow_mut().insert(decl)
     }
 
-    pub fn look_up_chain(&mut self, symbol: Symbol) -> Option<Rc<Decl>> {
+    pub fn look_up_chain(&mut self, symbol: Symbol) -> Option<DeclRef> {
         self.curr_decl.borrow().lookup_chain(symbol)
     }
     

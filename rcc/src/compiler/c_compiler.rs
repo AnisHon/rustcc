@@ -1,9 +1,12 @@
 use crate::content_manager::ContentManager;
 use crate::lex::lex_core::{run_lexer, Lex};
 use std::sync::{mpsc, Arc};
+use petgraph::dot::{Config, Dot};
 use crate::lex::token_stream::TokenStream;
+use crate::parser::ast::visitor::Visitor;
 use crate::parser::parser_core::Parser;
 use crate::parser::Sema;
+use crate::writer::ast_graph::AstGraph;
 
 ///
 /// 编译器主流程
@@ -41,14 +44,21 @@ impl CCompiler<> {
         let lex = Lex::new(Arc::clone(&content_manager));
         let tokens = run_lexer(lex, error_tx);
 
+        
         let sema = Sema::new();
         let token_stream = TokenStream::new(tokens);
         let mut parser = Parser::new(token_stream, sema);
 
-        println!("{:#?}", parser.parse_translation_unit());
+        let mut trans_unit = parser.parse_translation_unit().unwrap();
+        println!("{:#?}", trans_unit);
 
-        for x in error_rx {
-            eprintln!("{x:?}")
-        }
+        let mut graph = AstGraph::new();
+        graph.walk_translation_unit(&mut trans_unit);
+
+        let dot = Dot::with_config(&graph.tree, &[Config::EdgeNoLabel]);
+        println!("{:?}", dot);
+        // for x in error_rx {
+        //     eprintln!("{x:?}")
+        // }
     }
 }
