@@ -92,7 +92,7 @@ impl DeclContext for CommonDeclContext {
 
         let mut lookup = lookup_ref.borrow_mut();
 
-
+        // println!("{:?} \n\n {:?}\n---------\n", lookup.kind, decl.kind);
         match (&lookup.kind, &decl.kind) {
             (Enum { .. }, EnumRef { .. })
             | (EnumRef { .. }, EnumRef { .. })
@@ -125,11 +125,6 @@ impl DeclContext for CommonDeclContext {
     fn lookup(&self, name: Symbol) -> Option<DeclRef> {
         self.decls.get(&name).cloned()
     }
-
-    /// global没有parent
-    fn lookup_chain(&self, name: Symbol) -> Option<DeclRef> {
-        self.lookup(name)
-    }
 }
 
 impl Debug for CommonDeclContext {
@@ -137,6 +132,8 @@ impl Debug for CommonDeclContext {
         write!(f, "{{ decls: {:?} kind: {:?} }}", self.decls, self.kind)
     }
 }
+
+
 
 #[derive(Clone)]
 pub struct RecordDeclContext {

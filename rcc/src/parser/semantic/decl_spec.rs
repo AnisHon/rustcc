@@ -67,7 +67,7 @@ impl StorageSpec {
                 Register => StorageSpecKind::Register,
                 _ => unreachable!()
             }
-            _ => unreachable!(),
+            _ => unreachable!("{:?}", token),
         };
         Self { kind, span: token.span }
     }

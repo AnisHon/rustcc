@@ -1,7 +1,9 @@
 void a(int);
 typedef int asdf;
-int a(int) {
 
+int a(int a) {
+     asdf ssss;
+     return 1;
 }
 
 int main() {

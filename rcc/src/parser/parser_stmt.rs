@@ -56,15 +56,15 @@ impl Parser {
     /// only stmt: 只解析stmt无decl
     pub(crate) fn parse_stmt(&mut self, only_stmt: bool) -> ParserResult<Box<Stmt>> {
         let lo = self.stream.span();
-        let kind = if self.check_labeled_stmt() {
+        let kind = if self.check_labeled_stmt() { // label
             self.parse_labeled_stmt()?
-        } else if self.check(TokenKind::LBrace) {
+        } else if self.check(TokenKind::LBrace) { // compound
             self.parse_compound_stmt(only_stmt, true)?
-        } else if self.check_selection_stmt() {
+        } else if self.check_selection_stmt() { //
             self.parse_selection_stmt()?
-        } else if self.check_jump_stmt() {
+        } else if self.check_jump_stmt() { // goto return
             self.parse_jump_stmt()?
-        } else if self.check_iteration_stmt() {
+        } else if self.check_iteration_stmt() { // for while
             self.parse_iteration_stmt()?
         } else {
             let expr = match self.check(TokenKind::Semi) {

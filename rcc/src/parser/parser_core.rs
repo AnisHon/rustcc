@@ -2,7 +2,7 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::token_stream::TokenStream;
 use crate::lex::types::token::Token;
-use crate::lex::types::token_kind::{Keyword, TokenKind};
+use crate::lex::types::token_kind::{Keyword, Symbol, TokenKind};
 use crate::parser::semantic::sema::Sema;
 
 pub struct Parser {
@@ -181,8 +181,7 @@ impl Parser {
 
     pub(crate) fn is_type_name(&self, token: &Token) -> bool {
         if let TokenKind::Ident(symbol) = token.kind {
-            self.sema.curr_decl.borrow() // 检查符号表
-                .lookup_chain(symbol)
+            self.sema.lookup_chain(symbol) // 检查符号表
                 .is_some_and(|x| x.borrow().kind.is_type_def())
         } else {
             false
@@ -223,7 +222,6 @@ impl Parser {
     pub fn is_storage_spec(&self, token: &Token) -> bool {
         use Keyword::*;
         match token.kind {
-            TokenKind::Ident(_) => self.is_type_name(token),
             TokenKind::Keyword(x) =>
                 matches!(
                     x,

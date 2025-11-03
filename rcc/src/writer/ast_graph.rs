@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use petgraph::data::Build;
 use crate::parser::ast::decl::{DeclGroup, DeclKind, DeclRef, Initializer};
 use crate::parser::ast::expr::{Expr, ExprKind};
 use crate::parser::ast::stmt::{Stmt, StmtKind};
@@ -136,6 +135,7 @@ impl Visitor for AstGraph {
             }
             DeclKind::Enum { enums, .. } => {
                 prev = self.make_node("enum_def".to_owned());
+                enums.iter().for_each(|x| self.visit_decl(Rc::clone(x)))
             }
             DeclKind::EnumRef { .. } => {
                 prev = self.make_node("enum_ref".to_owned());

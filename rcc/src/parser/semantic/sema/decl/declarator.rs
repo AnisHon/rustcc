@@ -20,8 +20,6 @@ pub struct PartialDecl {
 
 impl Sema {
     pub fn act_on_init_declarator(&mut self, declarator: InitDeclarator) -> ParserResult<DeclRef> {
-
-
         let PartialDecl {
             storage,
             name,
@@ -50,6 +48,7 @@ impl Sema {
         let decl = Decl::new_ref(decl);
         // 添加decl
         self.insert_decl(Rc::clone(&decl))?;
+        // println!("\n{:?}\n\n", self.curr_decl);
         Ok(decl)
     }
 
@@ -194,6 +193,10 @@ impl Sema {
 
         // 将参数压入context
         for x in params.iter() {
+            // 参数没名字，直接出错
+            if x.borrow().name.is_none() {
+                todo!()
+            }
             decl_context.insert(Rc::clone(x))?;
         }
         drop(decl_context);
@@ -212,7 +215,7 @@ impl Sema {
             span: func_decl.span,
         });
 
-        self.insert_decl(Rc::clone(&decl))?;
+        self.insert_parent(Rc::clone(&decl))?;
         Ok(decl)
     }
 

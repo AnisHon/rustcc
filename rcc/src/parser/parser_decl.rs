@@ -159,7 +159,7 @@ impl Parser {
             TokenKind::Ident(_) => {
                 let symbol = self.stream.next().kind.into_ident().unwrap();
                 let ident = Ident { symbol, span };
-                let decl = match self.sema.look_up_chain(symbol) {
+                let decl = match self.sema.lookup_chain(symbol) {
                     Some(x) => x,
                     None => todo!() // 不是类型，出错
                 };

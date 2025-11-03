@@ -56,7 +56,11 @@ impl Sema {
         self.curr_decl.borrow_mut().insert(decl)
     }
 
-    pub fn look_up_chain(&mut self, symbol: Symbol) -> Option<DeclRef> {
+    pub fn insert_parent(&mut self, decl: DeclRef) -> ParserResult<()> {
+        self.curr_decl.borrow_mut().get_parent().unwrap().borrow_mut().insert(decl)
+    }
+
+    pub fn lookup_chain(&self, symbol: Symbol) -> Option<DeclRef> {
         self.curr_decl.borrow().lookup_chain(symbol)
     }
     
