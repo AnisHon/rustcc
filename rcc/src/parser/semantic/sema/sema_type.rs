@@ -405,6 +405,7 @@ impl Type {
 
         code
     }
+
 }
 
 impl Default for Type {

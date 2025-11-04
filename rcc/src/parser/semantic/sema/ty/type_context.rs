@@ -7,11 +7,11 @@ use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind};
 use crate::parser::semantic::sema::sema_type::{ArraySize, EnumField, FloatSize, IntegerSize, Qualifier, RecordField, Type, TypeKind};
 use rustc_hash::FxHashSet;
 use std::rc::Rc;
+use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, LiteralKind};
 
 pub struct TypeContext {
     types: FxHashSet<Rc<Type>>,
 }
-
 impl TypeContext {
     pub fn new() -> Self {
         Self {
@@ -352,6 +352,36 @@ impl TypeContext {
         let kind = TypeKind::Integer { size, is_signed };
         let ty = Type::new(Qualifier::default(), kind);
         self.get_or_set(ty)
+    }
+
+    pub(crate) fn get_constant_type(&mut self, constant: &LiteralKind) -> Rc<Type> {
+        match constant {
+            LiteralKind::Integer { suffix, .. } => {
+                 suffix.map(|x| match x {
+                     IntSuffix::U => self.get_int_type(IntegerSize::Int, false),
+                     IntSuffix::L => self.get_int_type(IntegerSize::Long, true),
+                     IntSuffix::UL => self.get_int_type(IntegerSize::Long, false),
+                     IntSuffix::LL => self.get_int_type(IntegerSize::LongLong, true),
+                     IntSuffix::ULL => self.get_int_type(IntegerSize::LongLong, false),
+                 }).unwrap_or_else(|| self.get_int_type(IntegerSize::Int, true))
+            }
+            LiteralKind::Float { suffix, .. } => {
+                let size = suffix.map(|x| match x {
+                    FloatSuffix::F => FloatSize::Float,
+                    FloatSuffix::L => FloatSize::LongDouble,
+                }).unwrap_or(FloatSize::Double);
+                let kind = TypeKind::Floating { size };
+                self.get_or_set(Type::new(Qualifier::default(), kind))
+            }
+            LiteralKind::Char { .. } => {
+                self.get_int_type(IntegerSize::Char, false)
+            }
+            LiteralKind::String { .. } => {
+                let char_ty = self.get_int_type(IntegerSize::Char, false);
+                let kind = TypeKind::Pointer { elem_ty: Rc::downgrade(&char_ty) };
+                self.get_or_set(Type::new(Qualifier::default(), kind))
+            }
+        }
     }
 
     /// 获取未知类型

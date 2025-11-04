@@ -50,7 +50,7 @@ impl CCompiler<> {
         let mut parser = Parser::new(token_stream, sema);
 
         let mut trans_unit = parser.parse_translation_unit().unwrap();
-        println!("{:#?}", trans_unit);
+        // println!("{:#?}", trans_unit);
 
         let mut graph = AstGraph::new();
         graph.walk_translation_unit(&mut trans_unit);

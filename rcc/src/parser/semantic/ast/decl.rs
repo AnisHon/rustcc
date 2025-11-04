@@ -35,19 +35,12 @@ impl InitializerList {
 pub enum DeclKind {
     TypeDef,
     ParamVar,
+    FuncRef, // 函数声明
     VarInit {  // int a = 10;
         eq: Option<Pos>, 
         init: Option<Initializer>, 
     },
-    FuncRef { // 函数声明
-        ret_ty: Rc<Type>,
-        params: Vec<DeclRef>,
-        is_variadic: bool,
-    },
     Func { // 函数定义
-        ret_ty: Rc<Type>,
-        params: Vec<DeclRef>,
-        is_variadic: bool,
         body: Box<Stmt>,
     },
     RecordField {  // int a : 10;

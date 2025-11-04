@@ -11,4 +11,4 @@ mod semantic;
 mod parser_stmt;
 mod parser_function;
 
-pub use crate::parser::semantic::{ast, sema::Sema};
+pub use crate::parser::semantic::{ast, sema::Sema, common};

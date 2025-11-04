@@ -97,21 +97,21 @@ impl Visitor for AstGraph {
                     self.visit_initializer(x);
                 }
             }
-            DeclKind::FuncRef { ret_ty, params, is_variadic } => {
+            DeclKind::FuncRef {  } => {
                 prev = self.make_node("func_ref".to_owned());
-                let ret = ret_ty.to_code();
-                self.connect_node(ret);
-                for x in params.iter() {
-                    self.visit_decl(Rc::clone(x));
-                }
+                // let ret = ret_ty.to_code();
+                // self.connect_node(ret);
+                // for x in params.iter() {
+                //     self.visit_decl(Rc::clone(x));
+                // }
             }
-            DeclKind::Func { ret_ty, params, is_variadic, body } => {
+            DeclKind::Func {body } => {
                 prev = self.make_node("func_def".to_owned());
-                let ret = ret_ty.to_code();
-                self.connect_node(ret);
-                for x in params.iter() {
-                    self.visit_decl(Rc::clone(x));
-                }
+                // let ret = ret_ty.to_code();
+                // self.connect_node(ret);
+                // for x in params.iter() {
+                //     self.visit_decl(Rc::clone(x));
+                // }
                 self.visit_stmt(body);
             }
             DeclKind::RecordField { bit_field, .. } => {

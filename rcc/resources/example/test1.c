@@ -1,8 +1,14 @@
+struct A {
+    int a;
+    int b;
+};
+
 void a(int);
 typedef int asdf;
 
-int a(int a) {
+int a() {
      asdf ssss;
+     a(1);
      return 1;
 }
 

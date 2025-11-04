@@ -1,4 +1,5 @@
 use crate::lex::types::token_kind::Symbol;
+use crate::parser::common::Ident;
 use crate::types::span::Span;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
@@ -20,7 +21,13 @@ pub enum ErrorKind {
     #[error("Duplicate '{item}' {context}")]
     Duplicate { item: String, context: String },
     #[error("Redefinition of '{symbol}'")]
-    Redefinition { symbol: String }
+    Redefinition { symbol: String },
+    #[error("Undefined '{symbol}'")]
+    Undefined { symbol: &'static str },
+    #[error("Subscripted value is not an array,pointer,or vector")]
+    NonSubscripted,
+    #[error("Object Not Callable")]
+    UnCallable,
 }
 
 impl ErrorKind {
@@ -43,10 +50,13 @@ impl ErrorLevel {
         use ErrorLevel::*;
         match kind {
             ExpectButFound { .. }
+            | NonSubscripted { .. }
+            | UnCallable { .. }
             | Expect { .. }
             | NotAssignable { .. } 
             | TypeSpecifierMissing 
             | NonCombinable { .. }
+            | Undefined { .. }
             | Redefinition { .. } => Error,
             Duplicate { .. } => Warning,
         }
@@ -75,6 +85,12 @@ impl ParserError {
     pub fn new(error_kind: ErrorKind, span: Span) -> Self {
         let level = ErrorLevel::from_kind(&error_kind);
         Self { span, error_kind, level }
+    }
+
+    pub fn undefined_symbol(ident: &Ident) -> Self {
+        let level = ErrorLevel::Error;
+        let kind = ErrorKind::Undefined { symbol: ident.symbol.get() };
+        Self { span: ident.span, error_kind: kind, level  }
     }
 }
 

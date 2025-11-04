@@ -19,22 +19,49 @@ pub struct PartialDecl {
 }
 
 impl Sema {
-    pub fn act_on_init_declarator(&mut self, declarator: InitDeclarator) -> ParserResult<DeclRef> {
+    pub fn act_on_init_declarator(&mut self, init_declarator: InitDeclarator) -> ParserResult<DeclRef> {
+        let declarator = init_declarator.declarator;
+        // let storage = declarator.decl_spec.storage.clone();
+        // let name = declarator.name.clone();
+        let type_spec = declarator.decl_spec.type_specs.first().unwrap().clone();
         let PartialDecl {
             storage,
             name,
             ty
-        } = self.act_on_declarator(declarator.declarator)?;
+        } = self.act_on_declarator(declarator)?;
 
         let is_typedef = storage.as_ref().is_some_and(|x| x.kind.is_typedef());
         let kind = if is_typedef {
-            if declarator.init.is_some() {
+            if init_declarator.init.is_some() {
                 // todo 对 typedef 初始化 错误
                 todo!();
             }
             DeclKind::TypeDef
         } else {
-            DeclKind::VarInit { eq: declarator.eq, init: declarator.init }
+            match ty.kind {
+                TypeKind::Void
+                | TypeKind::Integer { .. }
+                | TypeKind::Floating { .. }
+                | TypeKind::Pointer { .. }
+                | TypeKind::Array { .. } => {
+                    DeclKind::VarInit { eq: init_declarator.eq, init: init_declarator.init }
+                }
+                TypeKind::Function { .. } => DeclKind::FuncRef,
+                TypeKind::Struct { .. }
+                | TypeKind::StructRef { .. } => {
+                    return Ok(type_spec.kind.into_struct().unwrap())
+                }
+                TypeKind::Union { .. }
+                | TypeKind::UnionRef { .. } => {
+                    return Ok(type_spec.kind.into_union().unwrap())
+                }
+                TypeKind::Enum { .. }
+                | TypeKind::EnumRef { .. } => {
+                    return Ok(type_spec.kind.into_enum().unwrap())
+                }
+                // TypeKind::Unknown => {}
+                _ => todo!()
+            }
         };
 
         let decl = Decl {
@@ -42,7 +69,7 @@ impl Sema {
             name,
             kind,
             ty,
-            span: declarator.span
+            span: init_declarator.span
         };
 
         let decl = Decl::new_ref(decl);
@@ -201,11 +228,7 @@ impl Sema {
         }
         drop(decl_context);
 
-        let kind = DeclKind::FuncRef {
-            ret_ty,
-            params,
-            is_variadic,
-        };
+        let kind = DeclKind::FuncRef;
 
         let decl = Decl::new_ref(Decl {
             storage,

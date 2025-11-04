@@ -57,7 +57,9 @@ impl Sema {
     }
 
     pub fn insert_parent(&mut self, decl: DeclRef) -> ParserResult<()> {
-        self.curr_decl.borrow_mut().get_parent().unwrap().borrow_mut().insert(decl)
+        let curr_decl = self.curr_decl.borrow_mut();
+        let parent_decl = curr_decl.get_parent().unwrap();
+        parent_decl.borrow_mut().insert(decl)
     }
 
     pub fn lookup_chain(&self, symbol: Symbol) -> Option<DeclRef> {

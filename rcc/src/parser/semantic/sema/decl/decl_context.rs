@@ -92,7 +92,7 @@ impl DeclContext for CommonDeclContext {
 
         let mut lookup = lookup_ref.borrow_mut();
 
-        // println!("{:?} \n\n {:?}\n---------\n", lookup.kind, decl.kind);
+        println!("lookup: {:?} \n\n inserting: {:?}\n---------\n", lookup.kind, decl.kind);
         match (&lookup.kind, &decl.kind) {
             (Enum { .. }, EnumRef { .. })
             | (EnumRef { .. }, EnumRef { .. })
