@@ -128,14 +128,16 @@ pub enum TypeKind {
     },
     Struct { 
         name: Option<Ident>, 
-        fields: Vec<RecordField> 
+        fields: Vec<RecordField>,
+        size: u64, // 占用大小
     },
     StructRef { 
         name: Ident, 
     },
     Union { 
         name: Option<Ident>, 
-        fields: Vec<RecordField> 
+        fields: Vec<RecordField>,
+        size: u64, // 占用大小
     },
     UnionRef { 
         name: Ident 
@@ -193,15 +195,17 @@ impl Hash for TypeKind {
                 11u8.hash(state);
                 name.hash(state);
             }
-            Struct { name, fields } => {
+            Struct { name, fields, size } => {
                 6u8.hash(state);
                 name.hash(state);
                 fields.hash(state);
+                size.hash(state);
             },
-            Union { name, fields } => {
+            Union { name, fields, size } => {
                 8u8.hash(state);
                 name.hash(state);
                 fields.hash(state);
+                size.hash(state);
             }
             Enum { name, fields } => {
                 10u8.hash(state);
@@ -253,13 +257,13 @@ impl PartialEq for TypeKind {
                 EnumRef { name: name2 },
             ) => name1 == name2,
             (
-                Struct { name: name1, fields: fields1 },
-                Struct { name: name2, fields: fields2 },
+                Struct { name: name1, fields: fields1, size: sz1 },
+                Struct { name: name2, fields: fields2, size: sz2 },
             ) 
             | (
-                Union { name: name1, fields: fields1 },
-                Union { name: name2, fields: fields2 }
-            ) => name1 == name2 && fields1 == fields2,
+                Union { name: name1, fields: fields1, size: sz1 },
+                Union { name: name2, fields: fields2, size: sz2 }
+            ) => sz1 == sz2 && name1 == name2 && fields1 == fields2,
             (
                 Enum { name: name1, fields: fields1 },
                 Enum { name: name2, fields: fields2 }
@@ -302,6 +306,24 @@ impl Type {
             UnionRef{ .. } => None,
             Enum{ .. } => Some(8),
             EnumRef{ .. } => None,
+        }
+    }
+
+    pub fn sizeof(&self) -> u64 {
+        match &self.kind {
+            TypeKind::Void => 1,
+            TypeKind::Integer { size, .. } => size.sizeof(),
+            TypeKind::Floating { size, .. } => size.sizeof(),
+            TypeKind::Pointer { .. } => 8,
+            TypeKind::Array { size, elem_ty } => todo!(),
+            TypeKind::Function { .. } => 1,
+            TypeKind::Struct { size, .. } => *size,
+            TypeKind::StructRef { .. } => 1,
+            TypeKind::Union { size,.. } => *size,
+            TypeKind::UnionRef { .. } => 1,
+            TypeKind::Enum { .. } => 4,
+            TypeKind::EnumRef { .. } => 1,
+            TypeKind::Unknown => 0,
         }
     }
     
@@ -352,7 +374,7 @@ impl Type {
                 code.push_str(&ret_ty.upgrade().unwrap().to_code());
                 code.push(' ');
             }
-            TypeKind::Struct{ name, fields } => {
+            TypeKind::Struct{ name, fields, .. } => {
                 let name = name.as_ref().map(|x| x.symbol.get()).unwrap_or_default();
                 let fields: String = fields.iter().map(|x| x.to_code()).collect();
                 code.push_str("struct ");
@@ -366,7 +388,7 @@ impl Type {
                 code.push_str("struct ");
                 code.push_str(name.symbol.get());
             }
-            TypeKind::Union{ name, fields } => {
+            TypeKind::Union{ name, fields, .. } => {
                 let name = name.as_ref().map(|x| x.symbol.get()).unwrap_or_default();
                 let fields: String = fields.iter().map(|x| x.to_code()).collect();
                 code.push_str("union ");
@@ -406,6 +428,30 @@ impl Type {
         code
     }
 
+    pub fn is_arithmetic(&self) -> bool {
+        matches!(self.kind, TypeKind::Integer{ .. } | TypeKind::Floating{ .. })
+    }
+
+    pub fn is_pointer(&self) -> bool {
+        matches!(self.kind, TypeKind::Pointer{ .. } | TypeKind::Array{ .. })
+    }
+
+    pub fn is_scalar(&self) -> bool {
+        self.is_pointer() || self.is_arithmetic()
+    }
+
+    pub fn is_void_ptr(&self) -> bool {
+        match &self.kind {
+            TypeKind::Pointer { elem_ty } => {
+                match elem_ty.upgrade().unwrap().kind {
+                    TypeKind::Void => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
 }
 
 impl Default for Type {
@@ -436,6 +482,26 @@ impl IntegerSize {
             IntegerSize::LongLong => "long long"
         }
     }
+
+    pub fn rank(self) -> usize {
+        match self {
+            IntegerSize::Char => 0x1,
+            IntegerSize::Short => 0x2,
+            IntegerSize::Int => 0x3,
+            IntegerSize::Long => 0x4,
+            IntegerSize::LongLong => 0x5,
+        }
+    }
+
+    pub fn sizeof(self) -> u64 {
+        match self {
+            IntegerSize::Char => 1,
+            IntegerSize::Short => 2,
+            IntegerSize::Int => 4,
+            IntegerSize::Long => 8,
+            IntegerSize::LongLong => 8,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
@@ -451,6 +517,23 @@ impl FloatSize {
             FloatSize::Float => "float",
             FloatSize::Double => "double",
             FloatSize::LongDouble => "long double",
+        }
+    }
+
+    /// a > b?
+    pub fn rank(&self) -> usize {
+        match self {
+            FloatSize::Float => 0x1,
+            FloatSize::Double => 0x10,
+            FloatSize::LongDouble => 0x100,
+        }
+    }
+
+    pub fn sizeof(self) -> u64 {
+        match self {
+            FloatSize::Float => 4,
+            FloatSize::Double => 8,
+            FloatSize::LongDouble => 8
         }
     }
 }

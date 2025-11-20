@@ -26,8 +26,14 @@ pub enum ErrorKind {
     Undefined { symbol: &'static str },
     #[error("Subscripted value is not an array,pointer,or vector")]
     NonSubscripted,
+    #[error("No Member named '{field}' in '{ty}'")]
+    NoMember { field: String, ty: String },
+    #[error("Member reference base type '{ty}' is not a structure or union")]
+    NotStructOrUnion {ty: String},
     #[error("Object Not Callable")]
     UnCallable,
+    #[error("{msg}")]
+    ErrorMessage{ msg: String },
 }
 
 impl ErrorKind {
@@ -57,7 +63,10 @@ impl ErrorLevel {
             | TypeSpecifierMissing 
             | NonCombinable { .. }
             | Undefined { .. }
-            | Redefinition { .. } => Error,
+            | Redefinition { .. }
+            | NoMember { .. }
+            | ErrorMessage { .. }
+            | NotStructOrUnion { .. } => Error,
             Duplicate { .. } => Warning,
         }
     }
@@ -91,6 +100,11 @@ impl ParserError {
         let level = ErrorLevel::Error;
         let kind = ErrorKind::Undefined { symbol: ident.symbol.get() };
         Self { span: ident.span, error_kind: kind, level  }
+    }
+
+    pub fn error(msg: String, span: Span) -> Self {
+        let kind = ErrorKind::ErrorMessage { msg };
+        Self::new(kind, span)
     }
 }
 

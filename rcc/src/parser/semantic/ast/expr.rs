@@ -184,7 +184,7 @@ impl Expr {
 
         constant.is_integer() || constant.is_char()
     }
-    
+
     pub fn get_int_constant(&self) -> ParserResult<u64> {
         let ty = &self.ty;
         if ty.is_unknown() {

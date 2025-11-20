@@ -303,9 +303,11 @@ impl TypeContext {
             }
         }
 
+        let size = offset + fields.last().map(|x| x.offset).unwrap_or(1); // 结构体默认大小1字节
+
         let kind = match spec.kind.kind {
-            StructOrUnionKind::Struct => TypeKind::Struct { name: spec.name.clone(), fields },
-            StructOrUnionKind::Union => TypeKind::Union { name: spec.name.clone(), fields }
+            StructOrUnionKind::Struct => TypeKind::Struct { name: spec.name.clone(), fields, size },
+            StructOrUnionKind::Union => TypeKind::Union { name: spec.name.clone(), fields, size }
         };
         let ty = Rc::new(Type::new(Qualifier::default(), kind));
         Ok(ty)
@@ -350,6 +352,12 @@ impl TypeContext {
     
     pub fn get_int_type(&mut self, size: IntegerSize, is_signed: bool) -> Rc<Type> {
         let kind = TypeKind::Integer { size, is_signed };
+        let ty = Type::new(Qualifier::default(), kind);
+        self.get_or_set(ty)
+    }
+
+    pub fn get_void_type(&mut self) -> Rc<Type> {
+        let kind = TypeKind::Void;
         let ty = Type::new(Qualifier::default(), kind);
         self.get_or_set(ty)
     }
