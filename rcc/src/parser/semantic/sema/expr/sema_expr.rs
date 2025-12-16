@@ -98,9 +98,10 @@ impl Sema {
                     .map(|x| x.upgrade().unwrap());
 
                 // 参数不对
-                if !call.eq(params) {
-                    todo!()
-                }
+                // todo 检查类型是否相容
+                // if !call.eq(params) {
+                //     todo!()
+                // }
                 ret_ty.upgrade().unwrap()
             },
             _ => return Err(ParserError::new(parser_error::ErrorKind::UnCallable, span))
@@ -685,7 +686,7 @@ impl Sema {
 
         match op {
             UnaryOpKind::Plus => ,
-            UnaryOpKind::Minus => ,
+            UnaryOpKind::Minus =>  ,
             UnaryOpKind::Not => ,
             UnaryOpKind::BitNot => ,
             _ => rhs.kind,

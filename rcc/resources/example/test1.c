@@ -6,9 +6,9 @@ struct A {
 void a(int);
 typedef int asdf;
 
-int a() {
+void a(int b) {
      asdf ssss;
-     a(1);
+     a(1,2);
      return 1;
 }
 

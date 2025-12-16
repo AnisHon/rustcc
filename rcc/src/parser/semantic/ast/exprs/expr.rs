@@ -2,11 +2,16 @@ use crate::err::parser_error::ParserResult;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{LiteralKind, Symbol, TokenKind};
 use crate::parser::semantic::common::Ident;
-use crate::parser::semantic::sema::sema_type::{Type};
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
-use std::rc::Rc;
+use slotmap::new_key_type;
+use crate::parser::ast::exprs::{AssignOp, BinOp, UnaryOp, UnaryOpKind};
+use crate::parser::ast::types::TypeKey;
 use crate::parser::semantic::sema::expr::value_type::ValueType;
+
+new_key_type! {
+    pub struct ExprKey;
+}
 
 #[derive(Clone, Debug, EnumAsInner)]
 pub enum ExprKind {
@@ -16,12 +21,12 @@ pub enum ExprKind {
     ArraySubscript { base: Box<Expr>, l: Pos, index: Box<Expr>, r: Pos },     // a[]
     Call { base: Box<Expr>, l: Pos, params: Parameter, r: Pos },     // a()
     MemberAccess { kind: MemberAccessKind, base: Box<Expr>, op: Span, field: Symbol },       // a.b a->b
-    SizeofExpr { sizeof: Span, expr: Box<Expr> },   // sizeof expr
-    SizeofType { sizeof: Span, l: Pos, ty: Rc<Type>, r: Pos },   // sizeof()
+    SizeofExpr { sizeof: Span, expr: Box<Expr> },   // sizeof exprs
+    SizeofType { sizeof: Span, l: Pos, ty: TypeKey, r: Pos },   // sizeof()
     Unary { op: UnaryOp, rhs: Box<Expr> },
     Binary { lhs: Box<Expr>, op: BinOp, rhs: Box<Expr> },
     Assign { lhs: Box<Expr>, op: AssignOp, rhs: Box<Expr> },
-    Cast { l: Pos, ty: Rc<Type> ,r: Pos, expr: Box<Expr> }, // (type)
+    Cast { l: Pos, ty: TypeKey ,r: Pos, expr: Box<Expr> }, // (type)
     Ternary { // cond ? a : b
         cond: Box<Expr>,
         question: Pos,
@@ -87,7 +92,7 @@ impl ExprKind {
 
 
 
-    pub fn make_size_of_type(sizeof: Token, l: Token, ty: Rc<Type>, r: Token) -> Self {
+    pub fn make_size_of_type(sizeof: Token, l: Token, ty: TypeKey, r: Token) -> Self {
         let sizeof = sizeof.span;
         let l = l.span.to_pos();
         let r = r.span.to_pos();
@@ -129,7 +134,7 @@ impl ExprKind {
         Self::Binary { lhs, op, rhs }
     }
     
-    pub fn make_cast(l: Token, ty: Rc<Type> ,r: Token, expr: Box<Expr>) -> Self {
+    pub fn make_cast(l: Token, ty: TypeKey ,r: Token, expr: Box<Expr>) -> Self {
         let l = l.span.to_pos();
         let r = r.span.to_pos();
         Self::Cast { l, ty, expr, r }
@@ -150,16 +155,16 @@ impl ExprKind {
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
-    pub ty: Rc<Type>,
+    pub ty: TypeKey,
     pub span: Span,
 }
 
 impl Expr {
-    pub fn new(kind: ExprKind, ty: Rc<Type>, span: Span) -> Self {
+    pub fn new(kind: ExprKind, ty: TypeKey, span: Span) -> Self {
         Self { kind, ty, span }
     }
     
-    pub fn new_box(kind: ExprKind, ty: Rc<Type>, span: Span) -> Box<Self> {
+    pub fn new_box(kind: ExprKind, ty: TypeKey, span: Span) -> Box<Self> {
         Box::new(Self::new(kind, ty, span))
     }
 
@@ -238,130 +243,5 @@ impl Parameter {
             exprs: Vec::new(),
             commas: Vec::new(),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum AssignOpKind {
-    Assign,
-    PlusEq,
-    MinusEq,
-    StarEq,
-    SlashEq,
-    PercentEq,
-    ShlEq,
-    ShrEq,
-    AmpEq,
-    CaretEq,
-    PipeEq,
-}
-
-#[derive(Debug, Clone)]
-pub struct AssignOp {
-    pub kind: AssignOpKind,
-    pub span: Span,
-}
-
-impl AssignOp {
-    pub fn new(token: Token) -> Self {
-        use AssignOpKind::*;
-        let kind = match token.kind {
-            TokenKind::Assign => Assign,
-            TokenKind::PlusEq => PlusEq,
-            TokenKind::MinusEq => MinusEq,
-            TokenKind::StarEq => StarEq,
-            TokenKind::SlashEq => SlashEq,
-            TokenKind::PercentEq => PercentEq,
-            TokenKind::ShlEq => ShlEq,
-            TokenKind::ShrEq => ShrEq,
-            TokenKind::AmpEq => AmpEq,
-            TokenKind::PipeEq => PipeEq,
-            TokenKind::CaretEq => CaretEq,
-            _ => unreachable!("not assign operator {:?}", token.kind),
-        };
-        let span = token.span;
-        Self { kind, span }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum BinOpKind {
-    Plus, Minus, Mul, Div, Mod,
-    BitAnd, BitOr, BitXor,
-    Xor, Shl, Shr,
-    Lt, Gt, Eq, Ne, Le, Ge,
-    And, Or, Comma,
-}
-
-#[derive(Debug, Clone)]
-pub struct BinOp {
-    pub kind: BinOpKind,
-    pub span: Span,
-}
-
-impl BinOp {
-    pub fn new(token: Token) -> Self {
-        use BinOpKind::*;
-        let kind = match token.kind {
-            TokenKind::Plus => Plus,
-            TokenKind::Minus => Minus,
-            TokenKind::Star => Mul,
-            TokenKind::Slash => Div,
-            TokenKind::Percent => Mod,
-            TokenKind::Amp => BitAnd,
-            TokenKind::Pipe => BitOr,
-            TokenKind::Caret => Xor,
-            TokenKind::Shl => Shl,
-            TokenKind::Shr => Shr,
-            TokenKind::Lt => Lt,
-            TokenKind::Gt => Gt,
-            TokenKind::Eq => Eq,
-            TokenKind::Ne => Ne,
-            TokenKind::Le => Le,
-            TokenKind::Ge => Ge,
-            TokenKind::And => And,
-            TokenKind::Or => Or,
-            TokenKind::Comma => Comma,
-            _ => unreachable!("not binary operator {:?}", token.kind),
-        };
-        let span = token.span;
-        Self { kind, span }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum UnaryOpKind {
-    AddrOf,
-    Deref,
-    Plus,
-    Minus,
-    Not,
-    BitNot,
-    PostInc,
-    PostDec,
-    PreInc,
-    PreDec,
-}
-
-#[derive(Debug, Clone)]
-pub struct UnaryOp {
-    pub kind: UnaryOpKind,
-    pub span: Span,
-}
-
-impl UnaryOp {
-    pub fn new(token: Token) -> Self {
-        use UnaryOpKind::*;
-        let kind = match token.kind {
-            TokenKind::Amp => AddrOf,
-            TokenKind::Star => Deref,
-            TokenKind::Plus => Plus,
-            TokenKind::Minus => Minus,
-            TokenKind::Bang => Not,
-            TokenKind::Tilde => BitNot,
-            _ => unreachable!("not unary operator {:?}", token.kind),
-        };
-        let span = token.span;
-        Self { kind, span }
     }
 }

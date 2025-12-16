@@ -276,7 +276,7 @@ impl Expression {
     ///
     /// 构建 前后置 ++ --
     /// # Arguments
-    /// expr:
+    /// exprs:
     /// token:
     /// post: 是否是后置
     ///
@@ -317,7 +317,7 @@ impl Expression {
         Box::new(Expression::new(expr_kind, None, span)).into()
     }
 
-    /// 第一个token是sizeof的值 -> sizeof expr
+    /// 第一个token是sizeof的值 -> sizeof exprs
     pub fn make_sizeof_expr(_sizeof: Token, expr: Box<Expression>) -> SemanticValue {
         let span = expr.span;
         let kind = ExpressionKind::SizeofExpr(expr);

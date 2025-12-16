@@ -80,7 +80,6 @@ impl Parser {
 
             let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
             let error = self.error_here(error_kind);
-            panic!("{error}");
             Err(error)
         }
     }
@@ -96,7 +95,6 @@ impl Parser {
 
             let kind = parser_error::ErrorKind::ExpectButFound { expect, found: found.kind.kind_str().to_owned() };
             let error = self.error_here(kind);
-            panic!("{error}");
             Err(error)
         }
     }
@@ -126,7 +124,6 @@ impl Parser {
             let expect = format!("{}, {}", kw1.kind_str(), kw2.kind_str());
             let error_kind = parser_error::ErrorKind::Expect { expect };
             let error = self.error_here(error_kind);
-            panic!("{error}");
             Err(error)
         }
     }

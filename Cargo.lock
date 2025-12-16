@@ -94,12 +94,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bumpalo"
-version = "3.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
-
-[[package]]
 name = "cc"
 version = "0.1.0"
 dependencies = [
@@ -428,13 +422,7 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 name = "rcc"
 version = "0.1.0"
 dependencies = [
- "bumpalo",
- "crossbeam-channel",
  "enum-as-inner",
- "indexmap",
- "macros",
- "num-derive",
- "num-traits",
  "petgraph",
  "phf",
  "rustc-hash",

@@ -72,7 +72,7 @@ impl Parser {
         } else if self.check_string() { // string
             let strings = self.parse_string();
             ExprKind::make_string(strings)
-        } else if let Some(lparen) = self.consume(TokenKind::LParen) { // ( expr )
+        } else if let Some(lparen) = self.consume(TokenKind::LParen) { // ( exprs )
             let expr = self.parse_expr()?;
             let rparen = self.expect(TokenKind::RParen)?;
             ExprKind::make_paren(lparen, expr, rparen)

@@ -1,19 +1,22 @@
-use std::cell::RefCell;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
-use crate::parser::semantic::ast::expr::Expr;
+use crate::parser::semantic::ast::stmt::Stmt;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::StorageSpec;
 use crate::parser::semantic::sema::decl::decl_context::DeclContextRef;
-use crate::parser::semantic::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
-use std::rc::Rc;
-use crate::parser::semantic::ast::stmt::Stmt;
+use slotmap::new_key_type;
+use crate::parser::ast::exprs::ExprKey;
+use crate::parser::ast::types::TypeKey;
+
+new_key_type! {
+    pub struct DeclKey;
+}
 
 #[derive(Debug, Clone)]
 pub enum Initializer {
-    Expr(Box<Expr>),
+    Expr(ExprKey),
     InitList{ l: Pos, inits: InitializerList, r: Pos },
 }
 
@@ -30,6 +33,14 @@ impl InitializerList {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Decl {
+    pub storage: Option<StorageSpec>,
+    pub name: Option<Ident>,
+    pub kind: DeclKind,
+    pub ty: TypeKey,
+    pub span: Span,
+}
 
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum DeclKind {
@@ -45,7 +56,7 @@ pub enum DeclKind {
     },
     RecordField {  // int a : 10;
         colon: Option<Pos>, 
-        bit_field: Option<Box<Expr>> 
+        bit_field: Option<ExprKey> 
     },
     Record { 
         kind: StructOrUnion, 
@@ -59,12 +70,12 @@ pub enum DeclKind {
     }, // struct name;
     EnumField { 
         eq: Option<Pos>, 
-        expr: Option<Box<Expr>>
+        expr: Option<ExprKey>
     },
     Enum { // enum name { ... } 
         kw: Span, 
         l: Pos,
-        enums: Vec<DeclRef>,
+        enums: Vec<DeclKey>,
         commas: Vec<Pos>, 
         r: Pos,
         decl_context: DeclContextRef
@@ -72,31 +83,17 @@ pub enum DeclKind {
     EnumRef { kw: Span },
 }
 
-pub type DeclRef = Rc<RefCell<Decl>>;
 
-
-#[derive(Debug, Clone)]
-pub struct Decl {
-    pub storage: Option<StorageSpec>,
-    pub name: Option<Ident>,
-    pub kind: DeclKind,
-    pub ty: Rc<Type>,
-    pub span: Span,
-}
 
 impl Decl {
     pub fn get_name(&self) -> Option<&Ident> {
         self.name.as_ref()
     }
-
-    pub fn new_ref(decl: Self) -> DeclRef {
-        Rc::new(RefCell::new(decl))
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct DeclGroup {
-    pub decls: Vec<DeclRef>,
+    pub decls: Vec<DeclKey>,
     pub commas: Vec<Pos>,
     pub semi: Pos,
     pub span: Span

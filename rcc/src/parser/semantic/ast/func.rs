@@ -1,4 +1,4 @@
-use crate::parser::ast::decl::DeclRef;
+use crate::parser::ast::decl::DeclKey;
 use crate::parser::semantic::ast::decl::{DeclGroup};
 use crate::parser::semantic::ast::stmt::Stmt;
 use crate::parser::semantic::declarator::Declarator;
@@ -21,7 +21,7 @@ pub struct FuncDecl {
 
 #[derive(Clone, Debug)]
 pub struct FuncDef {
-    pub decl: DeclRef,
+    pub decl: DeclKey,
     pub body: Box<Stmt>,
     pub span: Span
 }

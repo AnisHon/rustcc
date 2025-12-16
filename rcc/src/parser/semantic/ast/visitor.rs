@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use crate::parser::ast::decl::{DeclRef};
 use crate::parser::ast::func::FuncDef;
 use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::ast::expr::Expr;

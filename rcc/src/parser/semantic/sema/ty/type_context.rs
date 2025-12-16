@@ -1,16 +1,14 @@
 use crate::err::parser_error::ParserResult;
-use crate::parser::ast::decl::DeclRef;
 use crate::parser::semantic::ast::decl::{StructOrUnion, StructOrUnionKind};
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{DeclSpec, EnumSpec, ParamDecl, StructSpec, TypeQualKind, TypeQualType, TypeSpec, TypeSpecKind};
 use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind};
-use crate::parser::semantic::sema::sema_type::{ArraySize, EnumField, FloatSize, IntegerSize, Qualifier, RecordField, Type, TypeKind};
 use rustc_hash::FxHashSet;
 use std::rc::Rc;
 use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, LiteralKind};
 
 pub struct TypeContext {
-    types: FxHashSet<Rc<Type>>,
+    types: FxHashSet<TypeKey>,
 }
 impl TypeContext {
     pub fn new() -> Self {
@@ -124,7 +122,7 @@ impl TypeContext {
             };
         }
 
-        let is_signed = signed.map(|x| x.kind.is_signed()).unwrap_or(false);
+        let is_signed = signed.map(|x| x.kind.is_signed()).unwrap_or(true);
 
         // 查错
         match state {

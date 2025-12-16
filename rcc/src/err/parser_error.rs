@@ -1,3 +1,4 @@
+use std::backtrace::Backtrace;
 use crate::lex::types::token_kind::Symbol;
 use crate::parser::common::Ident;
 use crate::types::span::Span;
@@ -87,19 +88,22 @@ impl Display for ErrorLevel {
 pub struct ParserError {
     pub error_kind: ErrorKind,    // 错误信息
     pub level: ErrorLevel,
+    pub backtrace: Backtrace,
     pub span: Span,
 }
 
 impl ParserError {
     pub fn new(error_kind: ErrorKind, span: Span) -> Self {
+        let backtrace = Backtrace::capture();
         let level = ErrorLevel::from_kind(&error_kind);
-        Self { span, error_kind, level }
+        Self { span, error_kind, backtrace, level }
     }
 
     pub fn undefined_symbol(ident: &Ident) -> Self {
+        let backtrace = Backtrace::capture();
         let level = ErrorLevel::Error;
         let kind = ErrorKind::Undefined { symbol: ident.symbol.get() };
-        Self { span: ident.span, error_kind: kind, level  }
+        Self { span: ident.span, error_kind: kind, backtrace, level  }
     }
 
     pub fn error(msg: String, span: Span) -> Self {

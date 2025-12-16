@@ -12,6 +12,7 @@ use crate::types::span::Span;
 use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
+#[derive(Debug)]
 pub struct PartialDecl {
     pub storage: Option<StorageSpec>,
     pub name: Option<Ident>,
@@ -331,7 +332,7 @@ impl Sema {
             .unwrap_or(StorageSpec::from_kind(StorageSpecKind::Extern));
         let name = declarator.name.clone();
         let ty = self.type_context.resolve_declarator(&declarator)?;
-
+        
         // 顶级声明不能有auto和register
         match &storage.kind {
             StorageSpecKind::Auto | StorageSpecKind::Register => {

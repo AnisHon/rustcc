@@ -2074,7 +2074,7 @@ pub static EXPR_LENS: [usize; 218] = [
     1, 1, 5, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 2, 
 ];
 
-/// prod_id -> expr name(non-terminal name)
+/// prod_id -> exprs name(non-terminal name)
 pub static EXPR_NAMES: [&str; 218] = [
     "translation_unit", "translation_unit", "external_declaration", "external_declaration", "function_definition", 
     "function_definition", "declaration_list_opt", "declaration_list_opt", "declaration_list", "declaration_list", 

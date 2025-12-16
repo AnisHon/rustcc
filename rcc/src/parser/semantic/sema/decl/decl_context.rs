@@ -2,11 +2,12 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::Symbol;
 use crate::parser::semantic::ast::decl::DeclKind;
-use crate::parser::semantic::sema::sema_struct::DeclRef;
+use crate::parser::semantic::sema::sema_struct::DeclKey;
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
+use crate::parser::ast::decl::DeclKey;
 
 pub type DeclContextRef = Rc<RefCell<dyn DeclContext>>;
 
@@ -19,19 +20,19 @@ pub enum DeclContextKind {
 }
 
 pub trait DeclContext: Debug {
-    fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef>;
+    fn get_decls(&self) -> &FxHashMap<Symbol, DeclKey>;
     // fn get_decls_mut(&mut self) -> &mut FxHashMap<Symbol, DeclKey>;
     fn get_kind(&self) -> DeclContextKind;
     fn get_parent(&self) -> Option<DeclContextRef>;
 
-    fn insert(&mut self, decl: DeclRef) -> ParserResult<()>;
+    fn insert(&mut self, decl: DeclKey) -> ParserResult<()>;
 
-    fn lookup(&self, name: Symbol) -> Option<DeclRef> {
+    fn lookup(&self, name: Symbol) -> Option<DeclKey> {
         let decls = self.get_decls();
         decls.get(&name).cloned()
     }
 
-    fn lookup_chain(&self, name: Symbol) -> Option<DeclRef> {
+    fn lookup_chain(&self, name: Symbol) -> Option<DeclKey> {
         lookup_chain(name, self.get_decls(), self.get_parent())
     }
 }
@@ -39,7 +40,7 @@ pub trait DeclContext: Debug {
 #[derive(Clone)]
 pub struct CommonDeclContext {
     kind: DeclContextKind,
-    decls: FxHashMap<Symbol, DeclRef>,
+    decls: FxHashMap<Symbol, DeclKey>,
     parent: Option<DeclContextRef>,
 }
 
@@ -61,7 +62,7 @@ impl CommonDeclContext {
 
 impl DeclContext for CommonDeclContext {
 
-    fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef> {
+    fn get_decls(&self) -> &FxHashMap<Symbol, DeclKey> {
         &self.decls
     }
     fn get_kind(&self) -> DeclContextKind {
@@ -73,7 +74,7 @@ impl DeclContext for CommonDeclContext {
     }
 
     /// 添加decl定义，如果没有名字就忽略
-    fn insert(&mut self, decl_ref: DeclRef) -> ParserResult<()> {
+    fn insert(&mut self, decl_ref: DeclKey) -> ParserResult<()> {
         let decl = decl_ref.borrow();
         use DeclKind::*;
         let name = match decl.get_name() {
@@ -107,8 +108,20 @@ impl DeclContext for CommonDeclContext {
             }
             (FuncRef { .. }, FuncRef { .. }, ) => {
                 // 如果类型不同出错，
+                if lookup.ty != decl.ty {
+                    todo!()
+                }
+                // 覆盖原来的声明
+                *lookup = decl.clone();
+            }
+            (Func { .. }, FuncRef { .. }) => {
                 if lookup.ty.ne(&decl.ty) {
-                    // todo
+                    todo!()
+                }
+            }
+            | (FuncRef { .. }, Func { .. }) => {
+                if lookup.ty.ne(&decl.ty) {
+                    todo!()
                 }
                 // 覆盖原来的声明
                 *lookup = decl.clone();
@@ -122,7 +135,7 @@ impl DeclContext for CommonDeclContext {
         Ok(())
     }
 
-    fn lookup(&self, name: Symbol) -> Option<DeclRef> {
+    fn lookup(&self, name: Symbol) -> Option<DeclKey> {
         self.decls.get(&name).cloned()
     }
 }
@@ -137,7 +150,7 @@ impl Debug for CommonDeclContext {
 
 #[derive(Clone)]
 pub struct RecordDeclContext {
-    decls: FxHashMap<Symbol, DeclRef>,
+    decls: FxHashMap<Symbol, DeclKey>,
     parent: DeclContextRef,
 }
 
@@ -157,7 +170,7 @@ impl Debug for RecordDeclContext {
 }
 
 impl DeclContext for RecordDeclContext {
-    fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef> {
+    fn get_decls(&self) -> &FxHashMap<Symbol, DeclKey> {
         &self.decls
     }
 
@@ -169,7 +182,7 @@ impl DeclContext for RecordDeclContext {
         Some(Rc::clone(&self.parent))
     }
 
-    fn insert(&mut self, decl_ref: DeclRef) -> ParserResult<()> {
+    fn insert(&mut self, decl_ref: DeclKey) -> ParserResult<()> {
         let decl = decl_ref.borrow();
         match &decl.kind {
             DeclKind::EnumField { .. }
@@ -207,7 +220,7 @@ impl DeclContext for RecordDeclContext {
 
 #[derive(Clone)]
 pub struct EnumDeclContext {
-    decls: FxHashMap<Symbol, DeclRef>,
+    decls: FxHashMap<Symbol, DeclKey>,
     parent: DeclContextRef,
 }
 
@@ -227,7 +240,7 @@ impl Debug for EnumDeclContext {
 }
 
 impl DeclContext for EnumDeclContext {
-    fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef> {
+    fn get_decls(&self) -> &FxHashMap<Symbol, DeclKey> {
         &self.decls
     }
 
@@ -239,7 +252,7 @@ impl DeclContext for EnumDeclContext {
         Some(Rc::clone(&self.parent))
     }
 
-    fn insert(&mut self, decl: DeclRef) -> ParserResult<()> {
+    fn insert(&mut self, decl: DeclKey) -> ParserResult<()> {
         // 直接插到父作用域
         self.parent.borrow_mut().insert(decl)
     }
@@ -247,7 +260,7 @@ impl DeclContext for EnumDeclContext {
 
 // #[derive(Clone)]
 // pub struct ParamDeclContext {
-//     decls: FxHashMap<Symbol, DeclRef>,
+//     decls: FxHashMap<Symbol, DeclKey>,
 //     parent: DeclContextRef,
 // }
 //
@@ -267,7 +280,7 @@ impl DeclContext for EnumDeclContext {
 // }
 
 // impl DeclContext for ParamDeclContext {
-//     fn get_decls(&self) -> &FxHashMap<Symbol, DeclRef> {
+//     fn get_decls(&self) -> &FxHashMap<Symbol, DeclKey> {
 //         &self.decls
 //     }
 //
@@ -279,7 +292,7 @@ impl DeclContext for EnumDeclContext {
 //         Some(Rc::clone(&self.parent))
 //     }
 //
-//     fn insert(&mut self, decl_ref: DeclRef) -> ParserResult<()> {
+//     fn insert(&mut self, decl_ref: DeclKey) -> ParserResult<()> {
 //         let decl = decl_ref.borrow();
 //         if !decl.kind.is_param_var() {
 //             // 不是函数参数声明不能
@@ -298,7 +311,7 @@ impl DeclContext for EnumDeclContext {
 //     }
 // }
 
-fn lookup_chain(name: Symbol, decls: &FxHashMap<Symbol, DeclRef>, parent: Option<DeclContextRef>) -> Option<DeclRef> {
+fn lookup_chain(name: Symbol, decls: &FxHashMap<Symbol, DeclKey>, parent: Option<DeclContextRef>) -> Option<DeclKey> {
     // 查找当前表
     if let Some(v) = decls.get(&name) {
         return Some(Rc::clone(v));

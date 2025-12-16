@@ -157,7 +157,7 @@ impl Visitor for AstGraph {
                 prev = self.make_node(format!("{:?}", x));
             }
             ExprKind::Paren { expr, .. } => {
-                prev = self.make_node("expr".to_owned());
+                prev = self.make_node("exprs".to_owned());
                 self.visit_expr(expr)
             }
             ExprKind::ArraySubscript { base, index, .. } => {
