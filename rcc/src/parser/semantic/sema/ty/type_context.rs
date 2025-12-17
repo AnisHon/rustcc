@@ -3,17 +3,18 @@ use crate::parser::semantic::ast::decl::{StructOrUnion, StructOrUnionKind};
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{DeclSpec, EnumSpec, ParamDecl, StructSpec, TypeQualKind, TypeQualType, TypeSpec, TypeSpecKind};
 use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::rc::Rc;
 use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, LiteralKind};
+use crate::parser::ast::types::{Qualifier, Type, TypeKey, TypeKind};
 
 pub struct TypeContext {
-    types: FxHashSet<TypeKey>,
+    types: FxHashMap<Type, TypeKey>,
 }
 impl TypeContext {
     pub fn new() -> Self {
         Self {
-            types: FxHashSet::default(),
+            types: FxHashMap::default(),
         }
     }
 
@@ -30,7 +31,7 @@ impl TypeContext {
     }
 
     /// 单例获取type
-    pub fn get_or_set(&mut self, ty: Type) -> Rc<Type> {
+    pub fn get_or_set(&mut self, ty: Type) -> TypeKey {
         use TypeKind::*;
         match &ty.kind {
             // 普通的类型使用自身作为键
@@ -39,7 +40,7 @@ impl TypeContext {
                 Some(x) => Rc::clone(x),
                 None => {
                     let ty = Rc::new(ty);
-                    self.types.insert(Rc::clone(&ty));
+                    self.types.insert();
                     ty
                 }
             }
@@ -179,7 +180,7 @@ impl TypeContext {
     }
 
     /// 解析declarator
-    pub fn resolve_declarator(&mut self, declarator: &Declarator) -> ParserResult<Rc<Type>> {
+    pub fn resolve_declarator(&mut self, declarator: &Declarator) -> ParserResult<TypeKey> {
         let base_ty = self.resolve_decl_spec(&declarator.decl_spec)?;
         let mut ty = Rc::clone(&base_ty);
         // 解析chunks，这里一定要反着解析
@@ -269,7 +270,7 @@ impl TypeContext {
     }
     
     /// 解析record ref
-    pub fn resolve_record_ref(&mut self, kind: &StructOrUnion, name: &Ident) -> ParserResult<Rc<Type>> {
+    pub fn resolve_record_ref(&mut self, kind: &StructOrUnion, name: &Ident) -> ParserResult<TypeKey> {
         let name = name.clone();
         let kind = match kind.kind {
             StructOrUnionKind::Struct => TypeKind::StructRef { name },
@@ -280,7 +281,7 @@ impl TypeContext {
     }
     
     /// 将StructSpec转换成Type
-    pub fn resolve_record(&mut self, spec: &StructSpec) -> ParserResult<Rc<Type>> {
+    pub fn resolve_record(&mut self, spec: &StructSpec) -> ParserResult<TypeKey> {
         let mut offset: u64 = 0;
         let mut fields = Vec::new();
 
@@ -312,7 +313,7 @@ impl TypeContext {
     }
 
     /// 解析枚举类型
-    pub fn resolve_enum(&mut self, spec: &EnumSpec) -> ParserResult<Rc<Type>> {
+    pub fn resolve_enum(&mut self, spec: &EnumSpec) -> ParserResult<TypeKey> {
         let name = spec.name.clone();
         let mut enum_value = 0; // 当前枚举值
 

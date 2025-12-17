@@ -1,6 +1,8 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
+use crate::parser::ast::decl::DeclKey;
+use crate::parser::ast::exprs::ExprKey;
 use crate::parser::semantic::ast::decl::{DeclGroup, StructOrUnion};
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
@@ -89,10 +91,10 @@ pub enum TypeSpecKind {
     Double,
     Signed,
     Unsigned,
-    Struct(DeclRef),
-    Union(DeclRef),
-    Enum(DeclRef),
-    TypeName(Ident, DeclRef)
+    Struct(DeclKey),
+    Union(DeclKey),
+    Enum(DeclKey),
+    TypeName(Ident, DeclKey)
 }
 
 #[derive(Debug, Clone)]
@@ -226,7 +228,7 @@ pub enum ParamDecl {
 
 #[derive(Clone, Debug)]
 pub struct ParamList {
-    pub params: Vec<DeclRef>,
+    pub params: Vec<DeclKey>,
     pub commas: Vec<Pos>,
     pub ellipsis: Option<Span>,
     pub span: Span,
@@ -263,14 +265,14 @@ pub struct StructSpec {
 pub struct StructDeclarator {
     pub declarator: Declarator,
     pub colon: Option<Pos>,
-    pub bit_field: Option<Box<Expr>>,
+    pub bit_field: Option<ExprKey>,
     pub span: Span,
 }
 
 #[derive(Clone, Debug)]
 pub struct EnumSpecBody {
     pub l: Pos,
-    pub decls: Vec<DeclRef>,
+    pub decls: Vec<DeclKey>,
     pub commas: Vec<Pos>,
     pub r: Pos,
 }
@@ -279,7 +281,7 @@ pub struct EnumSpecBody {
 pub struct Enumerator {
     pub name: Ident,
     pub eq: Option<Pos>,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Option<ExprKey>,
     pub span: Span
 }
 

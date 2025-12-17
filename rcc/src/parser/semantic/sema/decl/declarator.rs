@@ -1,11 +1,16 @@
 use crate::err::parser_error::ParserResult;
+use crate::parser::ast::decl::DeclKey;
+use crate::parser::ast::types::{IntegerSize, TypeKey, TypeKind};
+use crate::parser::comp_ctx::CompCtx;
 use crate::parser::semantic::ast::decl::{Decl, DeclKind, StructOrUnion};
 use crate::parser::semantic::ast::func::FuncDecl;
 use crate::parser::semantic::common::Ident;
-use crate::parser::semantic::decl_spec::{EnumSpec, Enumerator, ParamDecl, StorageSpec, StorageSpecKind, StructDeclarator, StructSpec};
+use crate::parser::semantic::decl_spec::{
+    EnumSpec, Enumerator, ParamDecl, StorageSpec, StorageSpecKind, StructDeclarator, StructSpec,
+};
 use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind, InitDeclarator};
-use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
 use crate::parser::semantic::sema::Sema;
+use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
 use crate::types::span::Span;
 use rustc_hash::FxHashMap;
 use std::rc::Rc;
@@ -14,11 +19,15 @@ use std::rc::Rc;
 pub struct PartialDecl {
     pub storage: Option<StorageSpec>,
     pub name: Option<Ident>,
-    pub ty: Rc<Type>,
+    pub ty_key: TypeKey,
 }
 
 impl Sema {
-    pub fn act_on_init_declarator(&mut self, init_declarator: InitDeclarator) -> ParserResult<DeclRef> {
+    pub fn act_on_init_declarator(
+        &mut self,
+        ctx: &mut CompCtx,
+        init_declarator: InitDeclarator,
+    ) -> ParserResult<DeclKey> {
         let declarator = init_declarator.declarator;
         // let storage = declarator.decl_spec.storage.clone();
         // let name = declarator.name.clone();
@@ -26,8 +35,10 @@ impl Sema {
         let PartialDecl {
             storage,
             name,
-            ty
+            ty_key,
         } = self.act_on_declarator(declarator)?;
+
+        let ty = ctx.get_type(ty_key);
 
         let is_typedef = storage.as_ref().is_some_and(|x| x.kind.is_typedef());
         let kind = if is_typedef {
@@ -42,24 +53,22 @@ impl Sema {
                 | TypeKind::Integer { .. }
                 | TypeKind::Floating { .. }
                 | TypeKind::Pointer { .. }
-                | TypeKind::Array { .. } => {
-                    DeclKind::VarInit { eq: init_declarator.eq, init: init_declarator.init }
-                }
+                | TypeKind::Array { .. } => DeclKind::VarInit {
+                    eq: init_declarator.eq,
+                    init: init_declarator.init,
+                },
                 TypeKind::Function { .. } => DeclKind::FuncRef,
-                TypeKind::Struct { .. }
-                | TypeKind::StructRef { .. } => {
-                    return Ok(type_spec.kind.into_struct().unwrap())
+                TypeKind::Struct { .. } | TypeKind::StructRef { .. } => {
+                    return Ok(type_spec.kind.into_struct().unwrap());
                 }
-                TypeKind::Union { .. }
-                | TypeKind::UnionRef { .. } => {
-                    return Ok(type_spec.kind.into_union().unwrap())
+                TypeKind::Union { .. } | TypeKind::UnionRef { .. } => {
+                    return Ok(type_spec.kind.into_union().unwrap());
                 }
-                TypeKind::Enum { .. }
-                | TypeKind::EnumRef { .. } => {
-                    return Ok(type_spec.kind.into_enum().unwrap())
+                TypeKind::Enum { .. } | TypeKind::EnumRef { .. } => {
+                    return Ok(type_spec.kind.into_enum().unwrap());
                 }
                 // TypeKind::Unknown => {}
-                _ => todo!()
+                _ => todo!(),
             }
         };
 
@@ -67,69 +76,85 @@ impl Sema {
             storage,
             name,
             kind,
-            ty,
-            span: init_declarator.span
+            ty: ty_key,
+            span: init_declarator.span,
         };
 
-        let decl = Decl::new_ref(decl);
+        let decl = ctx.insert_decl(decl);
         // 添加decl
-        self.insert_decl(Rc::clone(&decl))?;
+        self.insert_decl(decl)?;
         // println!("\n{:?}\n\n", self.curr_decl);
         Ok(decl)
     }
 
     /// 解析record的成员，插入decl
-    pub fn act_on_record_field(&mut self, struct_declarator: StructDeclarator) -> ParserResult<DeclRef> {
-        let kind = DeclKind::RecordField { colon: struct_declarator.colon, bit_field: struct_declarator.bit_field };
+    pub fn act_on_record_field(
+        &mut self,
+        ctx: &mut CompCtx,
+        struct_declarator: StructDeclarator,
+    ) -> ParserResult<DeclKey> {
+        let kind = DeclKind::RecordField {
+            colon: struct_declarator.colon,
+            bit_field: struct_declarator.bit_field,
+        };
         let PartialDecl {
             storage,
             name,
-            ty
+            ty_key: ty,
         } = self.act_on_declarator(struct_declarator.declarator)?;
-        let decl = Decl::new_ref(Decl {
+        let decl = ctx.insert_decl(Decl {
             storage,
             name,
             kind,
             ty,
-            span: struct_declarator.span
+            span: struct_declarator.span,
         });
         // 添加decl
-        self.insert_decl(Rc::clone(&decl))?;
+        self.insert_decl(decl)?;
         Ok(decl)
     }
 
     /// 解析枚举成员，插入符号表
-    pub fn act_on_enumerator(&mut self, enumerator: Enumerator) -> ParserResult<DeclRef> {
-        let kind = DeclKind::EnumField { eq: enumerator.eq, expr: enumerator.expr };
+    pub fn act_on_enumerator(&mut self, ctx: &mut CompCtx, enumerator: Enumerator) -> ParserResult<DeclKey> {
+        let kind = DeclKind::EnumField {
+            eq: enumerator.eq,
+            expr: enumerator.expr,
+        };
         let ty = self.type_context.get_int_type(IntegerSize::Int, true);
-        let decl = Decl::new_ref(Decl {
+        let decl = ctx.insert_decl(Decl {
             storage: None,
             name: Some(enumerator.name),
             kind,
             ty,
-            span: enumerator.span
+            span: enumerator.span,
         });
         // 添加decl
-        self.insert_decl(Rc::clone(&decl))?;
+        self.insert_decl(decl)?;
         Ok(decl)
     }
 
     /// 类型参数
-    pub fn act_on_param_var(&mut self, declarator: Declarator) -> ParserResult<DeclRef> {
+    pub fn act_on_param_var(&mut self, ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<DeclKey> {
         let span = declarator.span;
         let PartialDecl {
             storage,
             name,
-            ty
+            ty_key: ty,
         } = self.act_on_param_declarator(declarator)?;
 
         let kind = DeclKind::ParamVar;
-        let decl = Decl::new_ref(Decl { storage, name, kind, ty, span });
+        let decl = ctx.insert_decl(Decl {
+            storage,
+            name,
+            kind,
+            ty,
+            span,
+        });
         Ok(decl)
     }
-    
+
     /// 函数声明，添加函数声明和参数列表进入符号表
-    pub fn act_on_func_decl(&mut self, func_decl: FuncDecl) -> ParserResult<DeclRef> {
+    pub fn act_on_func_decl(&mut self, ctx: &mut CompCtx, func_decl: FuncDecl) -> ParserResult<DeclKey> {
         let param = match func_decl.declarator.chunks.first() {
             Some(x) => x,
             None => {
@@ -150,11 +175,13 @@ impl Sema {
         let mut params = Vec::new();
 
         match param {
-            ParamDecl::Params(x) => { // 普通param类型声明
+            ParamDecl::Params(x) => {
+                // 普通param类型声明
                 is_variadic = x.ellipsis.is_some();
                 params.extend(x.params.iter().cloned());
             }
-            ParamDecl::Idents(x) => { // K&R函数声明
+            ParamDecl::Idents(x) => {
+                // K&R函数声明
                 let decl = match &func_decl.decl_list {
                     Some(x) => x,
                     None => {
@@ -163,15 +190,12 @@ impl Sema {
                     }
                 };
 
-                let mut name_map: FxHashMap<Ident, DeclRef> = FxHashMap::default();
+                let mut name_map: FxHashMap<Ident, DeclKey> = FxHashMap::default();
 
-                let decls = decl.into_iter()
-                    .map(|x| &x.decls)
-                    .flatten()
-                    .cloned();
+                let decls = decl.into_iter().map(|x| &x.decls).flatten().cloned();
 
                 for x in decls {
-                    let decl = x.borrow();
+                    let decl = ctx.get_decl(x);
                     let name = match decl.name.clone() {
                         Some(x) => x,
                         None => {
@@ -199,67 +223,68 @@ impl Sema {
                     // 存在不存在的声明，出错
                     todo!()
                 }
-
             }
         };
-
 
         let PartialDecl {
             storage,
             name,
-            ty,
+            ty_key,
         } = self.act_on_param_declarator(func_decl.declarator)?;
         let mut decl_context = self.curr_decl.borrow_mut();
 
-
-        let ret_ty = match &ty.kind {
-            TypeKind::Function { ret_ty, .. } => ret_ty.upgrade().unwrap(),
-            _ => unreachable!()
+        let ret_ty = match &ctx.get_type(ty_key).kind {
+            TypeKind::Function { ret_ty, .. } => ctx.get_type(*ret_ty),
+            _ => unreachable!(),
         };
 
         // 将参数压入context
-        for x in params.iter() {
+        for x in params.iter().copied() {
             // 参数没名字，直接出错
-            if x.borrow().name.is_none() {
+            if ctx.get_decl(x).name.is_none() {
                 todo!()
             }
-            decl_context.insert(Rc::clone(x))?;
+            decl_context.insert(ctx, x)?;
         }
         drop(decl_context);
 
         let kind = DeclKind::FuncRef;
 
-        let decl = Decl::new_ref(Decl {
+        let decl = ctx.insert_decl(Decl {
             storage,
             name,
             kind,
-            ty,
+            ty: ty_key,
             span: func_decl.span,
         });
 
-        self.insert_parent(Rc::clone(&decl))?;
+        self.insert_parent(decl)?;
         Ok(decl)
     }
 
     /// 将声明插入符号表
-    pub fn act_on_record_ref(&mut self, record_kind: StructOrUnion, name: Ident, span: Span) -> ParserResult<()> {
+    pub fn act_on_record_ref(
+        &mut self,
+        ctx: &mut CompCtx,
+        record_kind: StructOrUnion,
+        name: Ident,
+        span: Span,
+    ) -> ParserResult<()> {
         let ty = self.type_context.resolve_record_ref(&record_kind, &name)?;
-        let kind = DeclKind::RecordRef {
-            kind: record_kind,
-        };
-        let decl = Decl::new_ref(Decl {
+        let kind = DeclKind::RecordRef { kind: record_kind };
+        let decl = ctx.insert_decl(Decl {
             storage: None,
             ty,
             name: Some(name),
             kind,
             span,
         });
-        self.insert_decl(Rc::clone(&decl))?;
+        self.insert_decl(decl)?;
         Ok(())
     }
 
     /// 完成record声明或定义，会调用exit退出作用域 ,插入符号表
-    pub fn act_on_finish_record(&mut self, spec: StructSpec) -> ParserResult<DeclRef> {
+    pub fn act_on_finish_record(&mut self, ctx: &mut CompCtx, spec: StructSpec) -> ParserResult<DeclKey> {
         let decl_context = self.exit_decl();
 
         let ty = self.type_context.resolve_record(&spec)?;
@@ -271,43 +296,48 @@ impl Sema {
                 l: x.l,
                 fields: x.groups,
                 r: x.r,
-                decl_context
-            }
+                decl_context,
+            },
         };
 
-        let decl = Decl::new_ref(Decl {
+        let decl = ctx.insert_decl(Decl {
             storage: None,
             ty,
             name: spec.name,
-            kind, 
-            span: spec.span
+            kind,
+            span: spec.span,
         });
 
-        self.insert_decl(Rc::clone(&decl))?;
+        self.insert_decl(decl)?;
         Ok(decl)
     }
 
     /// 完成enum声明/定义，会调用exit退出作用域 enum插入符号表
-    pub fn act_on_finish_enum(&mut self, spec: EnumSpec) -> ParserResult<DeclRef> {
+    pub fn act_on_finish_enum(&mut self, ctx: &mut CompCtx, spec: EnumSpec) -> ParserResult<DeclKey> {
         let decl_context = self.exit_decl();
         let ty = self.type_context.resolve_enum(&spec)?;
         let kw = spec.enum_span;
         let kind = match spec.body {
             None => DeclKind::EnumRef { kw },
-            Some(x) => {
-                DeclKind::Enum { kw, l: x.l, enums: x.decls, commas: x.commas, r: x.r, decl_context }
-            }
+            Some(x) => DeclKind::Enum {
+                kw,
+                l: x.l,
+                enums: x.decls,
+                commas: x.commas,
+                r: x.r,
+                decl_context,
+            },
         };
 
-        let decl = Decl::new_ref(Decl {
-            storage: None, 
+        let decl = ctx.insert_decl(Decl {
+            storage: None,
             ty,
             name: spec.name,
-            kind, 
-            span: spec.span 
+            kind,
+            span: spec.span,
         });
 
-        self.insert_decl(Rc::clone(&decl))?;
+        self.insert_decl(decl)?;
         Ok(decl)
     }
 
@@ -326,11 +356,14 @@ impl Sema {
 
     fn act_on_file_declarator(&mut self, declarator: Declarator) -> ParserResult<PartialDecl> {
         // 默认extern
-        let storage = declarator.decl_spec.storage.clone()
+        let storage = declarator
+            .decl_spec
+            .storage
+            .clone()
             .unwrap_or(StorageSpec::from_kind(StorageSpecKind::Extern));
         let name = declarator.name.clone();
-        let ty = self.type_context.resolve_declarator(&declarator)?;
-        
+        let ty_key = self.type_context.resolve_declarator(&declarator)?;
+
         // 顶级声明不能有auto和register
         match &storage.kind {
             StorageSpecKind::Auto | StorageSpecKind::Register => {
@@ -339,18 +372,29 @@ impl Sema {
             _ => {}
         }
 
-        let result = PartialDecl { storage: Some(storage), name, ty };
+        let result = PartialDecl {
+            storage: Some(storage),
+            name,
+            ty_key,
+        };
         Ok(result)
     }
 
     fn act_on_block_declarator(&mut self, declarator: Declarator) -> ParserResult<PartialDecl> {
         // 默认auto
-        let storage = declarator.decl_spec.storage.clone()
+        let storage = declarator
+            .decl_spec
+            .storage
+            .clone()
             .unwrap_or(StorageSpec::from_kind(StorageSpecKind::Auto));
         let name = declarator.name.clone();
         let ty = self.type_context.resolve_declarator(&declarator)?;
 
-        let result = PartialDecl { storage: Some(storage), name, ty };
+        let result = PartialDecl {
+            storage: Some(storage),
+            name,
+            ty_key: ty,
+        };
         Ok(result)
     }
 
@@ -363,7 +407,11 @@ impl Sema {
         let name = declarator.name.clone();
         let ty = self.type_context.resolve_declarator(&declarator)?;
 
-        let result = PartialDecl { storage: None, name, ty };
+        let result = PartialDecl {
+            storage: None,
+            name,
+            ty_key: ty,
+        };
         Ok(result)
     }
 
@@ -375,19 +423,22 @@ impl Sema {
         // storage只能是register
         match &storage {
             Some(x) => match x.kind {
-                    StorageSpecKind::Typedef
-                    | StorageSpecKind::Extern
-                    | StorageSpecKind::Static
-                    | StorageSpecKind::Auto => {
-                        todo!()
-                    }
-                    _ => {}
+                StorageSpecKind::Typedef
+                | StorageSpecKind::Extern
+                | StorageSpecKind::Static
+                | StorageSpecKind::Auto => {
+                    todo!()
                 }
+                _ => {}
+            },
             None => {}
         }
 
-        let result = PartialDecl { storage, name, ty };
+        let result = PartialDecl {
+            storage,
+            name,
+            ty_key: ty,
+        };
         Ok(result)
     }
-
 }

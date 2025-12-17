@@ -8,6 +8,7 @@ use crate::parser::semantic::sema::expr::value_type::ValueType;
 use crate::types::span::Span;
 use enum_as_inner::EnumAsInner;
 use slotmap::new_key_type;
+use crate::parser::semantic::comp_ctx::CompCtx;
 
 new_key_type! {
     pub struct ExprKey;
@@ -24,49 +25,49 @@ pub struct Expr {
 pub enum ExprKind {
     DeclRef(Ident),
     Constant(LiteralKind),
-    // Paren { l: Pos, expr: Box<Expr>, r: Pos }, no need to wrap
+    // Paren { l: Pos, expr: ExprKey, r: Pos }, no need to wrap
     ArraySubscript {
-        base: Box<Expr>,
-        index: Box<Expr>,
+        base: ExprKey,
+        index: ExprKey,
     }, // a[]
     Call {
-        base: Box<Expr>,
+        base: ExprKey,
         params: Parameter,
     }, // a()
     MemberAccess {
         kind: MemberAccessKind,
-        base: Box<Expr>,
+        base: ExprKey,
         field: Symbol,
     }, // a.b a->b
     SizeofExpr {
-        expr: Box<Expr>,
+        expr: ExprKey,
     }, // sizeof exprs
     SizeofType {
         ty: TypeKey,
     }, // sizeof()
     Unary {
         op: UnaryOp,
-        rhs: Box<Expr>,
+        rhs: ExprKey,
     },
     Binary {
-        lhs: Box<Expr>,
+        lhs: ExprKey,
         op: BinOp,
-        rhs: Box<Expr>,
+        rhs: ExprKey,
     },
     Assign {
-        lhs: Box<Expr>,
+        lhs: ExprKey,
         op: AssignOp,
-        rhs: Box<Expr>,
+        rhs: ExprKey,
     },
     Cast {
         ty: TypeKey,
-        expr: Box<Expr>,
+        expr: ExprKey,
     }, // (type)
     Ternary {
         // cond ? a : b
-        cond: Box<Expr>,
-        then_expr: Box<Expr>,
-        else_expr: Box<Expr>,
+        cond: ExprKey,
+        then_expr: ExprKey,
+        else_expr: ExprKey,
     },
 }
 
@@ -96,25 +97,23 @@ impl ExprKind {
         Self::Constant(kind)
     }
 
-    // pub fn make_paren(l: Token, expr: Box<Expr>, r: Token) -> Self {
+    // pub fn make_paren(l: Token, expr: ExprKey, r: Token) -> Self {
     //     let l = l.span.to_pos();
     //     let r = r.span.to_pos();
     //     Self::Paren{ l, expr, r }
     // }
 
-    pub fn make_index(base: Box<Expr>, index: Box<Expr>) -> Self {
-        let l = l.span.to_pos();
-        let r = r.span.to_pos();
+    pub fn make_index(base: ExprKey, index: ExprKey) -> Self {
         Self::ArraySubscript { base, index }
     }
 
-    pub fn make_call(base: Box<Expr>, l: Token, params: Parameter, r: Token) -> Self {
+    pub fn make_call(base: ExprKey, l: Token, params: Parameter, r: Token) -> Self {
         let l = l.span.to_pos();
         let r = r.span.to_pos();
         Self::Call { base, params }
     }
 
-    pub fn make_dot(base: Box<Expr>, op: Token, field: Symbol) -> Self {
+    pub fn make_dot(base: ExprKey, op: Token, field: Symbol) -> Self {
         let kind = match op.kind {
             TokenKind::Arrow => MemberAccessKind::Arrow,
             TokenKind::Dot => MemberAccessKind::Dot,
@@ -127,11 +126,11 @@ impl ExprKind {
         Self::SizeofType { ty }
     }
 
-    pub fn make_size_of_expr(sizeof: Token, expr: Box<Expr>) -> Self {
+    pub fn make_size_of_expr(sizeof: Token, expr: ExprKey) -> Self {
         Self::SizeofExpr { expr }
     }
 
-    pub fn make_post(lhs: Box<Expr>, op: Token) -> Self {
+    pub fn make_post(lhs: ExprKey, op: Token) -> Self {
         let kind = match op.kind {
             TokenKind::Inc => UnaryOpKind::PostInc,
             TokenKind::Dec => UnaryOpKind::PostDec,
@@ -144,7 +143,7 @@ impl ExprKind {
         Self::Unary { op, rhs: lhs }
     }
 
-    pub fn make_pre(op: Token, rhs: Box<Expr>) -> Self {
+    pub fn make_pre(op: Token, rhs: ExprKey) -> Self {
         let kind = match op.kind {
             TokenKind::Inc => UnaryOpKind::PreInc,
             TokenKind::Dec => UnaryOpKind::PreDec,
@@ -157,31 +156,31 @@ impl ExprKind {
         Self::Unary { op, rhs }
     }
 
-    pub fn make_unary(op: Token, rhs: Box<Expr>) -> Self {
+    pub fn make_unary(op: Token, rhs: ExprKey) -> Self {
         let op = UnaryOp::new(op);
         Self::Unary { op, rhs }
     }
 
-    pub fn make_binary(lhs: Box<Expr>, op: Token, rhs: Box<Expr>) -> Self {
+    pub fn make_binary(lhs: ExprKey, op: Token, rhs: ExprKey) -> Self {
         let op = BinOp::new(op);
         Self::Binary { lhs, op, rhs }
     }
 
-    pub fn make_cast(l: Token, ty: TypeKey, r: Token, expr: Box<Expr>) -> Self {
+    pub fn make_cast(l: Token, ty: TypeKey, r: Token, expr: ExprKey) -> Self {
         Self::Cast { ty, expr }
     }
 
-    pub fn make_assign(lhs: Box<Expr>, op: Token, rhs: Box<Expr>) -> Self {
+    pub fn make_assign(lhs: ExprKey, op: Token, rhs: ExprKey) -> Self {
         let op = AssignOp::new(op);
         Self::Assign { lhs, op, rhs }
     }
 
     pub fn make_ternary(
-        cond: Box<Expr>,
+        cond: ExprKey,
         question: Token,
-        then_expr: Box<Expr>,
+        then_expr: ExprKey,
         colon: Token,
-        else_expr: Box<Expr>,
+        else_expr: ExprKey,
     ) -> Self {
         Self::Ternary {
             cond,
@@ -204,8 +203,8 @@ impl Expr {
         ValueType::value_type(self) == ValueType::LValue
     }
 
-    pub fn is_int_constant(&self) -> bool {
-        let ty = &self.ty;
+    pub fn is_int_constant(&self, ctx: &CompCtx) -> bool {
+        let ty = ctx.get_type(self.ty);
         if ty.is_unknown() {
             todo!()
         }
@@ -222,8 +221,8 @@ impl Expr {
         constant.is_integer() || constant.is_char()
     }
 
-    pub fn get_int_constant(&self) -> ParserResult<u64> {
-        let ty = &self.ty;
+    pub fn get_int_constant(&self, ctx: &CompCtx) -> ParserResult<u64> {
+        let ty = ctx.get_type(self.ty);
         if ty.is_unknown() {
             todo!()
         }
@@ -265,7 +264,7 @@ pub enum MemberAccessKind {
 
 #[derive(Debug, Clone)]
 pub struct Parameter {
-    pub exprs: Vec<Box<Expr>>,
+    pub exprs: Vec<ExprKey>,
     pub commas: Vec<Span>,
 }
 

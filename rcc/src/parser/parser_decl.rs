@@ -1,6 +1,8 @@
 use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::{Keyword, TokenKind};
+use crate::parser::ast::decl::DeclKey;
+use crate::parser::ast::types::TypeKey;
 use crate::parser::parser_core::Parser;
 use crate::parser::semantic::ast::decl::{DeclGroup, Initializer, InitializerList, StructOrUnion};
 use crate::parser::semantic::common::{Ident, IdentList};
@@ -14,7 +16,10 @@ use std::rc::Rc;
 macro_rules! dup_error {
     ($ele:expr, $context:expr) => {{
         let item = $ele.kind_str().to_owned();
-        let kind = parser_error::ErrorKind::Duplicate { item, context: $context.to_owned() };
+        let kind = parser_error::ErrorKind::Duplicate {
+            item,
+            context: $context.to_owned(),
+        };
         ParserError::new(kind, $ele.span)
     }};
 }
@@ -22,31 +27,32 @@ macro_rules! dup_error {
 macro_rules! combine_error {
     ($ele:expr, $context:expr) => {{
         let prev = $ele.kind_str().to_owned();
-        let kind = parser_error::ErrorKind::NonCombinable { prev , context: $context.to_owned() };
+        let kind = parser_error::ErrorKind::NonCombinable {
+            prev,
+            context: $context.to_owned(),
+        };
         ParserError::new(kind, $ele.span)
     }};
 }
 
-impl Parser {
-
+impl Parser<'_> {
     fn check_declarator(&self) -> bool {
-        let kind = &self.stream.peek().kind;
+        let kind = &self.ctx.stream.peek().kind;
         match kind {
-            TokenKind::LParen
-            | TokenKind::LBrace
-            | TokenKind::LBracket
-            | TokenKind::Ident(_) => true,
+            TokenKind::LParen | TokenKind::LBrace | TokenKind::LBracket | TokenKind::Ident(_) => {
+                true
+            }
             _ => false,
         }
     }
 
     fn check_pointer(&self) -> bool {
-        let kind = &self.stream.peek().kind;
+        let kind = &self.ctx.stream.peek().kind;
         matches!(kind, TokenKind::Star)
     }
 
     pub(crate) fn parse_decl(&mut self) -> ParserResult<DeclGroup> {
-        let lo = self.stream.span();
+        let lo = self.ctx.stream.span();
 
         let decl_spec = self.parse_decl_spec()?;
         let mut declarator = Declarator::new(decl_spec);
@@ -64,35 +70,33 @@ impl Parser {
         self.parse_init_declarator_list(declarator, &mut group)?;
         let semi = self.expect(TokenKind::Semi)?.span.to_pos();
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
-        group.semi  = semi;
+        group.semi = semi;
         group.span = span;
 
         Ok(group)
     }
 
-
     pub(crate) fn parse_decl_spec(&mut self) -> ParserResult<Rc<DeclSpec>> {
-        const  CONTEXT: &str = "declaration specifier";
+        const CONTEXT: &str = "declaration specifier";
 
-        let lo = self.stream.span();
+        let lo = self.ctx.stream.span();
 
         let mut storage: Option<StorageSpec> = None;
         let mut type_specs: Vec<TypeSpec> = Vec::new();
         let mut type_quals: [Option<TypeQual>; 3] = [None; 3];
         let mut func_spec: Option<FuncSpec> = None;
 
-
         loop {
-            let token = self.stream.peek();
+            let token = self.ctx.stream.peek();
             if self.is_storage_spec(token) {
                 // typedef extern static auto register
                 let spec = self.parse_storage_spec()?;
 
                 if let Some(storage) = &storage {
                     let error = if storage.kind == spec.kind {
-                         dup_error!(spec, CONTEXT)
+                        dup_error!(spec, CONTEXT)
                     } else {
                         combine_error!(storage, CONTEXT)
                     };
@@ -103,7 +107,6 @@ impl Parser {
                 // 类型
                 let spec = self.parse_type_spec()?;
                 type_specs.push(spec);
-
             } else if self.is_type_qual(token) {
                 // const restrict volatile
                 let qual = self.parse_type_qual()?;
@@ -125,41 +128,39 @@ impl Parser {
                 }
                 func_spec = Some(spec);
             } else {
-                break
+                break;
             };
         }
 
-
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
-
 
         let decl_spec = Rc::new(DeclSpec {
             storage,
             type_specs,
             type_quals,
             func_spec,
-            span
+            span,
         });
         Ok(decl_spec)
     }
 
     fn parse_storage_spec(&mut self) -> ParserResult<StorageSpec> {
-        let token = self.stream.next();
+        let token = self.ctx.stream.next();
         let storage_spec = StorageSpec::new(token);
         Ok(storage_spec)
     }
 
     fn parse_type_spec(&mut self) -> ParserResult<TypeSpec> {
-        let token = self.stream.peek();
+        let token = self.ctx.stream.peek();
         let span = token.span;
         let spec = match &token.kind {
             TokenKind::Ident(_) => {
-                let symbol = self.stream.next().kind.into_ident().unwrap();
+                let symbol = self.ctx.stream.next().kind.into_ident().unwrap();
                 let ident = Ident { symbol, span };
                 let decl = match self.sema.lookup_chain(symbol) {
                     Some(x) => x,
-                    None => todo!() // 不是类型，出错
+                    None => todo!(), // 不是类型，出错
                 };
                 let kind = TypeSpecKind::TypeName(ident, decl);
                 TypeSpec { kind, span }
@@ -180,28 +181,28 @@ impl Parser {
                     let kind = TypeSpecKind::Enum(spec);
                     TypeSpec { kind, span }
                 }
-                _ => TypeSpec::new(self.stream.next())
+                _ => TypeSpec::new(self.ctx.stream.next()),
             },
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         Ok(spec)
     }
 
     fn parse_type_qual(&mut self) -> ParserResult<TypeQual> {
-        let token = self.stream.next();
+        let token = self.ctx.stream.next();
         let type_qual = TypeQual::new(token);
         Ok(type_qual)
     }
 
     fn parse_function_spec(&mut self) -> ParserResult<FuncSpec> {
-        let inline = self.stream.next();
-        let func_spec  = FuncSpec::new(inline);
+        let inline = self.ctx.stream.next();
+        let func_spec = FuncSpec::new(inline);
         Ok(func_spec)
     }
 
     /// 兼容abstract_declarator
     pub(crate) fn parse_declarator(&mut self, declarator: &mut Declarator) -> ParserResult<()> {
-        let lo = self.stream.span();
+        let lo = self.ctx.stream.span();
 
         if self.check_pointer() {
             self.parse_pointer(declarator)?;
@@ -210,14 +211,14 @@ impl Parser {
             self.parse_direct_declarator(declarator)?;
         }
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
         declarator.span = span;
         Ok(())
     }
 
     fn parse_direct_declarator_first(&mut self, declarator: &mut Declarator) -> ParserResult<()> {
-        let lo = self.stream.span();
+        let lo = self.ctx.stream.span();
 
         let kind = if let Some(ident) = self.consume_ident() {
             let ident = Ident::new(ident);
@@ -230,13 +231,13 @@ impl Parser {
 
             DeclaratorChunkKind::Paren { l, r }
         } else {
-            println!("{:?}", self.stream.next());
-            println!("{:?}", self.stream.next());
-            println!("{:?}", self.stream.next());
+            println!("{:?}", self.ctx.stream.next());
+            println!("{:?}", self.ctx.stream.next());
+            println!("{:?}", self.ctx.stream.next());
             unreachable!()
         };
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
         let chunk = DeclaratorChunk::new(kind, span);
@@ -249,7 +250,7 @@ impl Parser {
         self.parse_direct_declarator_first(declarator)?;
 
         loop {
-            let lo = self.stream.span();
+            let lo = self.ctx.stream.span();
 
             let kind = if let Some(lbracket) = self.consume(TokenKind::LBracket) {
                 // array []
@@ -257,17 +258,22 @@ impl Parser {
                 let type_qual = self.parse_type_qual_list_opt()?;
                 // 是否是空括号[]
                 let expr = match self.check(TokenKind::RBracket) {
-                    true =>  None, // 空括号
-                    false => Some(self.parse_assign_expr()?) // 非空解析为表达式
+                    true => None,                             // 空括号
+                    false => Some(self.parse_assign_expr()?), // 非空解析为表达式
                 };
                 let r = self.expect(TokenKind::RBracket)?.span.to_pos();
-                DeclaratorChunkKind::Array { l, type_qual, expr, r }
+                DeclaratorChunkKind::Array {
+                    l,
+                    type_qual,
+                    expr,
+                    r,
+                }
             } else if let Some(lparen) = self.consume(TokenKind::LParen) {
                 // func ()
                 let l = lparen.span.to_pos();
 
                 // 参数类型
-                let param = if self.is_type_spec(self.stream.peek()) {
+                let param = if self.is_type_spec(self.ctx.stream.peek()) {
                     // 普通函数参数
                     let list = self.parse_parameter_list()?;
                     ParamDecl::Params(list)
@@ -281,13 +287,13 @@ impl Parser {
                 };
 
                 let r = self.expect(TokenKind::RParen)?.span.to_pos();
-                
+
                 DeclaratorChunkKind::Function { l, param, r }
             } else {
                 break;
             };
 
-            let hi = self.stream.prev_span();
+            let hi = self.ctx.stream.prev_span();
             let span = Span::span(lo, hi);
 
             let chunk = DeclaratorChunk::new(kind, span);
@@ -298,20 +304,19 @@ impl Parser {
     }
 
     fn parse_pointer(&mut self, declarator: &mut Declarator) -> ParserResult<()> {
-
         loop {
-            let lo = self.stream.span();
+            let lo = self.ctx.stream.span();
 
             let star = match self.consume(TokenKind::Star) {
                 Some(x) => x.span.to_pos(),
-                None => break
+                None => break,
             };
-            let type_qual = match self.is_type_qual(self.stream.peek()) {
+            let type_qual = match self.is_type_qual(self.ctx.stream.peek()) {
                 true => self.parse_type_qual_list()?,
                 false => [None; 3],
             };
 
-            let hi = self.stream.prev_span();
+            let hi = self.ctx.stream.prev_span();
             let span = Span::span(lo, hi);
 
             let kind = DeclaratorChunkKind::Pointer { star, type_qual };
@@ -324,7 +329,7 @@ impl Parser {
     }
 
     fn parse_type_qual_list_opt(&mut self) -> ParserResult<Option<TypeQualType>> {
-        if self.is_type_qual(self.stream.peek()) {
+        if self.is_type_qual(self.ctx.stream.peek()) {
             self.parse_type_qual_list().map(|list| Some(list))
         } else {
             Ok(None)
@@ -334,8 +339,8 @@ impl Parser {
     fn parse_type_qual_list(&mut self) -> ParserResult<TypeQualType> {
         let mut type_qual: [Option<TypeQual>; 3] = [None; 3];
         loop {
-            if self.is_type_qual(self.stream.peek()) {
-                let qual = TypeQual::new(self.stream.next());
+            if self.is_type_qual(self.ctx.stream.peek()) {
+                let qual = TypeQual::new(self.ctx.stream.next());
                 let idx = qual.kind as usize;
 
                 if type_qual[idx].is_some() {
@@ -351,9 +356,11 @@ impl Parser {
         Ok(type_qual)
     }
 
-
-
-    fn parse_init_declarator_list(&mut self, declarator: Declarator, group: &mut DeclGroup) -> ParserResult<()> {
+    fn parse_init_declarator_list(
+        &mut self,
+        declarator: Declarator,
+        group: &mut DeclGroup,
+    ) -> ParserResult<()> {
         let decl_spec = Rc::clone(&declarator.decl_spec);
 
         let init = self.parse_init_declarator(Rc::clone(&decl_spec), Some(declarator))?;
@@ -371,8 +378,12 @@ impl Parser {
     /// # Arguments
     /// - `decl_spec`: DeclSpec引用
     /// - `declarator`: 传入None表示无Declarator
-    fn parse_init_declarator(&mut self, decl_spec: Rc<DeclSpec>, declarator: Option<Declarator>) -> ParserResult<DeclRef> {
-        let lo = self.stream.span();
+    fn parse_init_declarator(
+        &mut self,
+        decl_spec: Rc<DeclSpec>,
+        declarator: Option<Declarator>,
+    ) -> ParserResult<DeclKey> {
+        let lo = self.ctx.stream.span();
 
         // 解析declarator
         let declarator = match declarator {
@@ -391,10 +402,15 @@ impl Parser {
             init = Some(self.parse_initializer()?);
         }
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let init_declarator = InitDeclarator { declarator, eq, init, span };
+        let init_declarator = InitDeclarator {
+            declarator,
+            eq,
+            init,
+            span,
+        };
         let decl = self.sema.act_on_init_declarator(init_declarator)?;
         Ok(decl)
     }
@@ -428,17 +444,16 @@ impl Parser {
         Ok(list)
     }
 
-    fn parse_struct_or_union_spec(&mut self) -> ParserResult<DeclRef> {
-       
-        let lo = self.stream.span();
-        
+    fn parse_struct_or_union_spec(&mut self) -> ParserResult<DeclKey> {
+        let lo = self.ctx.stream.span();
+
         // 消耗struct union关键字
         let kw = self.expect_keyword_pair(Keyword::Struct, Keyword::Union)?;
         let record_kind = StructOrUnion::new(kw);
         let name = self.consume_ident().map(Ident::new); // 尝试解析名字
         let mut body = None;
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
         // 进入struct上下文
@@ -446,23 +461,33 @@ impl Parser {
 
         // 如果没有名字不需要处理声明
         if let Some(name) = &name {
-            self.sema.act_on_record_ref(record_kind.clone(), name.clone(), span)?;
-        }
-        
-        // 尝试解析内部声明
-        if let Some(lbrace) = self.consume(TokenKind::LBrace) { 
-            let r = lbrace.span.to_pos(); 
-            let group = self.parse_struct_decl_list()?;
-            let l = self.expect(TokenKind::RBrace)?.span.to_pos();
-            body = Some(StructSpecBody { r, groups: group, l })
+            self.sema
+                .act_on_record_ref(record_kind.clone(), name.clone(), span)?;
         }
 
-        let hi = self.stream.prev_span();
+        // 尝试解析内部声明
+        if let Some(lbrace) = self.consume(TokenKind::LBrace) {
+            let r = lbrace.span.to_pos();
+            let group = self.parse_struct_decl_list()?;
+            let l = self.expect(TokenKind::RBrace)?.span.to_pos();
+            body = Some(StructSpecBody {
+                r,
+                groups: group,
+                l,
+            })
+        }
+
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
-        
+
         // 语义分析
-        let spec = StructSpec { kind: record_kind, name, body, span  };
-        
+        let spec = StructSpec {
+            kind: record_kind,
+            name,
+            body,
+            span,
+        };
+
         let decl = self.sema.act_on_finish_record(spec)?;
         Ok(decl)
     }
@@ -488,14 +513,14 @@ impl Parser {
 
     /// 结构体成员声明，包括结尾分号
     fn parse_struct_decl(&mut self) -> ParserResult<DeclGroup> {
-        let lo = self.stream.span();
+        let lo = self.ctx.stream.span();
 
         let decl_spec = self.parse_decl_spec()?;
         let mut group = DeclGroup::default();
         self.parse_struct_declarator_list(&mut group, decl_spec)?;
         let semi = self.expect(TokenKind::Semi)?.span.to_pos();
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
         group.semi = semi;
         group.span = span;
@@ -503,8 +528,12 @@ impl Parser {
         Ok(group)
     }
 
-    /// 结构体声明declarator列表形如 *a, **b, **c 
-    fn parse_struct_declarator_list(&mut self, group: &mut DeclGroup, decl_spec: Rc<DeclSpec>) -> ParserResult<()> {
+    /// 结构体声明declarator列表形如 *a, **b, **c
+    fn parse_struct_declarator_list(
+        &mut self,
+        group: &mut DeclGroup,
+        decl_spec: Rc<DeclSpec>,
+    ) -> ParserResult<()> {
         // 构建declarator
         let decl = self.parse_struct_declarator(Rc::clone(&decl_spec))?;
         group.decls.push(decl);
@@ -518,13 +547,13 @@ impl Parser {
 
         Ok(())
     }
-    
+
     /// 解析struct的成员，负责插入符号表
-    fn parse_struct_declarator(&mut self, decl_spec: Rc<DeclSpec>) -> ParserResult<DeclRef> {
+    fn parse_struct_declarator(&mut self, decl_spec: Rc<DeclSpec>) -> ParserResult<DeclKey> {
         let mut declarator = Declarator::new(decl_spec);
-        
-        let lo = self.stream.span();
-        
+
+        let lo = self.ctx.stream.span();
+
         let mut colon = None;
         let mut bit_field = None;
 
@@ -536,36 +565,42 @@ impl Parser {
             colon = Some(colon_token.span.to_pos());
             bit_field = Some(self.parse_assign_expr()?);
         }
-        
-        let hi = self.stream.prev_span();
+
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let struct_declarator = StructDeclarator { declarator, colon, bit_field, span };
+        let struct_declarator = StructDeclarator {
+            declarator,
+            colon,
+            bit_field,
+            span,
+        };
 
         // 语义分析，获取类型
         let decl = self.sema.act_on_record_field(struct_declarator)?;
         Ok(decl)
     }
 
-
     /// 解析enum声明或定义
-    fn parse_enum_spec(&mut self) -> ParserResult<DeclRef> {
+    fn parse_enum_spec(&mut self) -> ParserResult<DeclKey> {
         // 准备枚举上下文
         self.sema.enter_decl(DeclContextKind::Enum);
-        let lo = self.stream.span();
-        
+        let lo = self.ctx.stream.span();
+
         let kw = self.expect_keyword(Keyword::Enum)?.span;
 
         // 检查是否合法
         if self.check_ident() || self.check(TokenKind::LBrace) {
-            let kind = parser_error::ErrorKind::Expect { expect: "identifier or '{'".to_owned() };
+            let kind = parser_error::ErrorKind::Expect {
+                expect: "identifier or '{'".to_owned(),
+            };
             return Err(self.error_here(kind));
         }
 
-        let name= self.consume_ident().map(Ident::new);
-        
+        let name = self.consume_ident().map(Ident::new);
+
         // todo 添加声明，目前也许不需要
-        
+
         let body;
         if let Some(lbrace) = self.consume(TokenKind::LBrace) {
             let mut decls = Vec::new();
@@ -575,7 +610,12 @@ impl Parser {
             // 解析枚举列表
             self.parse_enumerator_list(&mut decls, &mut commas)?;
             let r = self.expect(TokenKind::RBrace)?.span.to_pos();
-            body = Some(EnumSpecBody { l, decls, commas, r });
+            body = Some(EnumSpecBody {
+                l,
+                decls,
+                commas,
+                r,
+            });
         } else {
             // 出错
             let expect = "identifier or '{'".to_owned();
@@ -584,22 +624,30 @@ impl Parser {
             return Err(error);
         }
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
-
-        let spec = EnumSpec { enum_span: kw, name, body, span };
+        let spec = EnumSpec {
+            enum_span: kw,
+            name,
+            body,
+            span,
+        };
         // 完成并结束枚举上下文
         let decl = self.sema.act_on_finish_enum(spec)?;
         Ok(decl)
     }
 
-    fn parse_enumerator_list(&mut self, decls: &mut Vec<DeclRef>, commas: &mut Vec<Pos>) -> ParserResult<()> {
+    fn parse_enumerator_list(
+        &mut self,
+        decls: &mut Vec<DeclKey>,
+        commas: &mut Vec<Pos>,
+    ) -> ParserResult<()> {
         loop {
             let decl = self.parse_enumerator()?;
             decls.push(decl);
 
-            if let Some(comma) = self.consume(TokenKind::Comma) { 
+            if let Some(comma) = self.consume(TokenKind::Comma) {
                 commas.push(comma.span.to_pos());
             } else {
                 break;
@@ -609,9 +657,9 @@ impl Parser {
     }
 
     // 解析枚举的成员，负责插入符号表
-    fn parse_enumerator(&mut self) -> ParserResult<DeclRef> {
-        let lo = self.stream.span();
-        
+    fn parse_enumerator(&mut self) -> ParserResult<DeclKey> {
+        let lo = self.ctx.stream.span();
+
         let ident = self.expect_ident()?;
         let name = Ident::new(ident);
         let mut eq = None;
@@ -621,25 +669,30 @@ impl Parser {
             expr = Some(self.parse_assign_expr()?);
         };
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let enumerator = Enumerator { name, eq, expr, span };
+        let enumerator = Enumerator {
+            name,
+            eq,
+            expr,
+            span,
+        };
         let decl = self.sema.act_on_enumerator(enumerator)?;
         Ok(decl)
     }
 
     /// 函数列表，不包含左右括号，负责构建符号表
     fn parse_parameter_list(&mut self) -> ParserResult<ParamList> {
-        let lo = self.stream.span();
+        let lo = self.ctx.stream.span();
 
-        let mut params: Vec<DeclRef> = Vec::new();
+        let mut params: Vec<DeclKey> = Vec::new();
         let mut commas = Vec::new();
         let mut ellipsis = None;
 
         // 解析第一个参数声明
         let decl = self.parse_parameter_decl()?;
-        
+
         params.push(decl);
 
         // 解析后续参数声明
@@ -647,28 +700,33 @@ impl Parser {
             commas.push(comma.span.to_pos());
             if let Some(token) = self.consume(TokenKind::Ellipsis) {
                 ellipsis = Some(token.span);
-                break
+                break;
             }
             let decl = self.parse_parameter_decl()?;
             params.push(decl);
         }
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let list = ParamList { params, commas, ellipsis, span };
+        let list = ParamList {
+            params,
+            commas,
+            ellipsis,
+            span,
+        };
         Ok(list)
     }
 
     /// 解析函数参数声明，负责插入符号表
-    fn parse_parameter_decl(&mut self) -> ParserResult<DeclRef> {
-        let lo = self.stream.span();
+    fn parse_parameter_decl(&mut self) -> ParserResult<DeclKey> {
+        let lo = self.ctx.stream.span();
 
         let decl_spec = self.parse_decl_spec()?;
         let mut declarator = Declarator::new(decl_spec);
         self.parse_declarator(&mut declarator)?;
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
         declarator.span = span;
@@ -694,8 +752,8 @@ impl Parser {
         Ok(list)
     }
 
-    pub(crate) fn parse_type_name(&mut self) -> ParserResult<Rc<Type>> {
-        let lo = self.stream.span();
+    pub(crate) fn parse_type_name(&mut self) -> ParserResult<TypeKey> {
+        let lo = self.ctx.stream.span();
 
         let decl_specs = self.parse_decl_spec()?;
         let mut declarator = Declarator::new(decl_specs);
@@ -703,15 +761,12 @@ impl Parser {
             self.parse_declarator(&mut declarator)?;
         };
 
-        let hi = self.stream.prev_span();
+        let hi = self.ctx.stream.prev_span();
         let span = Span::span(lo, hi);
 
         declarator.span = span;
 
-
-        let PartialDecl {
-            ty, ..
-        } = self.sema.act_on_declarator(declarator)?;
+        let PartialDecl { ty_key: ty, .. } = self.sema.act_on_declarator(declarator)?;
         Ok(ty)
     }
 }

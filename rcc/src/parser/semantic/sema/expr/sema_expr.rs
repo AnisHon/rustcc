@@ -2,13 +2,11 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::{IntSuffix, LiteralKind, Symbol};
 use crate::parser::ast::decl::DeclKind;
-use crate::parser::ast::expr::{AssignOpKind, BinOpKind, MemberAccessKind, UnaryOpKind};
+use crate::parser::ast::exprs::{Expr, ExprKind};
+use crate::parser::ast::types::{TypeKey, TypeKind};
 use crate::parser::common::Ident;
-use crate::parser::semantic::ast::expr::{Expr, ExprKind};
-use crate::parser::semantic::sema::expr::value_type::ValueType;
+use crate::parser::comp_ctx::CompCtx;
 use crate::parser::semantic::sema::expr::value_type::ValueType::LValue;
-use crate::parser::semantic::sema::sema_type::TypeKind::{Unknown, Void};
-use crate::parser::semantic::sema::sema_type::{IntegerSize, Qualifier, Type, TypeKind};
 use crate::parser::semantic::sema::Sema;
 use crate::types::span::Span;
 use std::rc::{Rc, Weak};
@@ -28,9 +26,9 @@ impl Sema {
     }
 
     /// 检查和计算当前表达式的类型
-    fn expr_type(&mut self, kind: &ExprKind, span: Span) -> ParserResult<Rc<Type>> {
+    fn expr_type(&mut self, ctx: &CompCtx, kind: &ExprKind, span: Span) -> ParserResult<TypeKey> {
         let ty = match kind {
-            ExprKind::DeclRef(x) => self.var_expr_type(x)?,
+            ExprKind::DeclRef(x) => self.var_expr_type(ctx, x)?,
             ExprKind::Constant(x) => self.type_context.get_constant_type(x),
             ExprKind::Paren { expr, .. } => Rc::clone(&expr.ty),
             ExprKind::ArraySubscript { base, index, .. } => {
@@ -64,18 +62,16 @@ impl Sema {
         Ok(ty)
     }
 
-    fn var_expr_type(&mut self, ident: &Ident) -> ParserResult<Rc<Type>> {
+    fn var_expr_type(&mut self, ctx: &CompCtx, ident: &Ident) -> ParserResult<TypeKey> {
         let decl = self.lookup_chain(ident.symbol).ok_or(ParserError::undefined_symbol(ident))?;
-        let decl = decl.borrow();
+        let decl = ctx.get_decl(decl);
         let ty = match &decl.kind {
             DeclKind::EnumField { .. }
             | DeclKind::VarInit { .. }
-            | DeclKind::ParamVar => {
-                Rc::clone(&decl.ty)
-            }
+            | DeclKind::ParamVar => decl.ty,
             DeclKind::Func { .. }
             | DeclKind::FuncRef => {
-                let type_kind = TypeKind::Pointer { elem_ty: Rc::downgrade(&decl.ty) };
+                let type_kind = TypeKind::Pointer { elem_ty: decl.ty };
                 let ty = Type::new(Qualifier::default(), type_kind);
                 let ty = self.type_context.get_or_set(ty);
                 ty
@@ -85,7 +81,7 @@ impl Sema {
         Ok(ty)
     }
 
-    fn call_expr_type(&mut self, ty: &Type, call_params: &[Box<Expr>], span: Span) -> ParserResult<Rc<Type>> {
+    fn call_expr_type(&mut self, ty: &Type, call_params: &[Box<Expr>], span: Span) -> ParserResult<TypeKey> {
         let ty = match &ty.kind {
             TypeKind::Pointer { elem_ty } => {
                 let elem_ty = elem_ty.upgrade().unwrap();
@@ -109,7 +105,7 @@ impl Sema {
         Ok(ty)
     }
 
-    fn member_access_expr_type(&mut self, ty: &Type, op: MemberAccessKind, field: Symbol, span: Span) -> ParserResult<Rc<Type>> {
+    fn member_access_expr_type(&mut self, ty: &Type, op: MemberAccessKind, field: Symbol, span: Span) -> ParserResult<TypeKey> {
         match op {
             MemberAccessKind::Arrow => {
                 let elem_ty=  match ty.kind.as_pointer() {
@@ -144,7 +140,7 @@ impl Sema {
         }
     }
 
-    fn cast_expr_type(&mut self, from: &Type, to: Rc<Type>, span: Span) -> ParserResult<Rc<Type>> {
+    fn cast_expr_type(&mut self, from: &Type, to: TypeKey, span: Span) -> ParserResult<Rc<Type>> {
         if self.cast_compatible(from, &to) {
             Ok(to)
         } else {
@@ -155,11 +151,11 @@ impl Sema {
     /// 三元运算符类型
     fn ternary_type(
         &mut self,
-        cond: Rc<Type>,
-        a: Rc<Type>,
-        b: Rc<Type>,
+        cond: TypeKey,
+        a: TypeKey,
+        b: TypeKey,
         span: Span,
-    ) -> ParserResult<Rc<Type>>
+    ) -> ParserResult<TypeKey>
     {
         use TypeKind::*;
 
@@ -234,25 +230,28 @@ impl Sema {
     /// 算数时类型提升
     fn arith_promote(
         &mut self,
-        a: Rc<Type>,
-        b: Rc<Type>,
+        ctx: &CompCtx,
+        a_key: TypeKey,
+        b_key: TypeKey, 
         span: Span
-    ) -> ParserResult<Rc<Type>> {
+    ) -> ParserResult<TypeKey> {
         use TypeKind::*;
+        let a = ctx.get_type(a_key);
+        let b = ctx.get_type(b_key);
 
         // 1. 两者都是浮点，返回较宽浮点
         if let (Floating { size: sa }, Floating { size: sb }) = (&a.kind, &b.kind) {
             let ty = match sa.rank() > sb.rank() {
-                true => a,
-                false => b,
+                true => a_key,
+                false => b_key,
             };
             return Ok(ty);
         }
 
         // 2. 浮点 + 整数 → 浮点类型，整数先转浮点
         match (&a.kind, &b.kind) {
-            (Floating { .. }, Integer { .. }) => return Ok(a),
-            (Integer { .. }, Floating { size: fs }) => return Ok(b),
+            (Floating { .. }, Integer { .. }) => return Ok(a_key),
+            (Integer { .. }, Floating { size: fs }) => return Ok(b_key),
             _ => {}
         }
 
@@ -321,11 +320,11 @@ impl Sema {
     /// 算数类型提升
     fn binary_type(
         &mut self,
-        a: Rc<Type>,
+        a: TypeKey,
         op: BinOpKind,
-        b: Rc<Type>,
+        b: TypeKey,
         span: Span
-    ) -> ParserResult<Rc<Type>> {
+    ) -> ParserResult<TypeKey> {
         use crate::parser::semantic::ast::expr::BinOpKind::*;
 
         match op {
@@ -448,7 +447,7 @@ impl Sema {
         op: AssignOpKind,
         b: &Expr,
         span: Span
-    ) -> ParserResult<Rc<Type>> {
+    ) -> ParserResult<TypeKey> {
         use crate::parser::semantic::ast::expr::AssignOpKind::*;
 
         let aty = a.ty.clone();
@@ -493,10 +492,10 @@ impl Sema {
     fn unary_type(
         &mut self,
         op: UnaryOpKind,
-        a: Rc<Type>,
+        a: TypeKey,
         value_type: ValueType,
         span: Span
-    ) -> ParserResult<Rc<Type>> {
+    ) -> ParserResult<TypeKey> {
         let ty = match op {
             UnaryOpKind::AddrOf => {
                 if value_type != LValue {
@@ -639,14 +638,14 @@ impl Sema {
         }
     }
 
-    fn make_unsigned_long_long(n: u64, ty: Rc<Type>, span: Span) -> ExprKind {
+    fn make_unsigned_long_long(n: u64, ty: TypeKey, span: Span) -> ExprKind {
         let kind = ExprKind::Constant(LiteralKind::Integer { suffix: Some(IntSuffix::ULL), value: n });
     }
 
     /// 折叠常量表达式
-    fn fold_expr(&self, expr: Expr) -> ParserResult<Box<Expr>> {
+    fn fold_expr(&self, ctx: &CompCtx, expr: Expr) -> ParserResult<Box<Expr>> {
         let kind: ExprKind = match expr.kind {
-            ExprKind::Paren { expr, .. } => return Ok(expr), // 折叠括号
+            // ExprKind::Paren { expr, .. } => return Ok(expr), // 折叠括号
             ExprKind::SizeofExpr { expr: sizeof_expr, .. } => {
                 let size = sizeof_expr.ty.sizeof();
                 Self::make_unsigned_long_long(size, expr.ty.clone(), expr.span) // 折叠sizeof

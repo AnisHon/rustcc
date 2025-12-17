@@ -1,6 +1,7 @@
 use std::hash::{Hash, Hasher};
 use crate::parser::ast::types::type_struct::TypeKey;
 use crate::parser::common::Ident;
+use crate::parser::semantic::comp_ctx::CompCtx;
 
 ///
 /// # Members
@@ -19,10 +20,10 @@ pub struct RecordField {
 
 impl RecordField {
     
-    pub fn to_code(&self) -> String { // todo 抽到外面
+    pub fn to_code(&self, ctx: &CompCtx) -> String { // todo 抽到外面
         let mut code = String::new();
 
-        let ty = self.ty.upgrade().unwrap().to_code();
+        let ty = ctx.get_type(self.ty).to_code(ctx);
         let name = self.name.as_ref().map(|x| x.symbol.get()).unwrap_or_default();
 
         code.push_str(&ty);

@@ -1,3 +1,4 @@
+use crate::parser::ast::exprs::ExprKey;
 use crate::parser::semantic::ast::decl::Initializer;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{DeclSpec, ParamDecl, TypeQualType};
@@ -27,7 +28,7 @@ impl Declarator {
 #[derive(Clone, Debug)]
 pub enum DeclaratorChunkKind {
     Paren { l: Pos, r: Pos }, // 纯用来保存括号信息了
-    Array { l: Pos, type_qual: Option<TypeQualType>, expr: Option<Box<Expr>>, r: Pos },
+    Array { l: Pos, type_qual: Option<TypeQualType>, expr: Option<ExprKey>, r: Pos },
     Pointer { star: Pos, type_qual: TypeQualType },
     Function { l: Pos, param: ParamDecl, r: Pos },
 }

@@ -1,20 +1,25 @@
-use std::rc::Rc;
-use crate::parser::ast::decl::{DeclGroup, DeclKind, Initializer};
-use crate::parser::ast::visitor::Visitor;
-use petgraph::graph::{DiGraph, NodeIndex};
+use crate::parser::ast::decl::{DeclGroup, DeclKey, DeclKind, Initializer};
+use crate::parser::ast::exprs::{Expr, ExprKey, ExprKind};
 use crate::parser::ast::func::{ExternalDecl, FuncDef, TranslationUnit};
+use crate::parser::ast::stmt::{StmtKey, StmtKind};
+use crate::parser::ast::visitor::Visitor;
+use crate::parser::comp_ctx::CompCtx;
+use petgraph::graph::{DiGraph, NodeIndex};
+use std::rc::Rc;
 
-pub struct AstGraph {
+pub struct AstGraph<'a> {
     pub tree: DiGraph<String, ()>,
+    ctx: &'a CompCtx,
     current: NodeIndex,
 }
 
-impl AstGraph {
-    pub fn new() -> Self {
+impl<'a> AstGraph<'a> {
+    pub fn new(ctx: &'a CompCtx) -> Self {
         let tree = DiGraph::new();
         Self {
             tree,
-            current: NodeIndex::default()
+            ctx,
+            current: NodeIndex::default(),
         }
     }
 
@@ -32,20 +37,21 @@ impl AstGraph {
     }
 }
 
-impl AstGraph {
+impl AstGraph<'_> {
     fn visit_initializer(&mut self, initializer: &mut Initializer) {
         let prev = self.make_node("initializer".to_owned());
         match initializer {
             Initializer::Expr(x) => self.visit_expr(x),
-            Initializer::InitList { inits, .. } => {
-                inits.inits.iter_mut().for_each(|x| self.visit_initializer(x))
-            }
+            Initializer::InitList { inits, .. } => inits
+                .inits
+                .iter_mut()
+                .for_each(|x| self.visit_initializer(x)),
         }
         self.current = prev;
     }
 }
 
-impl Visitor for AstGraph {
+impl Visitor for AstGraph<'_> {
     fn walk_translation_unit(&mut self, unit: &mut TranslationUnit) {
         let prev = self.make_node("translation_unit".to_string());
         for ext_decl in unit {
@@ -58,15 +64,15 @@ impl Visitor for AstGraph {
         let prev = self.make_node("external_decl".to_string());
         match decl {
             ExternalDecl::FunctionDefinition(x) => self.walk_func_def(x),
-            ExternalDecl::Declaration(x) => self.walk_decl_group(x)
+            ExternalDecl::Declaration(x) => self.walk_decl_group(x),
         }
         self.current = prev;
     }
 
     fn walk_func_def(&mut self, decl: &mut FuncDef) {
         let prev = self.make_node("func_def".to_string());
-        self.visit_decl(Rc::clone(&decl.decl));
-        self.visit_stmt(&mut decl.body);
+        self.visit_decl(decl.decl);
+        self.visit_stmt(decl.body);
         self.current = prev;
     }
 
@@ -78,15 +84,20 @@ impl Visitor for AstGraph {
         self.current = prev;
     }
 
-    fn visit_decl(&mut self, decl: DeclRef) {
+    fn visit_decl(&mut self, decl: DeclKey) {
         let prev;
-        let mut decl = decl.borrow_mut();
-        let name = decl.name.as_ref().map(|x| x.symbol.get()).unwrap_or_default();
+        let mut decl = self.ctx.get_decl(decl);
+        let name = decl
+            .name
+            .as_ref()
+            .map(|x| x.symbol.get())
+            .unwrap_or_default();
         self.connect_node(name.to_string());
 
         match &mut decl.kind {
             DeclKind::ParamVar => {
-                let ty = decl.ty.to_code();
+                let ty = self.ctx.get_type(decl.ty);
+                let ty = ty.to_code(self.ctx);
                 prev = self.make_node(ty);
             }
             DeclKind::VarInit { init, .. } => {
@@ -95,7 +106,7 @@ impl Visitor for AstGraph {
                     self.visit_initializer(x);
                 }
             }
-            DeclKind::FuncRef {  } => {
+            DeclKind::FuncRef {} => {
                 prev = self.make_node("func_ref".to_owned());
                 // let ret = ret_ty.to_code();
                 // self.connect_node(ret);
@@ -103,7 +114,7 @@ impl Visitor for AstGraph {
                 //     self.visit_decl(Rc::clone(x));
                 // }
             }
-            DeclKind::Func {body } => {
+            DeclKind::Func { body } => {
                 prev = self.make_node("func_def".to_owned());
                 // let ret = ret_ty.to_code();
                 // self.connect_node(ret);
@@ -114,8 +125,8 @@ impl Visitor for AstGraph {
             }
             DeclKind::RecordField { bit_field, .. } => {
                 prev = self.make_node("record_field".to_owned());
-                if let Some(x) =bit_field.as_mut() {
-                   self.visit_expr(x)
+                if let Some(x) = bit_field.as_mut() {
+                    self.visit_expr(x)
                 };
             }
             DeclKind::Record { fields, .. } => {
@@ -128,24 +139,25 @@ impl Visitor for AstGraph {
             DeclKind::EnumField { expr, .. } => {
                 prev = self.make_node("enum_field".to_owned());
                 if let Some(x) = expr {
-                    self.visit_expr(x)
+                    self.visit_expr(*x)
                 }
             }
             DeclKind::Enum { enums, .. } => {
                 prev = self.make_node("enum_def".to_owned());
-                enums.iter().for_each(|x| self.visit_decl(Rc::clone(x)))
+                enums.iter().for_each(|x| self.visit_decl(*x))
             }
             DeclKind::EnumRef { .. } => {
                 prev = self.make_node("enum_ref".to_owned());
             }
-            DeclKind::TypeDef { } => {
+            DeclKind::TypeDef {} => {
                 prev = self.make_node("typedef".to_owned());
             }
         }
         self.current = prev;
     }
 
-    fn visit_expr(&mut self, expr: &mut Expr) {
+    fn visit_expr(&mut self, expr: ExprKey) {
+        let expr = self.ctx.get_expr(expr);
         let prev;
         match &mut expr.kind {
             ExprKind::DeclRef(x) => {
@@ -154,64 +166,72 @@ impl Visitor for AstGraph {
             ExprKind::Constant(x) => {
                 prev = self.make_node(format!("{:?}", x));
             }
-            ExprKind::Paren { expr, .. } => {
-                prev = self.make_node("exprs".to_owned());
-                self.visit_expr(expr)
-            }
+            // ExprKind::Paren { expr, .. } => {
+            //     prev = self.make_node("exprs".to_owned());
+            //     self.visit_expr(expr)
+            // }
             ExprKind::ArraySubscript { base, index, .. } => {
                 prev = self.make_node("arr_acc".to_owned());
-                self.visit_expr(base);
-                self.visit_expr(index);
+                self.visit_expr(*base);
+                self.visit_expr(*index);
             }
             ExprKind::Call { base, params, .. } => {
                 prev = self.make_node("arr_acc".to_owned());
-                self.visit_expr(base);
+                self.visit_expr(*base);
                 params.exprs.iter_mut().for_each(|x| self.visit_expr(x));
             }
             ExprKind::MemberAccess { base, field, .. } => {
                 prev = self.make_node("mem_acc".to_owned());
-                self.visit_expr(base);
+                self.visit_expr(*base);
                 self.connect_node(field.get().to_owned());
             }
             ExprKind::SizeofExpr { expr, .. } => {
                 prev = self.make_node("sizeof".to_owned());
-                self.visit_expr(expr);
+                self.visit_expr(*expr);
             }
             ExprKind::SizeofType { ty, .. } => {
                 prev = self.make_node("sizeof".to_owned());
-                self.connect_node(ty.to_code());
+                let ty = self.ctx.get_type(*ty);
+                self.connect_node(ty.to_code(self.ctx));
             }
             ExprKind::Unary { op, rhs, .. } => {
                 prev = self.make_node(format!("{:?}", op.kind));
-                self.visit_expr(rhs)
+                self.visit_expr(*rhs)
             }
-            ExprKind::Assign { op, lhs, rhs, .. }  => {
+            ExprKind::Assign { op, lhs, rhs, .. } => {
                 prev = self.make_node(format!("{:?}", op.kind));
-                self.visit_expr(lhs);
-                self.visit_expr(rhs);
+                self.visit_expr(*lhs);
+                self.visit_expr(*rhs);
             }
             ExprKind::Binary { op, lhs, rhs, .. } => {
                 prev = self.make_node(format!("{:?}", op.kind));
-                self.visit_expr(lhs);
-                self.visit_expr(rhs);
+                self.visit_expr(*lhs);
+                self.visit_expr(*rhs);
             }
-            ExprKind::Cast { ty,  expr, .. } => {
+            ExprKind::Cast { ty, expr, .. } => {
                 prev = self.make_node("cast".to_owned());
-                self.connect_node(ty.to_code());
-                self.visit_expr(expr)
+                let ty = self.ctx.get_type(*ty);
+                self.connect_node(ty.to_code(self.ctx));
+                self.visit_expr(*expr)
             }
-            ExprKind::Ternary { cond, then_expr, else_expr, .. } => {
+            ExprKind::Ternary {
+                cond,
+                then_expr,
+                else_expr,
+                ..
+            } => {
                 prev = self.make_node("cond_expr".to_owned());
-                self.visit_expr(cond);
-                self.visit_expr(then_expr);
-                self.visit_expr(else_expr);
+                self.visit_expr(*cond);
+                self.visit_expr(*then_expr);
+                self.visit_expr(*else_expr);
             }
         }
         self.current = prev;
     }
 
-    fn visit_stmt(&mut self, stmt: &mut Stmt) {
+    fn visit_stmt(&mut self, stmt: StmtKey) {
         let prev;
+        let stmt = self.ctx.get_stmt(stmt);
         match &mut stmt.kind {
             StmtKind::Expr { expr, .. } => {
                 prev = self.make_node("expr_stmt".to_owned());
@@ -239,7 +259,7 @@ impl Visitor for AstGraph {
             }
             StmtKind::Compound { stmts, .. } => {
                 prev = self.make_node("compound_stmt".to_owned());
-                stmts.iter_mut().for_each(|x| self.visit_stmt(x));
+                stmts.iter_mut().for_each(|x| self.visit_stmt(*x));
             }
             _ => {
                 prev = self.make_node("UnImplement".to_owned());

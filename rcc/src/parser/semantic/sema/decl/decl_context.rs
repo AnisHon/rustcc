@@ -2,6 +2,7 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::Symbol;
 use crate::parser::ast::decl::DeclKey;
+use crate::parser::comp_ctx::CompCtx;
 use crate::parser::semantic::ast::decl::DeclKind;
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
@@ -24,7 +25,7 @@ pub trait DeclContext: Debug {
     fn get_kind(&self) -> DeclContextKind;
     fn get_parent(&self) -> Option<DeclContextRef>;
 
-    fn insert(&mut self, decl: DeclKey) -> ParserResult<()>;
+    fn insert(&mut self, ctx: &mut CompCtx, decl_key: DeclKey) -> ParserResult<()>;
 
     fn lookup(&self, name: Symbol) -> Option<DeclKey> {
         let decls = self.get_decls();
@@ -73,29 +74,25 @@ impl DeclContext for CommonDeclContext {
     }
 
     /// 添加decl定义，如果没有名字就忽略
-    fn insert(&mut self, decl_ref: DeclKey) -> ParserResult<()> {
-        let decl = decl_ref.borrow();
+    fn insert(&mut self, ctx: &mut CompCtx, decl_key: DeclKey) -> ParserResult<()> {
+        let decl = ctx.get_decl(decl_key);
         use DeclKind::*;
         let name = match decl.get_name() {
             Some(x) => x.symbol,
             None => return Ok(()),
         };
 
-        let lookup_ref = match self.lookup(name) {
+        let lookup_key = match self.lookup(name) {
             Some(x) => x,
             None => {
                 drop(decl);
-                self.decls.insert(name, decl_ref);
+                self.decls.insert(name, decl_key);
                 return Ok(());
             }
         };
 
-        let mut lookup = lookup_ref.borrow_mut();
+        let lookup = ctx.get_decl_mut(lookup_key);
 
-        println!(
-            "lookup: {:?} \n\n inserting: {:?}\n---------\n",
-            lookup.kind, decl.kind
-        );
         match (&lookup.kind, &decl.kind) {
             (Enum { .. }, EnumRef { .. })
             | (EnumRef { .. }, EnumRef { .. })

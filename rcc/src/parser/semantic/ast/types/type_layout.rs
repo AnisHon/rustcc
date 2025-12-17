@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use crate::parser::{ast::types::{Type, TypeKind}, semantic::comp_ctx::CompCtx};
 
 impl Type {
