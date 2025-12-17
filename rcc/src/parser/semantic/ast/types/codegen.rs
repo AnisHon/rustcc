@@ -21,7 +21,7 @@ impl Qualifier {
 }
 
 impl Type {
-    pub fn to_code(&self) -> String {
+    pub fn to_code(&self) -> String { // 抽到外面
         let mut code = String::new();
         let qual = self.qual.to_code();
 

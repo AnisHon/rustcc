@@ -1,6 +1,5 @@
 use std::hash::{Hash, Hasher};
 use crate::parser::ast::types::{Qualifier, Type, TypeKind};
-use crate::parser::ast::types::TypeKind::{Array, Enum, EnumRef, Floating, Function, Integer, Pointer, Struct, StructRef, Union, UnionRef, Unknown, Void};
 
 impl Default for Type {
     fn default() -> Self {

@@ -84,7 +84,7 @@ fn impl_into(ast: &DeriveInput) -> proc_macro2::TokenStream {
 
 fn get_type(variant: &Variant) -> proc_macro2::TokenStream {
     let variant_name = &variant.ident;
-    match &variant.fields {
+    let recv_type = match &variant.fields {
         Fields::Unnamed(unnamed) => {
 
             let field_types: Vec<_> = unnamed.unnamed.iter().map(|f| &f.ty).collect();
@@ -95,16 +95,16 @@ fn get_type(variant: &Variant) -> proc_macro2::TokenStream {
                 _ => panic!("{} expect 1 fields, got {}", variant_name, field_sz),
             };
 
-            let recv_type = if field_sz == 1 {
-                quote!(#field_ty)
-            } else {
-                panic!("{} expect 1 fields, got {}", variant_name, field_sz);
-            };
-
-            recv_type
+            
+            match field_sz {
+                1 => quote!(#field_ty),
+                n => panic!("{} expect 1 fields, got {}", variant_name, n),
+            }
         },
         _ => panic!("{variant_name} is not unnamed(tuple) Variant!")
-    }
+    };
+
+    recv_type
 }
 
 fn impl_from(ast: &DeriveInput) -> proc_macro2::TokenStream {

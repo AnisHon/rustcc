@@ -45,24 +45,24 @@ impl TokenStream {
         self.tokens.get(self.pos + 1).unwrap_or(self.tokens.last().unwrap())
     }
 
-    /// 保存当前位置，用于回溯
-    pub fn mark(&mut self) {
-        self.mark_pos.push(self.pos);
-    }
+    // /// 保存当前位置，用于回溯
+    // pub fn mark(&mut self) {
+    //     self.mark_pos.push(self.pos);
+    // }
     
-    pub fn pop_mark(&mut self) {
-        self.mark_pos.pop();
-    }
+    // pub fn pop_mark(&mut self) {
+    //     self.mark_pos.pop();
+    // }
     
-    /// 回溯位置，如果没有回溯点会panic
-    pub fn rewind(&mut self) {
-        self.pos = self.mark_pos.pop().expect("Pos stack is empty");
-    }
+    // /// 回溯位置，如果没有回溯点会panic
+    // pub fn rewind(&mut self) {
+    //     self.pos = self.mark_pos.pop().expect("Pos stack is empty");
+    // }
     
-    /// 最后一个token
-    pub fn last(&self) -> &Token {
-        self.tokens.last().unwrap() // 一定存在最后的token（EOF）
-    }
+    // /// 最后一个token
+    // pub fn last(&self) -> &Token {
+    //     self.tokens.last().unwrap() // 一定存在最后的token（EOF）
+    // }
 
     /// 当前token的span
     pub fn span(&mut self) -> Span {

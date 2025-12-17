@@ -94,6 +94,7 @@ pub struct ParserError {
 
 impl ParserError {
     pub fn new(error_kind: ErrorKind, span: Span) -> Self {
+        // should be close
         let backtrace = Backtrace::capture();
         let level = ErrorLevel::from_kind(&error_kind);
         Self { span, error_kind, backtrace, level }

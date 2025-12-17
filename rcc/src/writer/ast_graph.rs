@@ -1,7 +1,5 @@
 use std::rc::Rc;
-use crate::parser::ast::decl::{DeclGroup, DeclKind, DeclRef, Initializer};
-use crate::parser::ast::expr::{Expr, ExprKind};
-use crate::parser::ast::stmt::{Stmt, StmtKind};
+use crate::parser::ast::decl::{DeclGroup, DeclKind, Initializer};
 use crate::parser::ast::visitor::Visitor;
 use petgraph::graph::{DiGraph, NodeIndex};
 use crate::parser::ast::func::{ExternalDecl, FuncDef, TranslationUnit};

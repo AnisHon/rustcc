@@ -1,10 +1,8 @@
 use crate::parser::semantic::ast::decl::Initializer;
-use crate::parser::semantic::ast::expr::Expr;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{DeclSpec, ParamDecl, TypeQualType};
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
-use crate::parser::semantic::sema::decl::decl_context::DeclContextRef;
 
 #[derive(Clone, Debug)]
 pub struct Declarator {

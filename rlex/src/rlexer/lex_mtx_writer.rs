@@ -2,7 +2,6 @@ use crate::rlexer::lexer::Lexer;
 use askama::Template;
 use common::utils::compress::compress_matrix;
 use std::fs;
-use common::lex::{StateID, StateMeta};
 use common::utils::str_util::{default_cvt, option_cvt, vec_to_code};
 
 #[derive(Template)]

@@ -1,9 +1,7 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
-use crate::parser::ast::decl::DeclRef;
 use crate::parser::semantic::ast::decl::{DeclGroup, StructOrUnion};
-use crate::parser::semantic::ast::expr::Expr;
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
 use crate::types::span::{Pos, Span};

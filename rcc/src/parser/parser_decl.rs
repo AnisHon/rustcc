@@ -8,10 +8,8 @@ use crate::parser::semantic::decl_spec::*;
 use crate::parser::semantic::declarator::*;
 use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
 use crate::parser::semantic::sema::decl::declarator::PartialDecl;
-use crate::parser::semantic::sema::sema_type::Type;
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
-use crate::parser::ast::decl::DeclRef;
 
 macro_rules! dup_error {
     ($ele:expr, $context:expr) => {{

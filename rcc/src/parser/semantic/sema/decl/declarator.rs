@@ -5,8 +5,6 @@ use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{EnumSpec, Enumerator, ParamDecl, StorageSpec, StorageSpecKind, StructDeclarator, StructSpec};
 use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind, InitDeclarator};
 use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
-use crate::parser::semantic::sema::sema_struct::DeclRef;
-use crate::parser::semantic::sema::sema_type::{IntegerSize, Type, TypeKind};
 use crate::parser::semantic::sema::Sema;
 use crate::types::span::Span;
 use rustc_hash::FxHashMap;

@@ -3,7 +3,6 @@ use crate::err::parser_error::{ParserResult};
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, LiteralKind, TokenKind};
 use crate::parser::parser_core::Parser;
-use crate::parser::semantic::ast::expr::{Expr, ExprKind, Parameter};
 use crate::types::span::Span;
 
 impl Parser {
@@ -83,7 +82,6 @@ impl Parser {
                 expect: "identifier, integer, float, char, string, '('".to_owned()
             };
             let error = self.error_here(kind);
-            panic!("{error}");
             return Err(error);
         };
         let hi = self.stream.prev_span();

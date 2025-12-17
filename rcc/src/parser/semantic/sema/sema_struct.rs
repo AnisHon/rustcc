@@ -4,7 +4,6 @@ use crate::parser::semantic::sema::decl::decl_context::*;
 use crate::parser::semantic::sema::ty::type_context::TypeContext;
 use std::cell::RefCell;
 use std::rc::Rc;
-pub(crate) use crate::parser::ast::decl::DeclRef;
 
 pub struct Sema {
     pub(crate) curr_decl: DeclContextRef,

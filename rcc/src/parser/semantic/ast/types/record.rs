@@ -18,7 +18,8 @@ pub struct RecordField {
 }
 
 impl RecordField {
-    pub fn to_code(&self) -> String {
+    
+    pub fn to_code(&self) -> String { // todo 抽到外面
         let mut code = String::new();
 
         let ty = self.ty.upgrade().unwrap().to_code();

@@ -13,7 +13,7 @@ new_key_type! {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Type {
     pub qual: Qualifier,
-    pub kind: TypeKind,
+    pub kind: TypeKind, 
 }
 
 impl Type {

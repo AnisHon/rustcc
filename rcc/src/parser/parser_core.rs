@@ -2,7 +2,7 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::token_stream::TokenStream;
 use crate::lex::types::token::Token;
-use crate::lex::types::token_kind::{Keyword, Symbol, TokenKind};
+use crate::lex::types::token_kind::{Keyword, TokenKind};
 use crate::parser::semantic::sema::Sema;
 
 pub struct Parser {
