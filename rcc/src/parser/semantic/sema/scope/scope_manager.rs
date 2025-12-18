@@ -1,12 +1,13 @@
+use crate::parser::semantic::sema::scope::scope_struct::ScopeError;
 use crate::{
     err::parser_error::{ParserResult},
     lex::types::token_kind::Symbol,
     parser::{
         ast::decl::DeclKey,
         comp_ctx::CompCtx,
-        semantic::sema::scope::{Scope, ScopeError},
     },
 };
+use crate::parser::semantic::sema::scope::scope_struct::Scope;
 
 macro_rules! scope_enter_pop {
     ($enter:ident, $pop:ident, $field:ident) => {
@@ -69,14 +70,14 @@ macro_rules! scope_insert {
     };
 }
 
-struct ScopeManager {
+pub struct ScopeMgr {
     tags: Vec<Scope>,
     members: Vec<Scope>,
     labels: Vec<Scope>,
     idents: Vec<Scope>,
 }
 
-impl ScopeManager {
+impl ScopeMgr {
     pub fn new() -> Self {
         Self {
             tags: Vec::new(),

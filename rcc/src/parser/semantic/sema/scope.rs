@@ -1,4 +1,3 @@
-mod scope_struct;
-mod scope_manager;
+pub mod scope_struct;
+pub mod scope_manager;
 
-pub use scope_struct::*;

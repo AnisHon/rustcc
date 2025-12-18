@@ -179,11 +179,12 @@ pub(crate) fn error_here(ctx: &CompCtx, kind: parser_error::ErrorKind) -> Parser
 }
 
 pub(crate) fn is_type_name(ctx: &CompCtx, token: &Token) -> bool {
-    if let TokenKind::Ident(symbol) = token.kind {
-        sema.lookup_chain(symbol) // 检查符号表
-            .is_some_and(|x| x.borrow().kind.is_type_def())
-    } else {
-        false
+    match token.kind {
+        TokenKind::Ident(symbol) => ctx
+            .scope_mgr
+            .lookup_ident(symbol)
+            .is_some_and(|x| ctx.get_decl(x).kind.is_type_def()),
+        _ => false,
     }
 }
 

@@ -5,6 +5,7 @@ use crate::parser::ast::exprs::{Expr, ExprKey};
 use crate::parser::ast::stmt::{Stmt, StmtKey};
 use crate::parser::ast::types::{Type, TypeKey};
 use slotmap::SlotMap;
+use crate::parser::semantic::sema::scope::scope_manager::ScopeMgr;
 
 macro_rules! make_get {
     ($get:ident, $get_mut:ident, $insert:ident, $field:ident, $key_ty:ty, $ty:ty) => {
@@ -30,6 +31,7 @@ pub struct CompCtx {
     pub exprs: SlotMap<ExprKey, Expr>,
     pub types: SlotMap<TypeKey, Type>,
     pub stmts: SlotMap<StmtKey, Stmt>,
+    pub scope_mgr: ScopeMgr,
     pub errors: Vec<ParserError>,
     pub stream: TokenStream,
 }

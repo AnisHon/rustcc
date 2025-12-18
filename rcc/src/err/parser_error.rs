@@ -1,4 +1,5 @@
 use std::backtrace::Backtrace;
+use crate::parser::ast::types::TypeKey;
 use crate::{lex::types::token_kind::Symbol, parser::ast::decl::DeclKey};
 use crate::parser::common::Ident;
 use crate::types::span::Span;
@@ -29,8 +30,8 @@ pub enum ErrorKind {
     NonSubscripted,
     #[error("No Member named '{field}' in '{ty}'")]
     NoMember { field: String, ty: String },
-    #[error("Member reference base type '{ty}' is not a structure or union")]
-    NotStructOrUnion {ty: String},
+    #[error("Member reference base type is not a structure or union")]
+    NotStructOrUnion { ty: TypeKey },
     #[error("Object Not Callable")]
     UnCallable,
     #[error("{msg}")]
