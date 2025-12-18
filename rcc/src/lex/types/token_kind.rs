@@ -1,9 +1,9 @@
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::fmt::{Debug, Display};
-use std::num::ParseFloatError;
 use enum_as_inner::EnumAsInner;
-use crate::err::parser_error::{ParserError, ParserResult};
+
+use crate::err::parser_error::ParserResult;
 
 thread_local! {
     static SYMBOL_INTERNER: RefCell<Interner> = RefCell::new(Interner::new());

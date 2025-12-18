@@ -1,5 +1,5 @@
 use std::backtrace::Backtrace;
-use crate::lex::types::token_kind::Symbol;
+use crate::{lex::types::token_kind::Symbol, parser::ast::decl::DeclKey};
 use crate::parser::common::Ident;
 use crate::types::span::Span;
 use std::fmt::{Display, Formatter};
@@ -22,7 +22,7 @@ pub enum ErrorKind {
     #[error("Duplicate '{item}' {context}")]
     Duplicate { item: String, context: String },
     #[error("Redefinition of '{symbol}'")]
-    Redefinition { symbol: String },
+    Redefinition { symbol: &'static str, prev: DeclKey },
     #[error("Undefined '{symbol}'")]
     Undefined { symbol: &'static str },
     #[error("Subscripted value is not an array,pointer,or vector")]
