@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Qualifier {
     pub is_const: bool,
     pub is_volatile: bool,

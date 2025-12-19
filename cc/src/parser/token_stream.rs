@@ -1,9 +1,8 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::TokenKind;
 use crate::types::parser_context::ParserContext;
-use crate::types::symbol_table::SymbolTable;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 ///
 /// Token流对象，可以实现对Token的预处理，做为parser与lexer之间桥梁
@@ -13,16 +12,18 @@ pub struct TokenStream {
     rx: crossbeam_channel::Receiver<Token>,
     peeked: Option<Token>, // 缓存一个
     context: Rc<RefCell<ParserContext>>,
-
 }
 
 #[allow(dead_code)]
-impl TokenStream  {
-    pub fn new(rx: crossbeam_channel::Receiver<Token>, context: Rc<RefCell<ParserContext>>) -> Self {
+impl TokenStream {
+    pub fn new(
+        rx: crossbeam_channel::Receiver<Token>,
+        context: Rc<RefCell<ParserContext>>,
+    ) -> Self {
         Self {
             rx,
             peeked: None,
-            context
+            context,
         }
     }
 
@@ -37,7 +38,6 @@ impl TokenStream  {
         }
     }
 
-    
     fn next_token(&mut self) -> Option<Token> {
         // 当channel失效结束
         let mut token = self.rx.recv().ok()?;
@@ -58,18 +58,17 @@ impl TokenStream  {
         }
         self.peeked.as_ref()
     }
-    
+
     /// peek缓存后可能导致不一致问题，该函数强制使其同步
     pub fn sync(&mut self) {
         let mut token = match self.peeked.take() {
             None => return, // 没有缓存无需同步
             Some(x) => x,
         };
-        
+
         // 尝试同步
         self.try_typename(&mut token);
         // 同步后写回
-        self.peeked = Some(token); 
+        self.peeked = Some(token);
     }
-    
 }

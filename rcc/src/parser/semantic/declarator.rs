@@ -1,7 +1,8 @@
 use crate::parser::ast::exprs::ExprKey;
+use crate::parser::ast::types::Qualifier;
 use crate::parser::semantic::ast::decl::Initializer;
 use crate::parser::semantic::common::Ident;
-use crate::parser::semantic::decl_spec::{DeclSpec, ParamDecl, TypeQualType};
+use crate::parser::semantic::decl_spec::{DeclSpec, ParamDecl};
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
 
@@ -10,7 +11,7 @@ pub struct Declarator {
     pub name: Option<Ident>,
     pub decl_spec: Rc<DeclSpec>,
     pub chunks: Vec<DeclaratorChunk>,
-    pub span: Span
+    pub span: Span,
 }
 
 impl Declarator {
@@ -19,24 +20,29 @@ impl Declarator {
             name: None,
             decl_spec,
             chunks: Vec::new(),
-            span: Span::default()
+            span: Span::default(),
         }
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub enum DeclaratorChunkKind {
-    Paren { l: Pos, r: Pos }, // 纯用来保存括号信息了
-    Array { l: Pos, type_qual: Option<TypeQualType>, expr: Option<ExprKey>, r: Pos },
-    Pointer { star: Pos, type_qual: TypeQualType },
-    Function { l: Pos, param: ParamDecl, r: Pos },
+    Array {
+        type_qual: Qualifier, 
+        expr: Option<ExprKey>,
+    },
+    Pointer {
+        type_qual: Qualifier, 
+    },
+    Function {
+        param: ParamDecl,
+    },
 }
 
 #[derive(Clone, Debug)]
 pub struct DeclaratorChunk {
     pub kind: DeclaratorChunkKind,
-    pub span: Span
+    pub span: Span,
 }
 
 impl DeclaratorChunk {
@@ -50,22 +56,24 @@ pub struct InitDeclarator {
     pub declarator: Declarator,
     pub eq: Option<Pos>,
     pub init: Option<Initializer>,
-    pub span: Span
+    pub span: Span,
 }
 
 #[derive(Clone, Debug)]
 pub struct InitDeclaratorList {
     pub inits: Vec<InitDeclarator>,
     pub commas: Vec<Pos>,
-    pub span: Span
+    pub span: Span,
 }
 
 impl InitDeclaratorList {
     pub fn new() -> Self {
-        Self { inits: Vec::new(), commas: Vec::new(), span: Span::default() }
+        Self {
+            inits: Vec::new(),
+            commas: Vec::new(),
+            span: Span::default(),
+        }
     }
 }
 
-pub struct FunctionDeclarator {
-
-}
+pub struct FunctionDeclarator {}

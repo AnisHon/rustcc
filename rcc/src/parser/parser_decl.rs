@@ -330,7 +330,7 @@ fn parse_pointer(ctx: &mut CompCtx, declarator: &mut Declarator) -> ParserResult
     Ok(())
 }
 
-fn parse_type_qual_list_opt(ctx: &mut CompCtx) -> ParserResult<Option<TypeQualType>> {
+fn parse_type_qual_list_opt(ctx: &mut CompCtx) -> ParserResult<Option<TypeQuals>> {
     if is_type_qual(ctx.stream.peek()) {
         parse_type_qual_list(ctx).map(|list| Some(list))
     } else {
@@ -338,7 +338,7 @@ fn parse_type_qual_list_opt(ctx: &mut CompCtx) -> ParserResult<Option<TypeQualTy
     }
 }
 
-fn parse_type_qual_list(ctx: &mut CompCtx) -> ParserResult<TypeQualType> {
+fn parse_type_qual_list(ctx: &mut CompCtx) -> ParserResult<TypeQuals> {
     let mut type_qual: [Option<TypeQual>; 3] = [None; 3];
     loop {
         if is_type_qual(ctx.stream.peek()) {

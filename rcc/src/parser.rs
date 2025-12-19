@@ -13,7 +13,7 @@ mod test {
     use crate::parser::Sema;
     use crate::parser::common::Ident;
     use crate::parser::semantic::decl_spec::{
-        DeclSpec, ParamDecl, ParamList, TypeQualType, TypeSpec, TypeSpecKind,
+        DeclSpec, ParamDecl, ParamList, TypeQuals, TypeSpec, TypeSpecKind,
     };
     use crate::parser::semantic::declarator::{Declarator, DeclaratorChunk, DeclaratorChunkKind};
     use crate::types::span::{Pos, Span};
@@ -29,7 +29,7 @@ mod test {
                 kind: TypeSpecKind::Int,
                 span: Span::default(),
             }],
-            type_quals: TypeQualType::default(),
+            type_quals: TypeQuals::default(),
             func_spec: None,
             span: Span::default(),
         }));

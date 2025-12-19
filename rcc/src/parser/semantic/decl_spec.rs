@@ -3,13 +3,12 @@ use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
 use crate::parser::ast::decl::DeclKey;
 use crate::parser::ast::exprs::ExprKey;
+use crate::parser::ast::types::Qualifier;
 use crate::parser::semantic::ast::decl::{DeclGroup, StructOrUnion};
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
-
-pub type TypeQualType = [Option<TypeQual>; 3];
 
 ///
 /// # Members
@@ -17,16 +16,16 @@ pub type TypeQualType = [Option<TypeQual>; 3];
 /// - `type_base`: Void Int Double Enum Struct TypeName
 /// - `type_size`: Char Short Long Longlong Float Double LongDouble
 /// - `signed`: Signed Unsigned
-/// - `type_quals`: 
-/// - `func_spec`: 
-/// - `span`: 
+/// - `type_quals`:
+/// - `func_spec`:
+/// - `span`:
 #[derive(Debug, Clone)]
 pub struct DeclSpec {
     pub storage: Option<StorageSpec>, // 全局上下文的时候默认extern
     pub type_specs: Vec<TypeSpec>,
-    pub type_quals: TypeQualType,
+    pub type_quals: Qualifier,
     pub func_spec: Option<FuncSpec>,
-    pub span: Span
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, EnumAsInner)]
@@ -35,7 +34,7 @@ pub enum StorageSpecKind {
     Extern,
     Static,
     Auto,
-    Register
+    Register,
 }
 
 #[derive(Debug, Clone)]
@@ -51,7 +50,7 @@ impl StorageSpec {
             StorageSpecKind::Extern => "extern",
             StorageSpecKind::Static => "static",
             StorageSpecKind::Auto => "auto",
-            StorageSpecKind::Register => "register"
+            StorageSpecKind::Register => "register",
         }
     }
 }
@@ -65,11 +64,14 @@ impl StorageSpec {
                 Static => StorageSpecKind::Static,
                 Auto => StorageSpecKind::Auto,
                 Register => StorageSpecKind::Register,
-                _ => unreachable!()
-            }
+                _ => unreachable!(),
+            },
             _ => unreachable!("{:?}", token),
         };
-        Self { kind, span: token.span }
+        Self {
+            kind,
+            span: token.span,
+        }
     }
 
     pub fn from_kind(kind: StorageSpecKind) -> Self {
@@ -94,13 +96,13 @@ pub enum TypeSpecKind {
     Struct(DeclKey),
     Union(DeclKey),
     Enum(DeclKey),
-    TypeName(Ident, DeclKey)
+    TypeName(Ident, DeclKey),
 }
 
 #[derive(Debug, Clone)]
 pub struct TypeSpec {
     pub kind: TypeSpecKind,
-    pub span: Span
+    pub span: Span,
 }
 
 impl TypeSpec {
@@ -117,9 +119,12 @@ impl TypeSpec {
             Double => TypeSpecKind::Double,
             Signed => TypeSpecKind::Signed,
             Unsigned => TypeSpecKind::Unsigned,
-            _ => unreachable!()
+            _ => unreachable!(),
         };
-        Self { kind, span: token.span }
+        Self {
+            kind,
+            span: token.span,
+        }
     }
 
     pub fn from_kind(kind: TypeSpecKind) -> Self {
@@ -146,7 +151,7 @@ impl TypeSpec {
             TypeSpecKind::TypeName(_, _) => "type-name",
         }
     }
-    
+
     pub fn is(&self, kind: &TypeSpecKind) -> bool {
         std::mem::discriminant(&self.kind) == std::mem::discriminant(kind)
     }
@@ -154,13 +159,12 @@ impl TypeSpec {
 
 #[derive(Debug, Clone, Copy)]
 pub enum TypeQualKind {
-    Const = 0,
-    Restrict = 1,
-    Volatile = 2,
+    Const,
+    Restrict,
+    Volatile,
 }
 
-#[derive(Debug, Clone)]
-#[derive(Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct TypeQual {
     pub kind: TypeQualKind,
     pub span: Span,
@@ -184,17 +188,20 @@ impl TypeQual {
                 Const => TypeQualKind::Const,
                 Restrict => TypeQualKind::Restrict,
                 Volatile => TypeQualKind::Volatile,
-                _ => unreachable!()
-            }
+                _ => unreachable!(),
+            },
             _ => unreachable!(),
         };
-        Self { kind, span: token.span }
+        Self {
+            kind,
+            span: token.span,
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum FuncSpecKind {
-    Inline
+    Inline,
 }
 
 #[derive(Debug, Clone)]
@@ -209,14 +216,19 @@ impl FuncSpec {
         let kind = match token.kind {
             TokenKind::Keyword(kw) => match kw {
                 Inline => FuncSpecKind::Inline,
-                _ => unreachable!()
-            }
+                _ => unreachable!(),
+            },
             _ => unreachable!(),
         };
-        Self { kind, span: token.span }
+        Self {
+            kind,
+            span: token.span,
+        }
     }
     pub fn kind_str(&self) -> &'static str {
-        match self.kind { FuncSpecKind::Inline => "inline" }
+        match self.kind {
+            FuncSpecKind::Inline => "inline",
+        }
     }
 }
 
@@ -230,7 +242,7 @@ pub enum ParamDecl {
 pub struct ParamList {
     pub params: Vec<DeclKey>,
     pub commas: Vec<Pos>,
-    pub ellipsis: Option<Span>,
+    pub is_variadic: bool,
     pub span: Span,
 }
 
@@ -239,7 +251,7 @@ impl Default for ParamList {
         Self {
             params: Vec::new(),
             commas: Vec::new(),
-            ellipsis: None,
+            is_variadic: false,
             span: Span::default(),
         }
     }
@@ -258,7 +270,7 @@ pub struct StructSpec {
     pub kind: StructOrUnion,
     pub name: Option<Ident>,
     pub body: Option<StructSpecBody>,
-    pub span: Span
+    pub span: Span,
 }
 
 #[derive(Clone, Debug)]
@@ -282,7 +294,7 @@ pub struct Enumerator {
     pub name: Ident,
     pub eq: Option<Pos>,
     pub expr: Option<ExprKey>,
-    pub span: Span
+    pub span: Span,
 }
 
 #[derive(Clone, Debug)]
@@ -290,5 +302,5 @@ pub struct EnumSpec {
     pub enum_span: Span, // 关键字enum的span
     pub name: Option<Ident>,
     pub body: Option<EnumSpecBody>,
-    pub span: Span
+    pub span: Span,
 }

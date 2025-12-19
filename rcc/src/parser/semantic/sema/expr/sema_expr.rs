@@ -2,18 +2,17 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::{IntSuffix, LiteralKind, Symbol};
 use crate::parser::ast::decl::DeclKind;
-use crate::parser::ast::exprs::{BinOpKind, Expr, ExprKey, ExprKind, MemberAccessKind, UnaryOpKind};
+use crate::parser::ast::exprs::{AssignOpKind, BinOpKind, Expr, ExprKey, ExprKind, MemberAccessKind, UnaryOpKind};
 use crate::parser::ast::types::{IntegerSize, Qualifier, Type, TypeKey, TypeKind};
 use crate::parser::common::Ident;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::semantic::sema::expr::value_type::ValueType::LValue;
 use crate::types::span::Span;
-use std::rc::{Rc, Weak};
 use crate::parser::semantic::sema::expr::value_type::ValueType;
 
 
 /// 构建expression 折叠表达式
-pub fn make_expr(ctx: &CompCtx, kind: ExprKind, span: Span) -> ParserResult<Box<Expr>> {
+pub fn make_expr(ctx: &mut CompCtx, kind: ExprKind, span: Span) -> ParserResult<ExprKey> {
     let ty = expr_type(ctx, &kind, span)?;
 
     let expr = Expr { kind, ty, span };
@@ -43,20 +42,37 @@ fn expr_type(ctx: &CompCtx, kind: &ExprKind, span: Span) -> ParserResult<TypeKey
                 _ => return Err(ParserError::new(parser_error::ErrorKind::NonSubscripted, span))
             }
         }
-        ExprKind::Call { base, params, .. } =>
-            call_expr_type(ctx, *base, &params.exprs, span)?,
-        ExprKind::MemberAccess { base, field, kind, .. } =>
-            member_access_expr_type(ctx, *base, kind.clone(), *field, span)?,
-        ExprKind::SizeofType { .. } | ExprKind::SizeofExpr { .. } =>
-            type_context.get_int_type(IntegerSize::Long, false),
-        ExprKind::Unary { op, rhs } =>
-            unary_type(ctx, op.kind.clone(), rhs, ValueType::value_type(rhs), span)?,
-        ExprKind::Binary { op, lhs, rhs } =>
-            binary_type(ctx, lhs, op.kind.clone(), rhs.ty.clone(), span)?,
-        ExprKind::Assign { lhs, op, rhs } =>
-            assign_type(ctx, lhs, op.kind.clone(), rhs, span)?,
-        ExprKind::Cast { ty, expr, .. } =>
-            cast_expr_type(ctx, *expr, *ty, span)?,
+        ExprKind::Call { base, params, .. } => {
+            let base = ctx.get_expr(*base);
+            call_expr_type(ctx, base.ty, &params.exprs, span)?
+        }
+        ExprKind::MemberAccess { base, field, kind, .. } => {
+            let base = ctx.get_expr(*base);
+            member_access_expr_type(ctx, base.ty, kind.clone(), *field, span)?
+        }
+        ExprKind::SizeofType { .. } | ExprKind::SizeofExpr { .. } => {
+            type_context.get_int_type(IntegerSize::Long, false)
+        }
+        ExprKind::Unary { op, rhs } => {
+            let rhs = ctx.get_expr(*rhs);  
+            let valuety = ValueType::value_type(rhs)
+            unary_type(ctx, op.kind.clone(), rhs.ty, valuety, span)?
+        }
+        ExprKind::Binary { op, lhs, rhs } => {
+            let lhs = ctx.get_expr(*lhs);
+            let rhs = ctx.get_expr(*rhs); 
+            binary_type(ctx, lhs, op.kind.clone(), rhs.ty.clone(), span)?
+        }
+        ExprKind::Assign { lhs, op, rhs } => {
+            let lhs = ctx.get_expr(*lhs);
+            let rhs = ctx.get_expr(*rhs);
+            assign_type(ctx, lhs, op.kind.clone(), rhs, span)?
+        }
+        ExprKind::Cast { ty, expr, .. } => {
+            let from = ctx.get_expr(*expr).ty;
+            let to = *ty;
+            cast_expr_type(ctx, from, to, span)?
+        }
         ExprKind::Ternary { cond, then_expr, else_expr, .. } =>
             ternary_type(ctx, cond.ty.clone(), then_expr.ty.clone(), else_expr.ty.clone(), span)?,
     };
@@ -141,10 +157,11 @@ fn member_access_expr_type(ctx: &CompCtx, ty_key: TypeKey, op: MemberAccessKind,
     }
 }
 
-fn cast_expr_type(ctx: &CompCtx, from: TypeKind, to: TypeKey, span: Span) -> ParserResult<Rc<Type>> {
-    let to = ctx.get_type(to);
+fn cast_expr_type(ctx: &CompCtx, from_key: TypeKey, to_key: TypeKey, span: Span) -> ParserResult<TypeKey> {
+    let from = ctx.get_type(from_key);
+    let to = ctx.get_type(to_key);
     if cast_compatible(from, to) {
-        Ok(to)
+        Ok(to_key)
     } else {
         Err(ParserError::error("Wrong Cast".to_owned(), span))
     }
@@ -231,18 +248,17 @@ fn ternary_type(
     todo!("三元运算符两侧类型无法进行转换")
 }
 
-
-
 /// 算数时类型提升
 fn arith_promote(
     ctx: &CompCtx,
-    a: &Type,
     a_key: TypeKey,
-    b: &Type,
     b_key: TypeKey,
     span: Span
 ) -> ParserResult<TypeKey> {
     use TypeKind::*;
+
+    let a = ctx.get_type(a_key);
+    let b = ctx.get_type(b_key);
 
     // 1. 两者都是浮点，返回较宽浮点
     if let (Floating { size: sa }, Floating { size: sb }) = (&a.kind, &b.kind) {
@@ -332,8 +348,8 @@ fn binary_type(
 ) -> ParserResult<TypeKey> {
     use BinOpKind::*;
 
-    let a = ctx.get_type(a);
-    let b = ctx.get_type(b);
+    let a = ctx.get_type(a_key);
+    let b = ctx.get_type(b_key);
 
     match op {
         // ======================================
@@ -342,13 +358,13 @@ fn binary_type(
         // ======================================
         Plus => {
             if a.is_arithmetic() && b.is_arithmetic() {
-                arith_promote(ctx, a, b, span)
+                arith_promote(ctx, a_key, b_key, span)
             } else if a.is_pointer() && b.kind.is_integer() {
                 // pointer + int  → pointer
-                return Ok(a.clone());
+                return Ok(a_key);
             } else if a.kind.is_integer() && b.is_pointer() {
                 // int + pointer → pointer
-                return Ok(b.clone());
+                return Ok(b_key);
             } else {
                 todo!("Plus 类型错误")
             }
@@ -361,10 +377,10 @@ fn binary_type(
         // ======================================
         Minus => {
             if a.is_arithmetic() && b.is_arithmetic() {
-                arith_promote(a.clone(), b.clone(), span)
+                arith_promote(ctx, a_key, b_key, span)
             } else if a.is_pointer() && b.kind.is_integer() {
                 // pointer - int → pointer
-                Ok(a.clone())
+                Ok(a_key)
             } else if a.is_pointer() && b.is_pointer() {
                 // pointer - pointer → ptrdiff_t
                 // ptrdiff_t 定义为 long long
@@ -377,7 +393,7 @@ fn binary_type(
         // 乘法 / 除法，只允许算术类型
         Mul | Div => {
             if a.is_arithmetic() && b.is_arithmetic() {
-                arith_promote(a.clone(), b.clone(), span)
+                arith_promote(ctx, a_key, b_key, span)
             } else {
                 todo!("Mul/Div 类型错误")
             }
@@ -386,7 +402,7 @@ fn binary_type(
         // 取模：仅整数
         Mod => {
             if a.kind.is_integer() && b.kind.is_integer() {
-                arith_promote(a.clone(), b.clone(), span)
+                arith_promote(ctx, a_key, b_key, span)
             } else {
                 todo!("Mod 类型错误")
             }
@@ -397,7 +413,7 @@ fn binary_type(
         // 返回左操作数类型
         Shl | Shr => {
             if a.kind.is_integer() && b.kind.is_integer() {
-                Ok(a.clone())
+                Ok(a_key)
             } else {
                 todo!("Shift 类型错误")
             }
@@ -429,7 +445,7 @@ fn binary_type(
         // ======================================
         BitAnd | BitOr | BitXor => {
             if a.kind.is_integer() && b.kind.is_integer() {
-                return arith_promote(a.clone(), b.clone(), span);
+                return arith_promote(ctx, a_key, b_key, span);
             }
             todo!("位运算类型错误")
         }
@@ -443,7 +459,7 @@ fn binary_type(
 
         // 逗号表达式：返回右侧类型
         Comma => {
-            Ok(b.clone())
+            Ok(b_key)
         }
     }
 }
@@ -456,10 +472,13 @@ fn assign_type(
     b: &Expr,
     span: Span
 ) -> ParserResult<TypeKey> {
-    use crate::parser::semantic::ast::expr::AssignOpKind::*;
+    use AssignOpKind::*;
 
-    let aty = a.ty.clone();
-    let bty = b.ty.clone();
+    let aty_key = a.ty;
+    let bty_key = b.ty;
+
+    let aty = ctx.get_type(aty_key);
+    let bty = ctx.get_type(bty_key);
 
     // 不是左值
     if !a.is_lvalue() {
@@ -480,19 +499,20 @@ fn assign_type(
         CaretEq => BinOpKind::BitXor,
         PipeEq  => BinOpKind::BitOr,
 
-        Assign => match cast_compatible(&aty, &bty) {
-            true => return Ok(aty.clone()),
+        Assign => match cast_compatible(aty, bty) {
+            true => return Ok(aty_key),
             false => todo!(),
         }
     };
 
-    let result_ty = binary_type(aty.clone(), bin_op, bty.clone(), span)?;
+    let result_key = binary_type(ctx, aty_key, bin_op, bty_key, span)?;
+    let result_ty = ctx.get_type(result_key);
 
-    if !cast_compatible(&aty.clone(), &result_ty) {
+    if !cast_compatible(aty, result_ty) {
         todo!("不兼容类型错误")
     }
     // C规范返回lhs操作数
-    Ok(aty.clone())
+    Ok(aty_key)
 }
 
 

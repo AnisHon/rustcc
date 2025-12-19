@@ -124,9 +124,10 @@ impl DeclContext for CommonDeclContext {
             }
             (_, _) => {
                 // 重定义出错
-                let kind = parser_error::ErrorKind::redefinition(name);
-                let error = ParserError::new(kind, decl.span);
-                return Err(error);
+                // let kind = parser_error::ErrorKind::redefinition(name);
+                // let error = ParserError::new(kind, decl.span);
+                // return Err(error);
+                todo!()
             }
         }
         Ok(())
