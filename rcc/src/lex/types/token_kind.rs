@@ -142,33 +142,10 @@ pub enum Keyword {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy, EnumAsInner)]
 pub enum LiteralKind {
-    Integer { value: u64, suffix: Option<IntSuffix> },
+    Integer { value: Symbol, suffix: Option<IntSuffix> },
     Float   { value: Symbol, suffix: Option<FloatSuffix> }, // float交给后期解析
     Char    { value: Symbol },
     String  { value: Symbol },
-}
-
-impl LiteralKind {
-
-    /// 判断是否能转换成true
-    pub fn is_true(&self) -> ParserResult<bool>  {
-        match self {
-            LiteralKind::Integer { value, .. } => Ok(*value != 0),
-            LiteralKind::Float { value, .. } => Self::is_float_zero(value.get()),
-            LiteralKind::Char { value } => Self::is_char_zero(value.get()),
-            LiteralKind::String { .. } => Ok(true), // string常量一定对应一个地址为true
-        }
-    }
-
-    fn is_float_zero(value: &str) -> ParserResult<bool> {
-        let value = value.parse::<f64>().map_err(|x| todo!())?;
-        Ok(value == 0.0)
-    }
-
-    fn is_char_zero(value: &str) -> ParserResult<bool> {
-        let value = value.parse::<char>().map_err(|x| todo!())?;
-        Ok(value == char::MIN) // 0
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]

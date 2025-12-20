@@ -1,4 +1,5 @@
-use crate::err::parser_error::ParserResult;
+use crate::constant::typ::MAX_ULL;
+use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{LiteralKind, Symbol, TokenKind};
 use crate::parser::ast::exprs::{AssignOp, BinOp, UnaryOp, UnaryOpKind};
@@ -8,7 +9,6 @@ use crate::parser::semantic::sema::expr::value_type::ValueType;
 use crate::types::span::Span;
 use enum_as_inner::EnumAsInner;
 use slotmap::new_key_type;
-use crate::parser::semantic::comp_ctx::CompCtx;
 
 new_key_type! {
     pub struct ExprKey;
@@ -24,7 +24,8 @@ pub struct Expr {
 #[derive(Clone, Debug, EnumAsInner)]
 pub enum ExprKind {
     DeclRef(Ident),
-    Constant(LiteralKind),
+    Literal(Symbol),          // 字符串
+    Constant(NumberConstant), // 数字常量
     // Paren { l: Pos, expr: ExprKey, r: Pos }, no need to wrap
     ArraySubscript {
         base: ExprKey,
@@ -93,8 +94,7 @@ impl ExprKind {
             .map(|x| x.get())
             .collect();
         let symbol = Symbol::new(&string);
-        let kind = LiteralKind::String { value: symbol };
-        Self::Constant(kind)
+        Self::Literal(symbol)
     }
 
     // pub fn make_paren(l: Token, expr: ExprKey, r: Token) -> Self {
@@ -195,62 +195,35 @@ impl Expr {
         Self { kind, ty, span }
     }
 
-    pub fn new_box(kind: ExprKind, ty: TypeKey, span: Span) -> Box<Self> {
-        Box::new(Self::new(kind, ty, span))
-    }
-
     pub fn is_lvalue(&self) -> bool {
         ValueType::value_type(self) == ValueType::LValue
     }
 
-    pub fn is_int_constant(&self, ctx: &CompCtx) -> bool {
-        let ty = ctx.get_type(self.ty);
-        if ty.is_unknown() {
-            todo!()
-        }
+    pub fn should_int_constant(&self) -> ParserResult<u128> {
+        use NumberConstant::*;
 
-        if !ty.kind.is_integer() {
-            return false;
-        }
+        // 不是 constant 出错
+        let num = self
+            .kind
+            .as_constant()
+            .ok_or(ParserError::not_int_constant(self.span))?;
 
-        let constant = match &self.kind {
-            ExprKind::Constant(x) => x,
-            _ => return false,
+        // 不是 interger 出错
+        let num = match num {
+            Integer { value } => *value,
+            Float { .. } => return Err(ParserError::not_int_constant(self.span)),
         };
-
-        constant.is_integer() || constant.is_char()
+        
+        Ok(num)
     }
 
-    pub fn get_int_constant(&self, ctx: &CompCtx) -> ParserResult<u64> {
-        let ty = ctx.get_type(self.ty);
-        if ty.is_unknown() {
-            todo!()
+    /// 获取int constant 否则出错
+    pub fn should_u64_constant(&self) -> ParserResult<u128> {
+        let num = self.should_int_constant()?;
+        // 太大了出错
+        if num > MAX_ULL {
+            return Err(ParserError::integer_too_large(self.span));
         }
-
-        if !ty.kind.is_integer() {
-            // todo 类型不对
-            todo!()
-        }
-
-        let constant = match &self.kind {
-            ExprKind::Constant(x) => x,
-            _ => {
-                // 不是 constant
-                todo!()
-            }
-        };
-
-        let num = match constant {
-            LiteralKind::Integer { value, .. } => *value,
-            LiteralKind::Char { value } => {
-                // char转换为num
-                todo!()
-            }
-            _ => {
-                // 不是int类型
-                todo!()
-            }
-        };
 
         Ok(num)
     }
@@ -260,6 +233,12 @@ impl Expr {
 pub enum MemberAccessKind {
     Arrow,
     Dot,
+}
+
+#[derive(Debug, Clone)]
+pub enum NumberConstant {
+    Integer { value: u128 },
+    Float { value: f64 },
 }
 
 #[derive(Debug, Clone)]

@@ -22,5 +22,6 @@ unescape = "0.1.0"
 thiserror = "2.0.16"
 petgraph = "0.8.3"
 slotmap = "=1.0.7"
+num-bigint = "0.4.6"
 
 

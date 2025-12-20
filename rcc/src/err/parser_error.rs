@@ -1,8 +1,9 @@
-use std::backtrace::Backtrace;
+use crate::err::scope_error::ScopeError;
 use crate::parser::ast::types::TypeKey;
-use crate::{lex::types::token_kind::Symbol, parser::ast::decl::DeclKey};
 use crate::parser::common::Ident;
 use crate::types::span::Span;
+use crate::{lex::types::token_kind::Symbol, parser::ast::decl::DeclKey};
+use std::backtrace::Backtrace;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
@@ -16,7 +17,9 @@ pub enum ErrorKind {
     Expect { expect: String },
     #[error("{ty} is not assignable")]
     NotAssignable { ty: String },
-    #[error("Type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int")]
+    #[error(
+        "Type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int"
+    )]
     TypeSpecifierMissing,
     #[error("Cannot combine with previous '{prev}' {context}")]
     NonCombinable { prev: String, context: String },
@@ -35,13 +38,21 @@ pub enum ErrorKind {
     #[error("Object Not Callable")]
     UnCallable,
     #[error("{msg}")]
-    ErrorMessage{ msg: String },
+    ErrorMessage { msg: String },
+    #[error("is not an integer expression")]
+    NotIntConstant,
+    #[error("")]
+    IntegerTooLarge,
+    #[error("")]
+    BitFieldExceed { max_bit: u64, actual_bit: u64, field: Option<Symbol> },
 }
 
 impl ErrorKind {
-    pub fn redefinition(symbol: Symbol) -> ErrorKind {
-        let symbol = symbol.get().to_owned();
-        ErrorKind::Redefinition { symbol }
+    pub fn redefinition(symbol: Symbol, prev: DeclKey) -> ErrorKind {
+        ErrorKind::Redefinition {
+            symbol: symbol.get(),
+            prev,
+        }
     }
 }
 
@@ -61,14 +72,16 @@ impl ErrorLevel {
             | NonSubscripted { .. }
             | UnCallable { .. }
             | Expect { .. }
-            | NotAssignable { .. } 
-            | TypeSpecifierMissing 
+            | NotAssignable { .. }
+            | TypeSpecifierMissing
             | NonCombinable { .. }
             | Undefined { .. }
             | Redefinition { .. }
             | NoMember { .. }
             | ErrorMessage { .. }
-            | NotStructOrUnion { .. } => Error,
+            | NotStructOrUnion { .. }
+            | NotIntConstant
+            | IntegerTooLarge | BitFieldExceed { .. } => Error,
             Duplicate { .. } => Warning,
         }
     }
@@ -87,7 +100,7 @@ impl Display for ErrorLevel {
 
 #[derive(Debug)]
 pub struct ParserError {
-    pub error_kind: ErrorKind,    // 错误信息
+    pub error_kind: ErrorKind, // 错误信息
     pub level: ErrorLevel,
     pub backtrace: Backtrace,
     pub span: Span,
@@ -98,24 +111,70 @@ impl ParserError {
         // should be close
         let backtrace = Backtrace::capture();
         let level = ErrorLevel::from_kind(&error_kind);
-        Self { span, error_kind, backtrace, level }
+        Self {
+            span,
+            error_kind,
+            backtrace,
+            level,
+        }
     }
 
     pub fn undefined_symbol(ident: &Ident) -> Self {
         let backtrace = Backtrace::capture();
         let level = ErrorLevel::Error;
-        let kind = ErrorKind::Undefined { symbol: ident.symbol.get() };
-        Self { span: ident.span, error_kind: kind, backtrace, level  }
+        let kind = ErrorKind::Undefined {
+            symbol: ident.symbol.get(),
+        };
+        Self {
+            span: ident.span,
+            error_kind: kind,
+            backtrace,
+            level,
+        }
     }
 
     pub fn error(msg: String, span: Span) -> Self {
         let kind = ErrorKind::ErrorMessage { msg };
         Self::new(kind, span)
     }
+
+    pub fn integer_too_large(span: Span) -> Self {
+        let kind = ErrorKind::IntegerTooLarge;
+        Self::new(kind, span)
+    }
+
+    pub fn not_int_constant(span: Span) -> Self {
+        let kind = ErrorKind::NotIntConstant;
+        Self::new(kind, span)
+    }
+
+    pub fn bit_field_exceed(max_bit: u64, actual_bit: u64, field: Option<Symbol>, span: Span) -> Self {
+        let kind = ErrorKind::BitFieldExceed { max_bit, actual_bit, field };
+        Self::new(kind, span)
+    }
+
+    pub fn duplicate(item: String, ctx: String, span: Span) -> Self {
+        let kind = ErrorKind::Duplicate { item, context: ctx };
+        Self::new(kind, span)
+    }
+
+    pub fn non_combinable(prev: String, ctx: String, span: Span) -> Self {
+        let kind = ErrorKind::NonCombinable { prev, context: ctx };
+        Self::new(kind, span)
+    }
+
+    pub fn from_scope_error(error: ScopeError, span: Span) -> Self {
+        let kind = match error {
+            ScopeError::Redefined { field , prev } => ErrorKind::Redefinition { symbol: field, prev },
+            ScopeError::Undefined { field } => ErrorKind::Undefined { symbol: field },
+        };
+        Self::new(kind, span)
+    }
+
 }
 
 impl Display for ParserError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.level ,self.error_kind)
+        write!(f, "{}: {}", self.level, self.error_kind)
     }
 }

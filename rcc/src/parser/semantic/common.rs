@@ -37,3 +37,51 @@ impl IdentList {
         }
     }
 }
+
+
+/// 状态机状态
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TypeSpecState {
+    Init,
+    Void,
+    Char,
+    Short,
+    Int,
+    Long,
+    LongLong,
+    Float,
+    Double,
+    LongDouble,
+    Struct,
+    Union,
+    Enum,
+    TypeName,
+}
+
+impl TypeSpecState {
+    pub fn combine(state1: TypeSpecState, state2: TypeSpecState) -> Option<TypeSpecState> {
+        use TypeSpecState::*;
+        match (state1, state2) {
+            (Init, _) => Some(state2),
+            (Void, _) => None,
+            (Char, Int) => Some(Char),
+            (Short, Int) => Some(Short),
+            (Int, Char) => Some(Char),
+            (Int, Short) => Some(Short),
+            (Int, Long) => Some(Int),
+            (Int, LongLong) => Some(LongLong),
+            (Long, Int) => Some(Long),
+            (Long, Long) => Some(LongLong),
+            (Long, Double) => Some(LongDouble),
+            (LongLong, Int) => Some(LongLong),
+            (Float, _) => None,
+            (Double, Long) => Some(LongDouble),
+            (LongDouble, _) => None,
+            (Struct, _) => None,
+            (Union, _) => None,
+            (Enum, _) => None,
+            (TypeName, _) => None,
+            (_, _) => None,
+        }
+    }
+}

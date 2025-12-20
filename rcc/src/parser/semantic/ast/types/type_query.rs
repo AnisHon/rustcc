@@ -27,4 +27,8 @@ impl Type {
             _ => false,
         }
     }
+
+    pub fn is_integer(&self) -> bool {{
+        self.kind.is_integer()
+    }}
 }

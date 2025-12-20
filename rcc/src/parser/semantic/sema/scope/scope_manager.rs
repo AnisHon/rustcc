@@ -1,13 +1,10 @@
-use crate::parser::semantic::sema::scope::scope_struct::ScopeError;
-use crate::{
-    err::parser_error::{ParserResult},
-    lex::types::token_kind::Symbol,
-    parser::{
-        ast::decl::DeclKey,
-        comp_ctx::CompCtx,
-    },
-};
+use crate::err::scope_error::ScopeError;
 use crate::parser::semantic::sema::scope::scope_struct::Scope;
+use crate::{
+    err::parser_error::ParserResult,
+    lex::types::token_kind::Symbol,
+    parser::{ast::decl::DeclKey, comp_ctx::CompCtx},
+};
 
 macro_rules! scope_enter_pop {
     ($enter:ident, $pop:ident, $field:ident) => {
@@ -32,9 +29,8 @@ macro_rules! scope_lookup {
         }
 
         pub fn $must_lookup(&self, sym: Symbol) -> Result<DeclKey, ScopeError> {
-            self.$lookup(sym).ok_or(ScopeError {
+            self.$lookup(sym).ok_or(ScopeError::Undefined {
                 field: sym.get(),
-                msg: "undefined",
             })
         }
 
@@ -52,10 +48,10 @@ macro_rules! scope_insert {
     ($insert:ident, $field:ident) => {
         fn $insert(&mut self, name: Symbol, key: DeclKey) -> Result<(), ScopeError> {
             // 符号重复定义
-            if self.lookup_local_ident(name).is_some() {
-                return Err(ScopeError {
+            if let Some(prev) = self.lookup_local_ident(name) {
+                return Err(ScopeError::Redefined {
                     field: name.get(),
-                    msg: "Redefined",
+                    prev 
                 });
             }
 
@@ -113,11 +109,10 @@ impl ScopeMgr {
     );
     scope_lookup!(lookup_label, lookup_local_label, must_lookup_label, labels);
     scope_lookup!(lookup_ident, lookup_local_ident, must_lookup_ident, idents);
-    
+
     scope_insert!(insert_label, labels);
     scope_insert!(insert_member, members);
 
-    
     fn insert_ident(&mut self, ctx: &CompCtx, key: DeclKey) -> ParserResult<()> {
         todo!()
     }
@@ -125,5 +120,4 @@ impl ScopeMgr {
     fn insert_tag(&mut self, ctx: &CompCtx, key: DeclKey) -> ParserResult<()> {
         todo!()
     }
-
 }

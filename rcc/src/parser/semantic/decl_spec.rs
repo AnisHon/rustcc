@@ -1,9 +1,11 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
+use crate::lex::types::token_kind::Symbol;
 use crate::lex::types::token_kind::TokenKind;
 use crate::parser::ast::decl::DeclKey;
 use crate::parser::ast::exprs::ExprKey;
 use crate::parser::ast::types::Qualifier;
+use crate::parser::common::TypeSpecState;
 use crate::parser::semantic::ast::decl::{DeclGroup, StructOrUnion};
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
@@ -22,7 +24,9 @@ use enum_as_inner::EnumAsInner;
 #[derive(Debug, Clone)]
 pub struct DeclSpec {
     pub storage: Option<StorageSpec>, // 全局上下文的时候默认extern
-    pub type_specs: Vec<TypeSpec>,
+    pub signed: bool,
+    pub base_type: TypeSpecState,
+    pub spec: TypeSpec,
     pub type_quals: Qualifier,
     pub func_spec: Option<FuncSpec>,
     pub span: Span,
@@ -99,17 +103,10 @@ pub enum TypeSpecKind {
     TypeName(Ident, DeclKey),
 }
 
-#[derive(Debug, Clone)]
-pub struct TypeSpec {
-    pub kind: TypeSpecKind,
-    pub span: Span,
-}
-
-impl TypeSpec {
-    pub fn new(token: Token) -> Self {
+impl TypeSpecKind {
+    pub fn new(kw: Keyword) -> Self {
         use Keyword::*;
-        let keyword = token.kind.into_keyword().unwrap();
-        let kind = match keyword {
+        let kind = match kw {
             Void => TypeSpecKind::Void,
             Char => TypeSpecKind::Char,
             Short => TypeSpecKind::Short,
@@ -121,6 +118,21 @@ impl TypeSpec {
             Unsigned => TypeSpecKind::Unsigned,
             _ => unreachable!(),
         };
+
+        kind
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeSpec {
+    pub kind: TypeSpecKind,
+    pub span: Span,
+}
+
+impl TypeSpec {
+    pub fn new(token: Token) -> Self {
+        let keyword = token.kind.into_keyword().unwrap();
+        let kind = TypeSpecKind::new(keyword);
         Self {
             kind,
             span: token.span,
@@ -268,7 +280,7 @@ pub struct StructSpecBody {
 #[derive(Clone, Debug)]
 pub struct StructSpec {
     pub kind: StructOrUnion,
-    pub name: Option<Ident>,
+    pub name: Option<Symbol>,
     pub body: Option<StructSpecBody>,
     pub span: Span,
 }
@@ -276,22 +288,14 @@ pub struct StructSpec {
 #[derive(Clone, Debug)]
 pub struct StructDeclarator {
     pub declarator: Declarator,
-    pub colon: Option<Pos>,
     pub bit_field: Option<ExprKey>,
     pub span: Span,
 }
 
-#[derive(Clone, Debug)]
-pub struct EnumSpecBody {
-    pub l: Pos,
-    pub decls: Vec<DeclKey>,
-    pub commas: Vec<Pos>,
-    pub r: Pos,
-}
 
 #[derive(Clone, Debug)]
 pub struct Enumerator {
-    pub name: Ident,
+    pub name: Symbol,
     pub eq: Option<Pos>,
     pub expr: Option<ExprKey>,
     pub span: Span,
@@ -300,7 +304,7 @@ pub struct Enumerator {
 #[derive(Clone, Debug)]
 pub struct EnumSpec {
     pub enum_span: Span, // 关键字enum的span
-    pub name: Option<Ident>,
-    pub body: Option<EnumSpecBody>,
+    pub name: Option<Symbol>,
+    pub decls: Option<Vec<DeclKey>>, // 内部声明，应该都是 enumerator
     pub span: Span,
 }

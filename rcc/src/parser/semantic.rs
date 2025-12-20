@@ -4,3 +4,4 @@ pub mod comp_ctx;
 pub(crate) mod decl_spec;
 pub(crate) mod declarator;
 pub(crate) mod sema;
+pub(crate) mod spec_status;

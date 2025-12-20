@@ -1,8 +1,9 @@
 use crate::{
-    err::parser_error::ParserResult,
+    constant::typ::MAX_ARRAY_LEN,
+    err::parser_error::{self, ParserError, ParserResult},
     parser::{
         ast::{
-            exprs::ExprKey,
+            exprs::{ExprKey, ExprKind, NumberConstant},
             types::{ArraySize, FloatSize, IntegerSize, Qualifier, Type, TypeKey, TypeKind},
         },
         comp_ctx::CompCtx,
@@ -15,62 +16,6 @@ use crate::{
 
 /// 解析type主体部分
 fn resolve_type_base(specs: &[TypeSpec]) -> ParserResult<TypeKind> {
-    let mut int = None;
-    let mut signed = None;
-    let mut state = TypeSpecState::Init;
-    let mut decl: Option<_> = None;
-
-    for spec in specs {
-        let next_state: TypeSpecState = match &spec.kind {
-            TypeSpecKind::Int => {
-                // 重复定义int
-                if int.is_some() {
-                    todo!()
-                }
-                int = Some(spec);
-                TypeSpecState::Int
-            }
-            TypeSpecKind::Signed | TypeSpecKind::Unsigned => {
-                // 重复定义signed unsigned
-                if signed.is_some() {
-                    todo!()
-                }
-                signed = Some(spec);
-                continue;
-            }
-            TypeSpecKind::Void => TypeSpecState::Void,
-            TypeSpecKind::Char => TypeSpecState::Char,
-            TypeSpecKind::Short => TypeSpecState::Short,
-            TypeSpecKind::Long => TypeSpecState::Long,
-            TypeSpecKind::Float => TypeSpecState::Float,
-            TypeSpecKind::Double => TypeSpecState::Double,
-            TypeSpecKind::Struct(x) => {
-                decl = Some(*x);
-                TypeSpecState::Struct
-            }
-            TypeSpecKind::Union(x) => {
-                decl = Some(*x);
-                TypeSpecState::Union
-            }
-            TypeSpecKind::Enum(x) => {
-                decl = Some(*x);
-                TypeSpecState::Enum
-            }
-            TypeSpecKind::TypeName(_, x) => {
-                decl = Some(*x);
-                TypeSpecState::TypeName
-            }
-        };
-        state = match combine(state, next_state) {
-            Some(state) => state,
-            None => {
-                // 转移失败
-                todo!();
-            }
-        };
-    }
-
-    let is_signed = signed.map(|x| x.kind.is_signed()).unwrap_or(true);
 
     // 查错
     match state {
@@ -129,10 +74,10 @@ fn resolve_type_base(specs: &[TypeSpec]) -> ParserResult<TypeKind> {
         TypeSpecState::Struct
         | TypeSpecState::Union
         | TypeSpecState::Enum
-        | TypeSpecState::TypeName => 
-            decl.unwrap().ty.kind.clone(),
+        | TypeSpecState::TypeName => decl.unwrap().ty.kind.clone(),
         _ => todo!(), // todo 没有任何匹配
     };
+   
 
     Ok(kind)
 }
@@ -141,7 +86,7 @@ fn resolve_type_base(specs: &[TypeSpec]) -> ParserResult<TypeKind> {
 fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> ParserResult<TypeKey> {
     let qualifier = decl_spec.type_quals;
     let kind = resolve_type_base(&decl_spec.type_specs)?;
-    let ty = Type::new(qualifier, kind);
+    let ty = Type::new_qual(qualifier, kind);
 
     // 去重
     let ty = ctx.type_ctx.get_or_set(ty);
@@ -150,131 +95,122 @@ fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> ParserResult<Ty
 
 /// 解析declarator
 pub fn resolve_declarator(ctx: &mut CompCtx, declarator: &Declarator) -> ParserResult<TypeKey> {
-    let base_ty = resolve_decl_spec(ctx, &declarator.decl_spec)?;
+    use DeclaratorChunkKind::*;
 
+    let base_ty = resolve_decl_spec(ctx, &declarator.decl_spec)?;
     let mut ty = base_ty;
 
     // 解析chunks，这里一定要反着解析
     for chunk in declarator.chunks.iter().rev() {
-
+        // 结合成新类型
         let new_ty = match &chunk.kind {
+            // 数组类型
+            Array { type_qual, expr } => resolve_array(ctx, ty, *type_qual, *expr)?,
+
+            // pointer 类型
+            Pointer { type_qual, .. } => {
+                let pointer = TypeKind::Pointer { elem_ty: ty };
+                Type::new_qual(*type_qual, pointer)
+            }
+
+            // 函数类型
+            Function { param, .. } => resolve_function(ctx, ty, param)?,
             // DeclaratorChunkKind::Paren { .. } => {
             //     // ignore
             //     continue;
             // }
-            DeclaratorChunkKind::Array { type_qual, expr, .. } => 
-                resolve_array(ctx, ty, *type_qual, expr.as_ref())?,
-
-            DeclaratorChunkKind::Pointer { type_qual, .. } => {
-                let pointer = TypeKind::Pointer { elem_ty: ty };
-                Type::new(*type_qual, pointer)
-            }
-
-            DeclaratorChunkKind::Function { param, .. } => {
-                let list = match param {
-                    ParamDecl::Params(list) => list,
-                    ParamDecl::Idents(_) => todo!(), // 声明不能用K&R参数
-                };
-
-                let is_variadic = list.is_variadic;
-                let params: Vec<_> = list.params.iter().copied()
-                    .map(|x| ctx.get_decl(x).ty).collect();
-
-                let func = TypeKind::Function {
-                    ret_ty: base_ty,
-                    params,
-                    is_variadic,
-                };
-                Type::new(Qualifier::default(), func)
-            }
         };
 
+        // 尝试去重
         ty = ctx.type_ctx.get_or_set(new_ty);
     }
 
     Ok(base_ty)
 }
 
+/// 解析数组
+/// - `ctx`: 编译器上下文
+/// - `elem_ty`: 当前基础类型
+/// - `type_qual`:  Qualifier
+/// - `expr`: 长度表达式
 fn resolve_array(
-    ctx: &mut CompCtx, 
-    base_ty: TypeKey, 
-    type_qual: Qualifier, 
-    expr: Option<&ExprKey>
+    ctx: &mut CompCtx,
+    elem_ty: TypeKey,
+    type_qual: Qualifier,
+    expr: Option<ExprKey>,
 ) -> ParserResult<Type> {
     let qualifier = type_qual;
+
     // 设置大小类型
     let size = match expr {
         None => ArraySize::Incomplete,
-        Some(x) => {
-            let x = ctx.get_expr(*x);
-            let expr_ty = ctx.get_type(x.ty);
+        Some(x) => resolve_array_size(ctx, x)?,
+    };
 
-            if expr_ty.kind.is_unknown() {
-                todo!() // 类型未知
-            }
+    // 数组类型
+    let kind = TypeKind::Array { elem_ty, size };
+    Ok(Type::new_qual(qualifier, kind))
+}
 
-            if !expr_ty.kind.is_integer() {
-                // todo 类型不对
-                todo!()
-            }
+/// 解析数组大小
+fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySize> {
+    let expr = ctx.pop_expr(expr);
+    let expr_ty = ctx.get_type(expr.ty);
 
-            if x.is_int_constant(ctx) {
-                let sz = x.get_int_constant(ctx)?;
-                ArraySize::Static(sz)
-            } else {
-                ArraySize::VLA
-            }
+    // 不是 int 直接出错
+    if !expr_ty.is_integer() {
+        let kind = parser_error::ErrorKind::NotIntConstant;
+        let error = ParserError::new(kind, expr.span);
+        return Err(error);
+    }
+
+    // 如果不是 constant 就是 VLA, 否则是Static的普通静态数组
+    let number = match expr.kind {
+        ExprKind::Constant(x) => x,
+        _ => return Ok(ArraySize::VLA),
+    };
+
+    // 获取数组大小
+    let array_size = match number {
+        NumberConstant::Integer { value } => value,
+        _ => unreachable!("not an integer"),
+    };
+
+    // 转换为 int constant
+    if array_size > MAX_ARRAY_LEN {
+        let error = ParserError::integer_too_large(expr.span);
+        return Err(error);
+    }
+
+    Ok(ArraySize::Static(array_size as u64))
+}
+
+/// 解析函数类型
+fn resolve_function(ctx: &mut CompCtx, ret_ty: TypeKey, param: &ParamDecl) -> ParserResult<Type> {
+    // 获取参数列表，可能是KR类型，这个类型理论上是不能用于声明函数类型的
+    let list = match param {
+        ParamDecl::Params(list) => list,
+        ParamDecl::Idents(_) => {
+            todo!("声明不能用K&R参数，可以默认int也可以报错，但是新标准应该是报错")
         }
     };
-    let kind = TypeKind::Array {
-        elem_ty: base_ty,
-        size,
+
+    // 获取参数列表类型
+    let is_variadic = list.is_variadic;
+    let params: Vec<_> = list
+        .params
+        .iter()
+        .copied()
+        .map(|x| ctx.get_decl(x).ty)
+        .collect();
+
+    // 构件类型
+    let func = TypeKind::Function {
+        ret_ty,
+        params,
+        is_variadic,
     };
-    Ok(Type::new(qualifier, kind))
+
+    Ok(Type::new(func))
 }
 
-/// 状态机状态
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TypeSpecState {
-    Init,
-    Void,
-    Char,
-    Short,
-    Int,
-    Long,
-    LongLong,
-    Float,
-    Double,
-    LongDouble,
-    Struct,
-    Union,
-    Enum,
-    TypeName,
-}
-
-/// 类型转换定义
-fn combine(state1: TypeSpecState, state2: TypeSpecState) -> Option<TypeSpecState> {
-    use TypeSpecState::*;
-    match (state1, state2) {
-        (Init, _) => Some(state2),
-        (Void, _) => None,
-        (Char, Int) => Some(Char),
-        (Short, Int) => Some(Short),
-        (Int, Char) => Some(Char),
-        (Int, Short) => Some(Short),
-        (Int, Long) => Some(Int),
-        (Int, LongLong) => Some(LongLong),
-        (Long, Int) => Some(Long),
-        (Long, Long) => Some(LongLong),
-        (Long, Double) => Some(LongDouble),
-        (LongLong, Int) => Some(LongLong),
-        (Float, _) => None,
-        (Double, Long) => Some(LongDouble),
-        (LongDouble, _) => None,
-        (Struct, _) => None,
-        (Union, _) => None,
-        (Enum, _) => None,
-        (TypeName, _) => None,
-        (_, _) => None,
-    }
-}

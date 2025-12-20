@@ -1,8 +1,5 @@
-
-
 use crate::{lex::types::token_kind::Symbol, parser::ast::decl::DeclKey};
 use rustc_hash::FxHashMap;
-use thiserror::Error;
 
 // 表示一个作用域
 /// - `sym_ht`: symbol hash table
@@ -12,12 +9,7 @@ pub struct Scope {
 }
 
 
-#[derive(Error, Debug)]
-#[error("{msg} {field}")]
-pub struct ScopeError {
-    pub field: &'static str,
-    pub msg: &'static str,
-}
+
 
 // /// 管理结构体、联合体、枚举的标签
 // /// - `sym_ht`: symbol hash table

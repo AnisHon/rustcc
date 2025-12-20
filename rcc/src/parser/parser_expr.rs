@@ -6,6 +6,7 @@ use crate::parser::ast::exprs::{ExprKey, ExprKind, Parameter};
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::parser_core::*;
 use crate::parser::parser_decl::parse_type_name;
+use crate::parser::semantic::sema::expr::sema_expr::make_expr;
 use crate::types::span::Span;
 
 fn check_string(ctx: &CompCtx) -> bool {
@@ -29,7 +30,7 @@ fn consume_constant(ctx: &mut CompCtx) -> Option<Token> {
 }
 
 fn consume_string(ctx: &mut CompCtx) -> Option<Token> {
-    let is_string = check_string();
+    let is_string = check_string(ctx);
     next_conditional(ctx, is_string)
 }
 
@@ -100,7 +101,7 @@ fn parse_primary_expr(ctx: &mut CompCtx) -> ParserResult<ExprKey> {
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
 
-    let expr = sema.make_expr(kind, span)?;
+    let expr = make_expr(ctx, kind, span)?;
     Ok(expr)
 }
 
@@ -135,7 +136,7 @@ fn parse_postfix_expr_suffix(ctx: &mut CompCtx, mut lhs: ExprKey) -> ParserResul
         };
         let hi = ctx.stream.prev_span();
         let span = Span::span(lo, hi);
-        lhs = sema.make_expr(kind, span)?;
+        lhs = make_expr(ctx, kind, span)?;
     }
 
     Ok(lhs)
@@ -201,7 +202,7 @@ fn parse_unary_expr(ctx: &mut CompCtx) -> ParserResult<ExprKey> {
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
 
-    let expr = sema.make_expr(kind, span)?;
+    let expr = make_expr(ctx, kind, span)?;
     Ok(expr)
 }
 
@@ -219,7 +220,7 @@ fn parse_cast_expr(ctx: &mut CompCtx) -> ParserResult<ExprKey> {
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
 
-    let expr = sema.make_expr(kind, span)?;
+    let expr = make_expr(ctx, kind, span)?;
     Ok(expr)
 }
 
@@ -236,7 +237,7 @@ fn parse_multiplicative_expr_rhs(
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_multiplicative_expr_rhs(ctx, expr, lo);
     }
@@ -259,7 +260,7 @@ fn parse_additive_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> ParserR
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_additive_expr_rhs(ctx, expr, lo);
     }
@@ -282,7 +283,7 @@ fn parse_shift_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> ParserResu
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_shift_expr_rhs(ctx, expr, lo);
     }
@@ -304,7 +305,7 @@ fn parse_relational_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> Parse
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_relational_expr_rhs(ctx, expr, lo);
     }
@@ -326,7 +327,7 @@ fn parse_equality_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> ParserR
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_equality_expr_rhs(ctx, expr, lo);
     }
@@ -348,7 +349,7 @@ fn parse_and_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> ParserResult
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_and_expr_rhs(ctx, expr, lo);
     }
@@ -370,7 +371,7 @@ fn parse_exclusive_or_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> Par
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(ctx, kind, span)?;
+        let expr = make_expr( ctx, kind, span)?;
 
         return parse_exclusive_or_expr_rhs(ctx, expr, lo);
     }
@@ -392,7 +393,7 @@ fn parse_inclusive_or_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> Par
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_inclusive_or_expr_rhs(ctx, expr, lo);
     }
@@ -414,7 +415,7 @@ fn parse_logical_and_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> Pars
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_logical_and_expr_rhs(ctx, expr, lo);
     }
@@ -436,7 +437,7 @@ fn parse_logical_or_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> Parse
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_logical_or_expr_rhs(ctx, expr, lo);
     }
@@ -469,7 +470,7 @@ fn parse_conditional_expr(ctx: &mut CompCtx) -> ParserResult<ExprKey> {
     let span = Span::span(lo, hi);
 
     let kind = ExprKind::make_ternary(cond, question, then_expr, colon, else_expr);
-    let expr = sema.make_expr(kind, span)?;
+    let expr = make_expr(ctx, kind, span)?;
 
     Ok(expr)
 }
@@ -497,7 +498,7 @@ pub(crate) fn parse_assign_expr(ctx: &mut CompCtx) -> ParserResult<ExprKey> {
     let span = Span::span(lo, hi);
 
     let kind = ExprKind::make_assign(lhs_key, assign_op, rhs);
-    let expr = sema.make_expr(kind, span)?;
+    let expr = make_expr(ctx, kind, span)?;
 
     Ok(expr)
 }
@@ -509,7 +510,7 @@ fn parse_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> ParserResult<Exp
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = sema.make_expr(kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_expr_rhs(ctx, expr, lo);
     }

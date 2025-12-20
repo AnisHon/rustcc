@@ -48,36 +48,28 @@ pub enum DeclKind {
     ParamVar,
     FuncRef, // 函数声明
     VarInit {  // int a = 10;
-        eq: Option<Pos>, 
         init: Option<Initializer>, 
     },
     Func { // 函数定义
         body: Box<Stmt>,
     },
     RecordField {  // int a : 10;
-        colon: Option<Pos>, 
-        bit_field: Option<ExprKey> 
+        bit_field: Option<u128> 
     },
     Record { 
         kind: StructOrUnion, 
-        l: Pos,
         fields: Vec<DeclGroup>,
-        r: Pos,
         decl_context: DeclContextRef
     },
     RecordRef { 
         kind: StructOrUnion, 
     }, // struct name;
     EnumField { 
-        eq: Option<Pos>, 
-        expr: Option<ExprKey>
+        expr: Option<u128>
     },
     Enum { // enum name { ... } 
         kw: Span, 
-        l: Pos,
         enums: Vec<DeclKey>,
-        commas: Vec<Pos>, 
-        r: Pos,
         decl_context: DeclContextRef
     }, 
     EnumRef { kw: Span },
@@ -86,9 +78,6 @@ pub enum DeclKind {
 
 
 impl Decl {
-    
-
-
     pub fn get_name(&self) -> Option<&Ident> {
         self.name.as_ref()
     }

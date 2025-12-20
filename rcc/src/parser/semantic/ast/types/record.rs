@@ -1,6 +1,6 @@
 use std::hash::{Hash, Hasher};
+use crate::lex::types::token_kind::Symbol;
 use crate::parser::ast::types::type_struct::TypeKey;
-use crate::parser::common::Ident;
 use crate::parser::semantic::comp_ctx::CompCtx;
 
 ///
@@ -12,9 +12,9 @@ use crate::parser::semantic::comp_ctx::CompCtx;
 ///
 #[derive(Debug, Clone)]
 pub struct RecordField {
-    pub name: Option<Ident>,
+    pub name: Option<Symbol>,
     pub ty: TypeKey,
-    pub bit_field: Option<u64>,
+    pub bit_field: Option<u128>,
     pub offset: u64,
 }
 
@@ -24,7 +24,7 @@ impl RecordField {
         let mut code = String::new();
 
         let ty = ctx.get_type(self.ty).to_code(ctx);
-        let name = self.name.as_ref().map(|x| x.symbol.get()).unwrap_or_default();
+        let name = self.name.as_ref().map(|x| x.get()).unwrap_or_default();
 
         code.push_str(&ty);
         code.push(' ');
@@ -55,26 +55,5 @@ impl Hash for RecordField {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
         &self.ty.hash(state);
-    }
-}
-
-///
-/// # Members
-/// - `name`: 枚举名
-/// - `value`: 枚举值
-///
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct EnumField {
-    pub name: Ident,
-    pub value: u64,
-}
-
-impl EnumField {
-    pub fn to_code(&self) -> String {
-        let mut code = String::new();
-        code.push_str(self.name.symbol.get());
-        code.push('=');
-        code.push_str(&self.value.to_string());
-        code
     }
 }

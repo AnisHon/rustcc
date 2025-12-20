@@ -90,7 +90,7 @@ fn var_expr_type(ctx: &CompCtx, ident: &Ident) -> ParserResult<TypeKey> {
         DeclKind::Func { .. }
         | DeclKind::FuncRef => {
             let type_kind = TypeKind::Pointer { elem_ty: decl.ty };
-            let ty = Type::new(Qualifier::default(), type_kind);
+            let ty = Type::new_qual(Qualifier::default(), type_kind);
             let ty = type_context.get_or_set(ty);
             ty
         }
@@ -535,7 +535,7 @@ fn unary_type(
             }
 
             let kind = TypeKind::Pointer { elem_ty: a_key };
-            let ty = Type::new(Qualifier::default(), kind);
+            let ty = Type::new_qual(Qualifier::default(), kind);
             type_context.get_or_set(ty)
         }
         UnaryOpKind::Deref => {
