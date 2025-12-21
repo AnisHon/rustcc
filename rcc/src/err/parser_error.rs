@@ -1,8 +1,10 @@
 use crate::err::scope_error::ScopeError;
-use crate::parser::ast::types::TypeKey;
+use crate::err::type_error::TypeError;
+use crate::lex::types::token_kind::Symbol;
+use crate::parser::ast::{DeclKey, TypeKey};
 use crate::parser::common::Ident;
 use crate::types::span::Span;
-use crate::{lex::types::token_kind::Symbol, parser::ast::decl::DeclKey};
+use core::error;
 use std::backtrace::Backtrace;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
@@ -44,7 +46,15 @@ pub enum ErrorKind {
     #[error("")]
     IntegerTooLarge,
     #[error("")]
-    BitFieldExceed { max_bit: u64, actual_bit: u64, field: Option<Symbol> },
+    BitFieldExceed {
+        max_bit: u64,
+        actual_bit: u64,
+        field: Option<Symbol>,
+    },
+    #[error("{err}")]
+    TypeError {
+        err: TypeError
+    }
 }
 
 impl ErrorKind {
@@ -81,7 +91,8 @@ impl ErrorLevel {
             | ErrorMessage { .. }
             | NotStructOrUnion { .. }
             | NotIntConstant
-            | IntegerTooLarge | BitFieldExceed { .. } => Error,
+            | IntegerTooLarge
+            | BitFieldExceed { .. } | TypeError { .. } => Error,
             Duplicate { .. } => Warning,
         }
     }
@@ -148,8 +159,17 @@ impl ParserError {
         Self::new(kind, span)
     }
 
-    pub fn bit_field_exceed(max_bit: u64, actual_bit: u64, field: Option<Symbol>, span: Span) -> Self {
-        let kind = ErrorKind::BitFieldExceed { max_bit, actual_bit, field };
+    pub fn bit_field_exceed(
+        max_bit: u64,
+        actual_bit: u64,
+        field: Option<Symbol>,
+        span: Span,
+    ) -> Self {
+        let kind = ErrorKind::BitFieldExceed {
+            max_bit,
+            actual_bit,
+            field,
+        };
         Self::new(kind, span)
     }
 
@@ -165,12 +185,19 @@ impl ParserError {
 
     pub fn from_scope_error(error: ScopeError, span: Span) -> Self {
         let kind = match error {
-            ScopeError::Redefined { field , prev } => ErrorKind::Redefinition { symbol: field, prev },
+            ScopeError::Redefined { field, prev } => ErrorKind::Redefinition {
+                symbol: field,
+                prev,
+            },
             ScopeError::Undefined { field } => ErrorKind::Undefined { symbol: field },
         };
         Self::new(kind, span)
     }
 
+    pub fn from_type_error(error: TypeError, span: Span) -> Self {
+        let kind = ErrorKind::TypeError { err: error };
+        Self::new(kind, span)
+    }
 }
 
 impl Display for ParserError {

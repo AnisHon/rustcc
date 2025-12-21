@@ -1,9 +1,8 @@
 use crate::err::scope_error::ScopeError;
+use crate::parser::ast::DeclKey;
 use crate::parser::semantic::sema::scope::scope_struct::Scope;
 use crate::{
-    err::parser_error::ParserResult,
-    lex::types::token_kind::Symbol,
-    parser::{ast::decl::DeclKey, comp_ctx::CompCtx},
+    err::parser_error::ParserResult, lex::types::token_kind::Symbol, parser::comp_ctx::CompCtx,
 };
 
 macro_rules! scope_enter_pop {
@@ -29,9 +28,8 @@ macro_rules! scope_lookup {
         }
 
         pub fn $must_lookup(&self, sym: Symbol) -> Result<DeclKey, ScopeError> {
-            self.$lookup(sym).ok_or(ScopeError::Undefined {
-                field: sym.get(),
-            })
+            self.$lookup(sym)
+                .ok_or(ScopeError::Undefined { field: sym.get() })
         }
 
         pub fn $lookup_local(&self, sym: Symbol) -> Option<DeclKey> {
@@ -51,7 +49,7 @@ macro_rules! scope_insert {
             if let Some(prev) = self.lookup_local_ident(name) {
                 return Err(ScopeError::Redefined {
                     field: name.get(),
-                    prev 
+                    prev,
                 });
             }
 

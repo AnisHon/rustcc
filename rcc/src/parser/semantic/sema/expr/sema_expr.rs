@@ -1,9 +1,10 @@
 use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::{IntSuffix, LiteralKind, Symbol};
+use crate::parser::ast::{ExprKey, TypeKey};
 use crate::parser::ast::decl::DeclKind;
-use crate::parser::ast::exprs::{AssignOpKind, BinOpKind, Expr, ExprKey, ExprKind, MemberAccessKind, UnaryOpKind};
-use crate::parser::ast::types::{IntegerSize, Qualifier, Type, TypeKey, TypeKind};
+use crate::parser::ast::exprs::{AssignOpKind, BinOpKind, Expr, ExprKind, MemberAccessKind, UnaryOpKind};
+use crate::parser::ast::types::{IntegerSize, Qualifier, Type, TypeKind};
 use crate::parser::common::Ident;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::semantic::sema::expr::value_type::ValueType::LValue;
@@ -31,8 +32,8 @@ fn expr_type(ctx: &CompCtx, kind: &ExprKind, span: Span) -> ParserResult<TypeKey
         ExprKind::ArraySubscript { base, index, .. } => {
             let base = ctx.get_expr(*base);
             let index = ctx.get_expr(*index);
-            let index_ty = ctx.get_type(index.ty);
-            let base_ty = ctx.get_type(base.ty);
+            let index_ty = ctx.type_ctx.get_type(index.ty);
+            let base_ty = ctx.type_ctx.get_type(base.ty);
             if !index_ty.kind.is_integer() {
                 todo!("数组索引非整数")
             }
@@ -100,7 +101,7 @@ fn var_expr_type(ctx: &CompCtx, ident: &Ident) -> ParserResult<TypeKey> {
 }
 
 fn call_expr_type(ctx: &CompCtx, ty: TypeKey, call_params: &[ExprKey], span: Span) -> ParserResult<TypeKey> {
-    let ty = ctx.get_type(ty);
+    let ty = ctx.type_ctx.get_type(ty);
     let ty = match &ty.kind {
         TypeKind::Pointer { elem_ty } => {
             call_expr_type(ctx, *elem_ty, call_params, span)?
@@ -122,7 +123,7 @@ fn call_expr_type(ctx: &CompCtx, ty: TypeKey, call_params: &[ExprKey], span: Spa
 }
 
 fn member_access_expr_type(ctx: &CompCtx, ty_key: TypeKey, op: MemberAccessKind, field: Symbol, span: Span) -> ParserResult<TypeKey> {
-    let ty = ctx.get_type(ty_key);
+    let ty = ctx.type_ctx.get_type(ty_key);
     match op {
         MemberAccessKind::Arrow => {
             let elem_ty=  match ty.kind.as_pointer() {
@@ -158,8 +159,8 @@ fn member_access_expr_type(ctx: &CompCtx, ty_key: TypeKey, op: MemberAccessKind,
 }
 
 fn cast_expr_type(ctx: &CompCtx, from_key: TypeKey, to_key: TypeKey, span: Span) -> ParserResult<TypeKey> {
-    let from = ctx.get_type(from_key);
-    let to = ctx.get_type(to_key);
+    let from = ctx.type_ctx.get_type(from_key);
+    let to = ctx.type_ctx.get_type(to_key);
     if cast_compatible(from, to) {
         Ok(to_key)
     } else {
@@ -178,9 +179,9 @@ fn ternary_type(
 {
     use TypeKind::*;
 
-    let cond = ctx.get_type(cond);
-    let a = ctx.get_type(a_key);
-    let b = ctx.get_type(b_key);
+    let cond = ctx.type_ctx.get_type(cond);
+    let a = ctx.type_ctx.get_type(a_key);
+    let b = ctx.type_ctx.get_type(b_key);
 
     // cond 必须是可转换为 bool/整数的类型
     match &cond.kind {
@@ -257,8 +258,8 @@ fn arith_promote(
 ) -> ParserResult<TypeKey> {
     use TypeKind::*;
 
-    let a = ctx.get_type(a_key);
-    let b = ctx.get_type(b_key);
+    let a = ctx.type_ctx.get_type(a_key);
+    let b = ctx.type_ctx.get_type(b_key);
 
     // 1. 两者都是浮点，返回较宽浮点
     if let (Floating { size: sa }, Floating { size: sb }) = (&a.kind, &b.kind) {
@@ -348,8 +349,8 @@ fn binary_type(
 ) -> ParserResult<TypeKey> {
     use BinOpKind::*;
 
-    let a = ctx.get_type(a_key);
-    let b = ctx.get_type(b_key);
+    let a = ctx.type_ctx.get_type(a_key);
+    let b = ctx.type_ctx.get_type(b_key);
 
     match op {
         // ======================================
@@ -477,8 +478,8 @@ fn assign_type(
     let aty_key = a.ty;
     let bty_key = b.ty;
 
-    let aty = ctx.get_type(aty_key);
-    let bty = ctx.get_type(bty_key);
+    let aty = ctx.type_ctx.get_type(aty_key);
+    let bty = ctx.type_ctx.get_type(bty_key);
 
     // 不是左值
     if !a.is_lvalue() {
@@ -506,7 +507,7 @@ fn assign_type(
     };
 
     let result_key = binary_type(ctx, aty_key, bin_op, bty_key, span)?;
-    let result_ty = ctx.get_type(result_key);
+    let result_ty = ctx.type_ctx.get_type(result_key);
 
     if !cast_compatible(aty, result_ty) {
         todo!("不兼容类型错误")
@@ -524,7 +525,7 @@ fn unary_type(
     value_type: ValueType,
     span: Span
 ) -> ParserResult<TypeKey> {
-    let a = ctx.get_type(a_key);
+    let a = ctx.type_ctx.get_type(a_key);
     let ty = match op {
         UnaryOpKind::AddrOf => {
             if value_type != LValue {
@@ -627,28 +628,10 @@ fn cast_compatible(a: &Type, b: &Type) -> bool {
                 && ap.iter().zip(bp.iter()).all(|(x, y)| x == y)
         }
 
+        // todo 这里还差了一些 enum 之间的兼容
         // ===== Struct / StructRef =====
-        (Struct { name: Some(a), .. }, Struct { name: Some(b), .. }) => a == b,
-        (StructRef { name: a }, StructRef { name: b }) => a == b,
-
-        // 定义体和引用互相兼容（名字一致）
-        (Struct { name: Some(a), .. }, StructRef { name: b })
-        | (StructRef { name: a }, Struct { name: Some(b), .. })
-        | (Union { name: Some(a), .. }, Union { name: Some(b), .. })
-        | (UnionRef { name: a }, UnionRef { name: b }) => a == b,
-
-        (Union { name: Some(a), .. }, UnionRef { name: b }) => a == b,
-        (UnionRef { name: a }, Union { name: Some(b), .. }) => a == b,
-
-        // ===== Enum / EnumRef =====
-        (Enum { name: Some(a), .. }, Enum { name: Some(b), .. }) => a == b,
-        (EnumRef { name: a }, EnumRef { name: b }) => a == b,
-
-        (Enum { name: Some(a), .. }, EnumRef { name: b }) => a == b,
-        (EnumRef { name: a }, Enum { name: Some(b), .. }) => a == b,
-
-        // enum 定义与 enum 定义（无名枚举）不可兼容，也不允许互转换
-        (Enum { name: None, .. }, Enum { name: None, .. }) => false,
+        (Record { id: id1, .. }, Record { id: id2, .. }) => id1 == id2, 
+        (Enum { id: id1, .. }, Enum { id: id2, .. }) => id1 == id2,
 
         // ===== Unknown 不兼容任何 =====
         (Unknown, _) | (_, Unknown) => false,
@@ -669,13 +652,13 @@ fn fold_expr(ctx: &mut CompCtx, expr: Expr) -> ParserResult<ExprKey> {
         // ExprKind::Paren { expr, .. } => return Ok(expr), // 折叠括号
         ExprKind::SizeofExpr { expr: sizeof_expr, .. } => {
             let sizeof_expr = ctx.get_expr(sizeof_expr);
-            let ty = ctx.get_type(sizeof_expr.ty);
-            let size = ty.sizeof();
+            let ty = ctx.type_ctx.get_type_mut(sizeof_expr.ty);
+            let size = ty.get_layout(ctx).size;
             make_unsigned_long_long(size, expr.ty.clone(), expr.span) // 折叠sizeof
         }
         ExprKind::SizeofType { ty, .. } => { // 折叠sizeof
-            let ty = ctx.get_type(ty);
-            let size = ty.sizeof();
+            let ty = ctx.type_ctx.get_type_mut(ty);
+            let size = ty.get_layout(ctx).size;
             make_unsigned_long_long(size, expr.ty.clone(), expr.span)
         }
         ExprKind::Unary { op, rhs } => // 折叠运算
@@ -685,8 +668,8 @@ fn fold_expr(ctx: &mut CompCtx, expr: Expr) -> ParserResult<ExprKey> {
         ExprKind::Cast { expr, .. } => return Ok(expr),  // 折叠类型转换
         ExprKind::Ternary { cond: cond_key, then_expr, else_expr} => { // 折叠三元运算
             let cond = ctx.get_expr(cond_key);
-            match &cond.kind.as_constant() {
-                Some(x) => match x.is_true()? {
+            match cond.kind.as_constant() {
+                Some(x) => match x.is_true() {
                     true => return Ok(then_expr),
                     false => return Ok(else_expr),
                 }

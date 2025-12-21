@@ -2,11 +2,12 @@ use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::Symbol;
 use crate::lex::types::token_kind::TokenKind;
-use crate::parser::ast::decl::DeclKey;
-use crate::parser::ast::exprs::ExprKey;
+use crate::parser::ast::DeclKey;
+use crate::parser::ast::ExprKey;
+use crate::parser::ast::common::StructOrUnion;
 use crate::parser::ast::types::Qualifier;
 use crate::parser::common::TypeSpecState;
-use crate::parser::semantic::ast::decl::{DeclGroup, StructOrUnion};
+use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
 use crate::types::span::{Pos, Span};
@@ -24,9 +25,9 @@ use enum_as_inner::EnumAsInner;
 #[derive(Debug, Clone)]
 pub struct DeclSpec {
     pub storage: Option<StorageSpec>, // 全局上下文的时候默认extern
-    pub signed: bool,
+    pub signed: Option<bool>,
     pub base_type: TypeSpecState,
-    pub spec: TypeSpec,
+    pub base_spec: Option<TypeSpec>,
     pub type_quals: Qualifier,
     pub func_spec: Option<FuncSpec>,
     pub span: Span,
@@ -253,7 +254,6 @@ pub enum ParamDecl {
 #[derive(Clone, Debug)]
 pub struct ParamList {
     pub params: Vec<DeclKey>,
-    pub commas: Vec<Pos>,
     pub is_variadic: bool,
     pub span: Span,
 }
@@ -292,11 +292,9 @@ pub struct StructDeclarator {
     pub span: Span,
 }
 
-
 #[derive(Clone, Debug)]
 pub struct Enumerator {
-    pub name: Symbol,
-    pub eq: Option<Pos>,
+    pub name: Ident,
     pub expr: Option<ExprKey>,
     pub span: Span,
 }
@@ -305,6 +303,6 @@ pub struct Enumerator {
 pub struct EnumSpec {
     pub enum_span: Span, // 关键字enum的span
     pub name: Option<Symbol>,
-    pub decls: Option<Vec<DeclKey>>, // 内部声明，应该都是 enumerator
+    pub body: Option<Vec<DeclKey>>, // 内部声明，应该都是 enumerator
     pub span: Span,
 }

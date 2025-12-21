@@ -1,18 +1,13 @@
 use crate::constant::typ::MAX_ULL;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token::Token;
-use crate::lex::types::token_kind::{LiteralKind, Symbol, TokenKind};
+use crate::lex::types::token_kind::{Symbol, TokenKind};
+use crate::parser::ast::{ExprKey, TypeKey};
 use crate::parser::ast::exprs::{AssignOp, BinOp, UnaryOp, UnaryOpKind};
-use crate::parser::ast::types::TypeKey;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::sema::expr::value_type::ValueType;
 use crate::types::span::Span;
 use enum_as_inner::EnumAsInner;
-use slotmap::new_key_type;
-
-new_key_type! {
-    pub struct ExprKey;
-}
 
 #[derive(Debug, Clone)]
 pub struct Expr {
@@ -239,6 +234,16 @@ pub enum MemberAccessKind {
 pub enum NumberConstant {
     Integer { value: u128 },
     Float { value: f64 },
+}
+
+impl NumberConstant {
+    // 非0值都是true
+    pub fn is_true(&self) -> bool {
+        match self {
+            Self::Integer { value } => *value != 0,
+            Self::Float{ value } => *value != 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

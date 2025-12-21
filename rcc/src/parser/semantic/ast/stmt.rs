@@ -1,4 +1,4 @@
-use crate::parser::ast::exprs::ExprKey;
+use crate::parser::ast::{ExprKey, StmtKey};
 use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::comp_ctx::CompCtx;
@@ -7,7 +7,6 @@ use crate::types::span::{Pos, Span};
 use slotmap::new_key_type;
 
 new_key_type! {
-    pub struct StmtKey;
 }
 
 #[derive(Clone, Debug)]

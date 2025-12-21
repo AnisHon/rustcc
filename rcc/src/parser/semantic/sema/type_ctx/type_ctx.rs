@@ -1,17 +1,32 @@
+use std::collections::hash_map::Entry;
+
+use crate::err::type_error::TypeError;
 use crate::lex::types::token_kind::{FloatSuffix, IntSuffix};
-use crate::parser::ast::types::{ArraySize, FloatSize, IntegerSize, Type, TypeKey, TypeKind};
+use crate::parser::ast::TypeKey;
+use crate::parser::ast::types::{
+    ArraySize, EnumID, FloatSize, IntegerSize, RecordID, Type,
+};
+use crate::parser::semantic::sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 
 pub struct TypeCtx {
-    types: FxHashMap<Type, TypeKey>,
+    types: FxHashMap<TypeBuilder, TypeKey>,
     pool: SlotMap<TypeKey, Type>,
+
+    enum_counter: usize,
+    record_counter: usize,
 }
 impl TypeCtx {
     pub fn new() -> Self {
         let types = FxHashMap::default();
         let pool = SlotMap::with_key();
-        let mut ctx = Self { types, pool };
+        let mut ctx = Self {
+            types,
+            pool,
+            enum_counter: 0,
+            record_counter: 0,
+        };
 
         Self::init(&mut ctx);
 
@@ -21,23 +36,23 @@ impl TypeCtx {
     // 初始化一些常用类型
     pub fn init(ctx: &mut Self) {
         use IntegerSize::*;
-        let char_ = Type::new_int(true, Char);
-        let uchar = Type::new_int(false, Char);
-        let short = Type::new_int(true, Short);
-        let ushort = Type::new_int(false, Short);
-        let int = Type::new_int(true, Int);
-        let uint = Type::new_int(false, Int);
-        let long = Type::new_int(true, Long);
-        let ulong = Type::new_int(false, Long);
-        let ll = Type::new_int(true, LongLong);
-        let ull = Type::new_int(false, LongLong);
+        let char_ = TypeBuilder::new_int(true, Char);
+        let uchar = TypeBuilder::new_int(false, Char);
+        let short = TypeBuilder::new_int(true, Short);
+        let ushort = TypeBuilder::new_int(false, Short);
+        let int = TypeBuilder::new_int(true, Int);
+        let uint = TypeBuilder::new_int(false, Int);
+        let long = TypeBuilder::new_int(true, Long);
+        let ulong = TypeBuilder::new_int(false, Long);
+        let ll = TypeBuilder::new_int(true, LongLong);
+        let ull = TypeBuilder::new_int(false, LongLong);
 
-        let float = Type::new_float(FloatSize::Float);
-        let double = Type::new_float(FloatSize::Double);
-        let long_double = Type::new_float(FloatSize::LongDouble);
+        let float = TypeBuilder::new_float(FloatSize::Float);
+        let double = TypeBuilder::new_float(FloatSize::Double);
+        let long_double = TypeBuilder::new_float(FloatSize::LongDouble);
 
-        let void = Type::new(TypeKind::Void);
-        let unknown = Type::new(TypeKind::Unknown);
+        let void = TypeBuilder::new(TypeBuilderKind::Void);
+        let unknown = TypeBuilder::new(TypeBuilderKind::Unknown);
 
         let types = vec![
             char_,
@@ -58,56 +73,41 @@ impl TypeCtx {
         ];
 
         for ele in types {
-            let _ = ctx.get_or_set(ele);
+            let _ = ctx.from_builder(ele);
         }
     }
 
     pub fn get_type(&self, key: TypeKey) -> &Type {
-        self.pool.get(key).expect("Type Not Exist")
+        self.pool.get(key).expect("Type not exist")
+    }
+
+    pub fn get_type_mut(&mut self, key: TypeKey) -> &mut Type {
+        self.pool.get_mut(key).expect("Type not exists")
     }
 
     /// 单例获取type
-    pub fn get_or_set(&mut self, ty: Type) -> TypeKey {
-        use TypeKind::*;
-        let key = match &ty.kind {
-            // 普通的类型使用自身作为键
-            Void
-            | Unknown
-            | Integer { .. }
-            | Floating { .. }
-            | Pointer { .. }
-            | Array { .. }
-            | Function { .. } => {
-                // 单例 entry insert with
-                *self
-                    .types
-                    .entry(ty)
-                    .or_insert_with_key(|x| self.pool.insert(x.clone()))
-            }
-
-            Struct { .. }
-            | Union { .. }
-            | Enum { .. }
-            | StructRef { .. }
-            | UnionRef { .. }
-            | EnumRef { .. } => {
-                // 不单例
-                self.pool.insert(ty)
+    pub fn from_builder(&mut self, ty: TypeBuilder) -> Result<TypeKey, TypeError> {
+        let entry = self.types.entry(ty);
+        let key = match entry {
+            Entry::Occupied(o) => *o.get(),
+            Entry::Vacant(v) => {
+                let value = v.key().clone().build()?;
+                let id = self.pool.insert(value);
+                *v.insert(id)
             }
         };
-
-        key
+        Ok(key)
     }
 
     // int 类型
     pub fn get_int_type(&self, size: IntegerSize, is_signed: bool) -> TypeKey {
-        let ty = Type::new_int(is_signed, size);
+        let ty = TypeBuilder::new_int(is_signed, size);
         *self.types.get(&ty).expect("already initialized")
     }
 
     // float 类型
     pub fn get_float_type(&self, size: FloatSize) -> TypeKey {
-        let ty = Type::new_float(size);
+        let ty = TypeBuilder::new_float(size);
         *self.types.get(&ty).expect("already initialized")
     }
 
@@ -145,25 +145,37 @@ impl TypeCtx {
 
     // 获取 void type
     pub fn get_void_type(&self) -> TypeKey {
-        let kind = TypeKind::Void;
-        let ty = Type::new(kind);
+        let kind = TypeBuilderKind::Void;
+        let ty = TypeBuilder::new(kind);
 
         *self.types.get(&ty).expect("already initialized")
     }
 
     // 字符串类型, 无法保证 immutable
-    pub fn get_string_type(&mut self, sz: u64) -> TypeKey {
+    pub fn get_string_type(&mut self, sz: u64) -> Result<TypeKey, TypeError> {
         let elem_ty = self.get_char();
         let size = ArraySize::Static(sz);
-        let kind = TypeKind::Array { elem_ty, size };
-        let ty = Type::new(kind);
+        let kind = TypeBuilderKind::Array { elem_ty, size };
+        let ty = TypeBuilder::new(kind);
 
-        self.get_or_set(ty)
+        self.from_builder(ty)
     }
 
     /// 获取未知类型
     pub fn get_unknown_type(&mut self) -> TypeKey {
-        let ty = Type::new(TypeKind::Unknown);
+        let ty = TypeBuilder::new(TypeBuilderKind::Unknown);
         *self.types.get(&ty).expect("already initialized")
+    }
+
+    pub fn next_record_id(&mut self) -> RecordID {
+        let record_id = RecordID(self.record_counter);
+        self.record_counter += 1;
+        record_id
+    }
+
+    pub fn next_enum_id(&mut self) -> EnumID {
+        let enum_id = EnumID(self.enum_counter);
+        self.enum_counter += 1;
+        enum_id
     }
 }

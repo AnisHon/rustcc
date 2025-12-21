@@ -1,6 +1,6 @@
 use std::hash::{Hash, Hasher};
 use crate::lex::types::token_kind::Symbol;
-use crate::parser::ast::types::type_struct::TypeKey;
+use crate::parser::ast::TypeKey;
 use crate::parser::semantic::comp_ctx::CompCtx;
 
 ///

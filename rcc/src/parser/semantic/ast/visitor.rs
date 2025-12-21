@@ -1,7 +1,5 @@
-use crate::parser::ast::decl::DeclKey;
-use crate::parser::ast::exprs::ExprKey;
+use crate::parser::ast::{DeclKey, ExprKey, StmtKey};
 use crate::parser::ast::func::FuncDef;
-use crate::parser::ast::stmt::StmtKey;
 use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::ast::func::{ExternalDecl, TranslationUnit};
 

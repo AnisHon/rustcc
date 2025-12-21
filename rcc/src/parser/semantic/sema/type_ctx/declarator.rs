@@ -3,22 +3,20 @@ use crate::{
     err::parser_error::{self, ParserError, ParserResult},
     parser::{
         ast::{
-            exprs::{ExprKey, ExprKind, NumberConstant},
-            types::{ArraySize, FloatSize, IntegerSize, Qualifier, Type, TypeKey, TypeKind},
-        },
-        comp_ctx::CompCtx,
-        semantic::{
-            decl_spec::{DeclSpec, ParamDecl, TypeSpec, TypeSpecKind},
-            declarator::{Declarator, DeclaratorChunkKind},
-        },
+            ExprKey, TypeKey, exprs::{ExprKind, NumberConstant}, types::{ArraySize, FloatSize, IntegerSize, Qualifier, Type, TypeKind}
+        }, common::TypeSpecState, comp_ctx::CompCtx, semantic::{
+            decl_spec::{DeclSpec, ParamDecl, TypeSpec},
+            declarator::{Declarator, DeclaratorChunkKind}, sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind},
+        }
     },
 };
 
 /// 解析type主体部分
-fn resolve_type_base(specs: &[TypeSpec]) -> ParserResult<TypeKind> {
+fn resolve_type_base(ctx: &mut CompCtx, spec: &DeclSpec) -> ParserResult<TypeBuilderKind> {
+    let signed = spec.signed;
 
     // 查错
-    match state {
+    match spec.base_type {
         TypeSpecState::Float
         | TypeSpecState::Double
         | TypeSpecState::LongDouble
@@ -30,54 +28,52 @@ fn resolve_type_base(specs: &[TypeSpec]) -> ParserResult<TypeKind> {
             if signed.is_some() {
                 todo!()
             }
-
-            // 不能组合int
-            if int.is_some() {
-                todo!()
-            }
         }
         _ => {}
     }
 
+    let is_signed = signed.unwrap_or(false);
+    
     // 解析为TypeKind
-    let kind = match state {
-        TypeSpecState::Void => TypeKind::Void,
-        TypeSpecState::Char => TypeKind::Integer {
+    let kind = match spec.base_type {
+        TypeSpecState::Void => TypeBuilderKind::Void,
+        TypeSpecState::Char => TypeBuilderKind::Integer {
             is_signed,
             size: IntegerSize::Char,
         },
-        TypeSpecState::Short => TypeKind::Integer {
+        TypeSpecState::Short => TypeBuilderKind::Integer {
             is_signed,
             size: IntegerSize::Short,
         },
-        TypeSpecState::Int => TypeKind::Integer {
+        TypeSpecState::Int => TypeBuilderKind::Integer {
             is_signed,
             size: IntegerSize::Int,
         },
-        TypeSpecState::Long => TypeKind::Integer {
+        TypeSpecState::Long => TypeBuilderKind::Integer {
             is_signed,
             size: IntegerSize::Long,
         },
-        TypeSpecState::LongLong => TypeKind::Integer {
+        TypeSpecState::LongLong => TypeBuilderKind::Integer {
             is_signed,
             size: IntegerSize::LongLong,
         },
-        TypeSpecState::Float => TypeKind::Floating {
+        TypeSpecState::Float => TypeBuilderKind::Floating {
             size: FloatSize::Float,
         },
-        TypeSpecState::Double => TypeKind::Floating {
+        TypeSpecState::Double => TypeBuilderKind::Floating {
             size: FloatSize::Double,
         },
-        TypeSpecState::LongDouble => TypeKind::Floating {
+        TypeSpecState::LongDouble => TypeBuilderKind::Floating {
             size: FloatSize::LongDouble,
         },
         TypeSpecState::Struct
         | TypeSpecState::Union
         | TypeSpecState::Enum
-        | TypeSpecState::TypeName => decl.unwrap().ty.kind.clone(),
+        | TypeSpecState::TypeName => ctx.get_decl(spec.base_spec.kind.as_struct().unwrap().ty))
+        
+        decl.unwrap().ty.kind.clone(),
         _ => todo!(), // todo 没有任何匹配
     };
-   
 
     Ok(kind)
 }
@@ -89,7 +85,7 @@ fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> ParserResult<Ty
     let ty = Type::new_qual(qualifier, kind);
 
     // 去重
-    let ty = ctx.type_ctx.get_or_set(ty);
+    let ty = ctx.type_ctx.from_builder(ty);
     Ok(ty)
 }
 
@@ -109,8 +105,8 @@ pub fn resolve_declarator(ctx: &mut CompCtx, declarator: &Declarator) -> ParserR
 
             // pointer 类型
             Pointer { type_qual, .. } => {
-                let pointer = TypeKind::Pointer { elem_ty: ty };
-                Type::new_qual(*type_qual, pointer)
+                let pointer = TypeBuilderKind::Pointer { elem_ty: ty };
+                TypeBuilder::new_with_qual(*type_qual, pointer)
             }
 
             // 函数类型
@@ -122,7 +118,8 @@ pub fn resolve_declarator(ctx: &mut CompCtx, declarator: &Declarator) -> ParserR
         };
 
         // 尝试去重
-        ty = ctx.type_ctx.get_or_set(new_ty);
+        ty = ctx.type_ctx.from_builder(new_ty)
+            .map_err(|err| ParserError::from_type_error(err, chunk.span))?;
     }
 
     Ok(base_ty)
@@ -138,7 +135,7 @@ fn resolve_array(
     elem_ty: TypeKey,
     type_qual: Qualifier,
     expr: Option<ExprKey>,
-) -> ParserResult<Type> {
+) -> ParserResult<TypeBuilder> {
     let qualifier = type_qual;
 
     // 设置大小类型
@@ -148,14 +145,14 @@ fn resolve_array(
     };
 
     // 数组类型
-    let kind = TypeKind::Array { elem_ty, size };
-    Ok(Type::new_qual(qualifier, kind))
+    let kind = TypeBuilderKind::Array { elem_ty, size };
+    Ok(TypeBuilder::new_with_qual(qualifier, kind))
 }
 
 /// 解析数组大小
 fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySize> {
     let expr = ctx.pop_expr(expr);
-    let expr_ty = ctx.get_type(expr.ty);
+    let expr_ty = ctx.type_ctx.get_type(expr.ty);
 
     // 不是 int 直接出错
     if !expr_ty.is_integer() {
@@ -186,7 +183,7 @@ fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySiz
 }
 
 /// 解析函数类型
-fn resolve_function(ctx: &mut CompCtx, ret_ty: TypeKey, param: &ParamDecl) -> ParserResult<Type> {
+fn resolve_function(ctx: &mut CompCtx, ret_ty: TypeKey, param: &ParamDecl) -> ParserResult<TypeBuilder> {
     // 获取参数列表，可能是KR类型，这个类型理论上是不能用于声明函数类型的
     let list = match param {
         ParamDecl::Params(list) => list,
@@ -205,12 +202,11 @@ fn resolve_function(ctx: &mut CompCtx, ret_ty: TypeKey, param: &ParamDecl) -> Pa
         .collect();
 
     // 构件类型
-    let func = TypeKind::Function {
+    let func = TypeBuilderKind::Function {
         ret_ty,
         params,
         is_variadic,
     };
 
-    Ok(Type::new(func))
+    Ok(TypeBuilder::new(func))
 }
-

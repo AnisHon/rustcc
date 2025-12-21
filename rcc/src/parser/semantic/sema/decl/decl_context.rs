@@ -1,7 +1,7 @@
 use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::Symbol;
-use crate::parser::ast::decl::DeclKey;
+use crate::parser::ast::DeclKey;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::semantic::ast::decl::DeclKind;
 use rustc_hash::FxHashMap;

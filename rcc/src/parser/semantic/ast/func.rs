@@ -1,5 +1,4 @@
-use crate::parser::ast::decl::DeclKey;
-use crate::parser::ast::stmt::StmtKey;
+use crate::parser::ast::{DeclKey, StmtKey};
 use crate::parser::semantic::ast::decl::{DeclGroup};
 use crate::parser::semantic::declarator::Declarator;
 use crate::types::span::Span;

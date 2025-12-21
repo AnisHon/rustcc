@@ -37,6 +37,8 @@ fn parse_external_decl(
     let mut declarator = Declarator::new(decl_spec);
     parse_declarator(ctx, &mut declarator)?;
 
+    // todo 检查一下这个declarator是不是函数，不是函数直接进入Declaration解析，如果是
+
     let external_decl = if check_decl_spec(ctx) || check(ctx, TokenKind::LBrace) {
         // 进入decl
         sema.enter_decl(DeclContextKind::Block);
