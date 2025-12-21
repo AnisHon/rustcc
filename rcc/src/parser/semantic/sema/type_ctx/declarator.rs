@@ -1,13 +1,20 @@
+use crate::parser::semantic::decl_spec::TypeSpecKind;
 use crate::{
     constant::typ::MAX_ARRAY_LEN,
     err::parser_error::{self, ParserError, ParserResult},
     parser::{
         ast::{
-            ExprKey, TypeKey, exprs::{ExprKind, NumberConstant}, types::{ArraySize, FloatSize, IntegerSize, Qualifier, Type, TypeKind}
-        }, common::TypeSpecState, comp_ctx::CompCtx, semantic::{
-            decl_spec::{DeclSpec, ParamDecl, TypeSpec},
-            declarator::{Declarator, DeclaratorChunkKind}, sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind},
-        }
+            ExprKey, TypeKey,
+            exprs::{ExprKind, NumberConstant},
+            types::{ArraySize, FloatSize, IntegerSize, Qualifier},
+        },
+        common::TypeSpecState,
+        comp_ctx::CompCtx,
+        semantic::{
+            decl_spec::{DeclSpec, ParamDecl},
+            declarator::{Declarator, DeclaratorChunkKind},
+            sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind},
+        },
     },
 };
 
@@ -26,14 +33,14 @@ fn resolve_type_base(ctx: &mut CompCtx, spec: &DeclSpec) -> ParserResult<TypeBui
         | TypeSpecState::TypeName => {
             // 不能组合signed unsigned
             if signed.is_some() {
-                todo!()
+                todo!("can not combine unsigned/signed")
             }
         }
         _ => {}
     }
 
     let is_signed = signed.unwrap_or(false);
-    
+
     // 解析为TypeKind
     let kind = match spec.base_type {
         TypeSpecState::Void => TypeBuilderKind::Void,
@@ -69,10 +76,23 @@ fn resolve_type_base(ctx: &mut CompCtx, spec: &DeclSpec) -> ParserResult<TypeBui
         TypeSpecState::Struct
         | TypeSpecState::Union
         | TypeSpecState::Enum
-        | TypeSpecState::TypeName => ctx.get_decl(spec.base_spec.kind.as_struct().unwrap().ty))
-        
-        decl.unwrap().ty.kind.clone(),
-        _ => todo!(), // todo 没有任何匹配
+        | TypeSpecState::TypeName => {
+            let base_spec = spec
+                .base_spec
+                .as_ref()
+                .expect("when record enum typename, base_spec should not be none");
+            let decl = match base_spec.kind {
+                TypeSpecKind::Record(decl)
+                | TypeSpecKind::Enum(decl)
+                | TypeSpecKind::TypeName(_, decl) => decl,
+                _ => unreachable!("expect Record Enum TypeName, got {:?}", base_spec.kind),
+            };
+            let decl = ctx.get_decl(decl);
+            let ty = ctx.type_ctx.get_type(decl.ty);
+            let kind = TypeBuilderKind::from_type_kind(ty.kind.clone());
+            kind
+        }
+        _ => unreachable!("unknown states type: {:?}", spec.base_type),
     };
 
     Ok(kind)
@@ -80,12 +100,15 @@ fn resolve_type_base(ctx: &mut CompCtx, spec: &DeclSpec) -> ParserResult<TypeBui
 
 /// 解析decl_spec
 fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> ParserResult<TypeKey> {
-    let qualifier = decl_spec.type_quals;
-    let kind = resolve_type_base(&decl_spec.type_specs)?;
-    let ty = Type::new_qual(qualifier, kind);
+    let type_quals = decl_spec.type_quals;
+    let kind = resolve_type_base(ctx, decl_spec)?;
+    let builder = TypeBuilder::new_with_qual(Qualifier::new(&type_quals), kind);
 
     // 去重
-    let ty = ctx.type_ctx.from_builder(ty);
+    let ty = ctx
+        .type_ctx
+        .build_type(builder)
+        .map_err(|err| ParserError::from_type_error(err, decl_spec.span))?;
     Ok(ty)
 }
 
@@ -101,12 +124,15 @@ pub fn resolve_declarator(ctx: &mut CompCtx, declarator: &Declarator) -> ParserR
         // 结合成新类型
         let new_ty = match &chunk.kind {
             // 数组类型
-            Array { type_qual, expr } => resolve_array(ctx, ty, *type_qual, *expr)?,
+            Array { expr } => resolve_array(ctx, ty, *expr)?,
 
             // pointer 类型
-            Pointer { type_qual, .. } => {
+            Pointer {
+                type_quals: type_qual,
+                ..
+            } => {
                 let pointer = TypeBuilderKind::Pointer { elem_ty: ty };
-                TypeBuilder::new_with_qual(*type_qual, pointer)
+                TypeBuilder::new_with_qual(Qualifier::new(type_qual), pointer)
             }
 
             // 函数类型
@@ -118,7 +144,9 @@ pub fn resolve_declarator(ctx: &mut CompCtx, declarator: &Declarator) -> ParserR
         };
 
         // 尝试去重
-        ty = ctx.type_ctx.from_builder(new_ty)
+        ty = ctx
+            .type_ctx
+            .build_type(new_ty)
             .map_err(|err| ParserError::from_type_error(err, chunk.span))?;
     }
 
@@ -133,11 +161,8 @@ pub fn resolve_declarator(ctx: &mut CompCtx, declarator: &Declarator) -> ParserR
 fn resolve_array(
     ctx: &mut CompCtx,
     elem_ty: TypeKey,
-    type_qual: Qualifier,
     expr: Option<ExprKey>,
 ) -> ParserResult<TypeBuilder> {
-    let qualifier = type_qual;
-
     // 设置大小类型
     let size = match expr {
         None => ArraySize::Incomplete,
@@ -146,7 +171,7 @@ fn resolve_array(
 
     // 数组类型
     let kind = TypeBuilderKind::Array { elem_ty, size };
-    Ok(TypeBuilder::new_with_qual(qualifier, kind))
+    Ok(TypeBuilder::new(kind))
 }
 
 /// 解析数组大小
@@ -183,7 +208,11 @@ fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySiz
 }
 
 /// 解析函数类型
-fn resolve_function(ctx: &mut CompCtx, ret_ty: TypeKey, param: &ParamDecl) -> ParserResult<TypeBuilder> {
+fn resolve_function(
+    ctx: &mut CompCtx,
+    ret_ty: TypeKey,
+    param: &ParamDecl,
+) -> ParserResult<TypeBuilder> {
     // 获取参数列表，可能是KR类型，这个类型理论上是不能用于声明函数类型的
     let list = match param {
         ParamDecl::Params(list) => list,

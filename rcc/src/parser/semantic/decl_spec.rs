@@ -28,7 +28,7 @@ pub struct DeclSpec {
     pub signed: Option<bool>,
     pub base_type: TypeSpecState,
     pub base_spec: Option<TypeSpec>,
-    pub type_quals: Qualifier,
+    pub type_quals: TypeQuals,
     pub func_spec: Option<FuncSpec>,
     pub span: Span,
 }
@@ -98,8 +98,7 @@ pub enum TypeSpecKind {
     Double,
     Signed,
     Unsigned,
-    Struct(DeclKey),
-    Union(DeclKey),
+    Record(DeclKey),
     Enum(DeclKey),
     TypeName(Ident, DeclKey),
 }
@@ -158,8 +157,8 @@ impl TypeSpec {
             TypeSpecKind::Double => "double",
             TypeSpecKind::Signed => "signed",
             TypeSpecKind::Unsigned => "unsigned",
-            TypeSpecKind::Struct(_) => "struct",
-            TypeSpecKind::Union(_) => "union",
+            TypeSpecKind::Record(_) => "struct",
+            TypeSpecKind::Record(_) => "union",
             TypeSpecKind::Enum(_) => "enum",
             TypeSpecKind::TypeName(_, _) => "type-name",
         }
@@ -184,16 +183,6 @@ pub struct TypeQual {
 }
 
 impl TypeQual {
-    pub fn kind_str(&self) -> &'static str {
-        match self.kind {
-            TypeQualKind::Const => "const",
-            TypeQualKind::Restrict => "restrict",
-            TypeQualKind::Volatile => "volatile",
-        }
-    }
-}
-
-impl TypeQual {
     pub fn new(token: Token) -> Self {
         use crate::lex::types::token_kind::Keyword::*;
         let kind = match token.kind {
@@ -210,6 +199,22 @@ impl TypeQual {
             span: token.span,
         }
     }
+
+    pub fn kind_str(&self) -> &'static str {
+        match self.kind {
+            TypeQualKind::Const => "const",
+            TypeQualKind::Restrict => "restrict",
+            TypeQualKind::Volatile => "volatile",
+        }
+    }
+}
+
+/// Qualifier
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TypeQuals {
+    pub is_const: Option<TypeQual>,
+    pub is_restrict: Option<TypeQual>,
+    pub is_volatile: Option<TypeQual>,
 }
 
 #[derive(Debug, Clone)]
@@ -262,7 +267,6 @@ impl Default for ParamList {
     fn default() -> Self {
         Self {
             params: Vec::new(),
-            commas: Vec::new(),
             is_variadic: false,
             span: Span::default(),
         }

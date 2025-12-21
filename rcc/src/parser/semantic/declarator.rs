@@ -1,8 +1,7 @@
-use crate::parser::ast::exprs::ExprKey;
-use crate::parser::ast::types::Qualifier;
+use crate::parser::ast::ExprKey;
 use crate::parser::semantic::ast::decl::Initializer;
 use crate::parser::semantic::common::Ident;
-use crate::parser::semantic::decl_spec::{DeclSpec, ParamDecl};
+use crate::parser::semantic::decl_spec::{DeclSpec, ParamDecl, TypeQuals};
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
 
@@ -27,16 +26,9 @@ impl Declarator {
 
 #[derive(Clone, Debug)]
 pub enum DeclaratorChunkKind {
-    Array {
-        type_qual: Qualifier, 
-        expr: Option<ExprKey>,
-    },
-    Pointer {
-        type_qual: Qualifier, 
-    },
-    Function {
-        param: ParamDecl,
-    },
+    Array { expr: Option<ExprKey> },
+    Pointer { type_quals: TypeQuals },
+    Function { param: ParamDecl },
 }
 
 #[derive(Clone, Debug)]

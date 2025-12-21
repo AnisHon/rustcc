@@ -1,11 +1,16 @@
 /// 构造Type的最小单位
 use crate::{
     err::type_error::TypeError,
-    parser::{ast::{
-        TypeKey,
-        common::RecordKind,
-        types::{ArraySize, EnumID, FloatSize, IntegerSize, Qualifier, RecordID, Type, TypeKind},
-    }, comp_ctx::CompCtx},
+    parser::{
+        ast::{
+            TypeKey,
+            common::RecordKind,
+            types::{
+                ArraySize, EnumID, FloatSize, IntegerSize, Qualifier, RecordID, Type, TypeKind,
+            },
+        },
+        comp_ctx::CompCtx,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -76,10 +81,9 @@ impl TypeBuilder {
         if !ty.qual.is_restrict {
             return Ok(());
         }
-        
+
         todo!("实现restrict检查机制，只能用指针，指针指向的内容也要检查")
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -115,10 +119,35 @@ pub enum TypeBuilderKind {
 }
 
 impl TypeBuilderKind {
+    pub fn from_type_kind(kind: TypeKind) -> Self {
+        match kind {
+            TypeKind::Void => TypeBuilderKind::Void,
+            TypeKind::Integer { is_signed, size } => TypeBuilderKind::Integer { is_signed, size },
+            TypeKind::Floating { size } => TypeBuilderKind::Floating { size },
+            TypeKind::Pointer { elem_ty } => TypeBuilderKind::Pointer { elem_ty },
+            TypeKind::Array { elem_ty, size } => TypeBuilderKind::Array { elem_ty, size },
+            TypeKind::Function {
+                ret_ty,
+                params,
+                is_variadic,
+            } => TypeBuilderKind::Function {
+                ret_ty,
+                params,
+                is_variadic,
+            },
+            TypeKind::Record { kind, id, .. } => TypeBuilderKind::Record { kind, id },
+            TypeKind::Enum { id, .. } => TypeBuilderKind::Enum { id },
+            TypeKind::Unknown => TypeBuilderKind::Unknown,
+        }
+    }
+
     /// 构建一个全新的 record，分配一个 record id
     pub fn new_record(ctx: &mut CompCtx, kind: RecordKind) -> Self {
         let record_id = ctx.type_ctx.next_record_id();
-        Self::Record { kind, id: record_id }
+        Self::Record {
+            kind,
+            id: record_id,
+        }
     }
 
     /// 构建一个全新的 enum，分配一个 enum_id

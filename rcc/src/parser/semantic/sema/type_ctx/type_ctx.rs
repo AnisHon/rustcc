@@ -3,9 +3,7 @@ use std::collections::hash_map::Entry;
 use crate::err::type_error::TypeError;
 use crate::lex::types::token_kind::{FloatSuffix, IntSuffix};
 use crate::parser::ast::TypeKey;
-use crate::parser::ast::types::{
-    ArraySize, EnumID, FloatSize, IntegerSize, RecordID, Type,
-};
+use crate::parser::ast::types::{ArraySize, EnumID, FloatSize, IntegerSize, RecordID, Type};
 use crate::parser::semantic::sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
@@ -73,7 +71,7 @@ impl TypeCtx {
         ];
 
         for ele in types {
-            let _ = ctx.from_builder(ele);
+            let _ = ctx.build_type(ele);
         }
     }
 
@@ -86,7 +84,7 @@ impl TypeCtx {
     }
 
     /// 单例获取type
-    pub fn from_builder(&mut self, ty: TypeBuilder) -> Result<TypeKey, TypeError> {
+    pub fn build_type(&mut self, ty: TypeBuilder) -> Result<TypeKey, TypeError> {
         let entry = self.types.entry(ty);
         let key = match entry {
             Entry::Occupied(o) => *o.get(),
@@ -158,7 +156,7 @@ impl TypeCtx {
         let kind = TypeBuilderKind::Array { elem_ty, size };
         let ty = TypeBuilder::new(kind);
 
-        self.from_builder(ty)
+        self.build_type(ty)
     }
 
     /// 获取未知类型

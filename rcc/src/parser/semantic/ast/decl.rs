@@ -1,5 +1,5 @@
+pub(crate) use crate::parser::ast::common::StructOrUnion;
 use crate::parser::ast::{DeclKey, ExprKey, TypeKey};
-use crate::parser::ast::common::StructOrUnion;
 use crate::parser::semantic::ast::stmt::Stmt;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::StorageSpec;
@@ -106,5 +106,3 @@ impl Default for DeclGroup {
         }
     }
 }
-
-
