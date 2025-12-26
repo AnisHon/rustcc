@@ -1,8 +1,12 @@
-use std::u64;
+use lazy_static::lazy_static;
+use num_bigint::BigInt;
 
-pub const MAX_ARRAY_LEN: u128 = u64::MAX as u128;
-pub const MAX_ULL: u128 = u64::MAX as u128;
-pub const MAX_UINT: u128 = u32::MAX as u128;
+lazy_static! {
+    pub static ref MAX_ARRAY_LEN: BigInt = BigInt::from(u64::MAX);
+    pub static ref MAX_ULL: BigInt = BigInt::from(u64::MAX);
+    pub static ref MAX_UINT: BigInt = BigInt::from(u32::MAX as u64);
+}
+
 /// 默认的对齐大小
-pub const DEFAULT_ALIGN: u64 = 1;
-pub const DEFAULT_SIZE: u64 = 1;
+pub static DEFAULT_ALIGN: u64 = 1;
+pub static DEFAULT_SIZE: u64 = 1;

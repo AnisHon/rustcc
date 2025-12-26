@@ -1,3 +1,4 @@
+use crate::parser::ast::ExprKey;
 use crate::parser::ast::decl::{DeclGroup, DeclKey, DeclKind, Initializer};
 use crate::parser::ast::exprs::{Expr, ExprKey, ExprKind};
 use crate::parser::ast::func::{ExternalDecl, FuncDef, TranslationUnit};
@@ -157,13 +158,13 @@ impl Visitor for AstGraph<'_> {
     }
 
     fn visit_expr(&mut self, expr: ExprKey) {
-        let expr = self.ctx.get_expr(expr);
+        let expr = self.ctx.get_expr_mut(expr);
         let prev;
         match &mut expr.kind {
             ExprKind::DeclRef(x) => {
                 prev = self.make_node(format!("var {}", x.symbol.get()));
             }
-            ExprKind::Constant(x) => {
+            ExprKind::Literal(x) => {
                 prev = self.make_node(format!("{:?}", x));
             }
             // ExprKind::Paren { expr, .. } => {
@@ -191,7 +192,7 @@ impl Visitor for AstGraph<'_> {
             }
             ExprKind::SizeofType { ty, .. } => {
                 prev = self.make_node("sizeof".to_owned());
-                let ty = self.ctx.get_type(*ty);
+                let ty = self.ctx.type_ctx.get_type(*ty);
                 self.connect_node(ty.to_code(self.ctx));
             }
             ExprKind::Unary { op, rhs, .. } => {
@@ -210,7 +211,7 @@ impl Visitor for AstGraph<'_> {
             }
             ExprKind::Cast { ty, expr, .. } => {
                 prev = self.make_node("cast".to_owned());
-                let ty = self.ctx.get_type(*ty);
+                let ty = self.ctx.type_ctx.get_type(*ty);
                 self.connect_node(ty.to_code(self.ctx));
                 self.visit_expr(*expr)
             }
@@ -232,11 +233,11 @@ impl Visitor for AstGraph<'_> {
     fn visit_stmt(&mut self, stmt: StmtKey) {
         let prev;
         let stmt = self.ctx.get_stmt(stmt);
-        match &mut stmt.kind {
+        match &stmt.kind {
             StmtKind::Expr { expr, .. } => {
                 prev = self.make_node("expr_stmt".to_owned());
                 if let Some(x) = expr {
-                    self.visit_expr(x)
+                    self.visit_expr(*x)
                 }
             }
             // StmtKind::Decl { .. } => {}
@@ -254,7 +255,7 @@ impl Visitor for AstGraph<'_> {
             StmtKind::Return { expr, .. } => {
                 prev = self.make_node("compound_stmt".to_owned());
                 if let Some(x) = expr {
-                    self.visit_expr(x);
+                    self.visit_expr(*x);
                 }
             }
             StmtKind::Compound { stmts, .. } => {

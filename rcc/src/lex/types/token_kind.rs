@@ -1,9 +1,7 @@
+use enum_as_inner::EnumAsInner;
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
-use std::fmt::{Debug, Display};
-use enum_as_inner::EnumAsInner;
-
-use crate::err::parser_error::ParserResult;
+use std::fmt::{Debug, Display, Formatter};
 
 thread_local! {
     static SYMBOL_INTERNER: RefCell<Interner> = RefCell::new(Interner::new());
@@ -49,24 +47,54 @@ pub enum TokenKind {
 
     Literal(LiteralKind),
 
-    Plus, Minus, Star, Slash, Percent,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
     Amp,    // &
     Pipe,   // |
     Caret,  // ^
     Tilde,  // ~
     Bang,   // !
     Assign, // =
-    Lt, Gt, // < >
+    Lt,
+    Gt, // < >
 
-    LParen, RParen, LBrace, RBrace, // ( ) { }
-    LBracket, RBracket, // [ ]
-    Comma, Semi, Colon, Dot, Arrow, // , ; : . ->
-    Question, Ellipsis, // ? ...
+    LParen,
+    RParen,
+    LBrace,
+    RBrace, // ( ) { }
+    LBracket,
+    RBracket, // [ ]
+    Comma,
+    Semi,
+    Colon,
+    Dot,
+    Arrow, // , ; : . ->
+    Question,
+    Ellipsis, // ? ...
 
-    Eq, Ne, Le, Ge, And, Or, Shl, Shr,
-    PlusEq, MinusEq, StarEq, SlashEq, PercentEq,
-    ShlEq, ShrEq, AmpEq, PipeEq, CaretEq,
-    Inc, Dec,
+    Eq,
+    Ne,
+    Le,
+    Ge,
+    And,
+    Or,
+    Shl,
+    Shr,
+    PlusEq,
+    MinusEq,
+    StarEq,
+    SlashEq,
+    PercentEq,
+    ShlEq,
+    ShrEq,
+    AmpEq,
+    PipeEq,
+    CaretEq,
+    Inc,
+    Dec,
 
     // Comment(Symbol),  // 可选保留注释文本
     Eof,
@@ -77,7 +105,6 @@ pub enum TokenKind {
 pub struct Symbol(usize);
 
 impl Symbol {
-    
     pub fn new(patten: &str) -> Self {
         SYMBOL_INTERNER.with_borrow_mut(|interner| interner.intern(patten))
     }
@@ -87,13 +114,13 @@ impl Symbol {
 }
 
 impl Display for Symbol {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(f, "{}", self.get())
     }
 }
 
 impl Debug for Symbol {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(f, "Symbol({:?})", self.get())
     }
 }
@@ -135,90 +162,106 @@ pub enum Keyword {
     Void,
     Volatile,
     While,
-    Bool,       // _Bool
-    Complex,    // _Complex
-    Imaginary,  // _Imaginary
+    Bool,      // _Bool
+    Complex,   // _Complex
+    Imaginary, // _Imaginary
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy, EnumAsInner)]
 pub enum LiteralKind {
-    Integer { value: Symbol, suffix: Option<IntSuffix> },
-    Float   { value: Symbol, suffix: Option<FloatSuffix> }, // float交给后期解析
-    Char    { value: Symbol },
-    String  { value: Symbol },
+    Integer {
+        value: Symbol,
+        suffix: Option<IntSuffix>,
+    },
+    Float {
+        value: Symbol,
+        suffix: Option<FloatSuffix>,
+    }, // float交给后期解析
+    Char {
+        value: Symbol,
+    },
+    String {
+        value: Symbol,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum IntSuffix {
-    U, L, UL, LL, ULL,
+    U,
+    L,
+    UL,
+    LL,
+    ULL,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum FloatSuffix {
-    F, L,
+    F,
+    L,
 }
 
-
-impl TokenKind {
-    pub fn kind_str(&self) -> &'static str {
-        match self {
-            TokenKind::Ident(_) => "identifier",
-            TokenKind::Keyword(x) => x.kind_str(),
-            TokenKind::Literal(x) => x.kind_str(),
-            TokenKind::Plus => "+",
-            TokenKind::Minus => "-",
-            TokenKind::Star => "*",
-            TokenKind::Slash => "/",
-            TokenKind::Percent => "%",
-            TokenKind::Amp => "&",
-            TokenKind::Pipe => "|",
-            TokenKind::Caret => "caret",
-            TokenKind::Tilde => "~",
-            TokenKind::Bang => "!",
-            TokenKind::Assign => "=",
-            TokenKind::Lt => "<",
-            TokenKind::Gt => ">",
-            TokenKind::LParen => "(",
-            TokenKind::RParen => ")",
-            TokenKind::LBrace => "{",
-            TokenKind::RBrace => "}",
-            TokenKind::LBracket => "[",
-            TokenKind::RBracket => "]",
-            TokenKind::Comma => ",",
-            TokenKind::Semi => ";",
-            TokenKind::Colon => ":",
-            TokenKind::Dot => ".",
-            TokenKind::Arrow => "->",
-            TokenKind::Question => "?",
-            TokenKind::Ellipsis => "...",
-            TokenKind::Eq => "==",
-            TokenKind::Ne => "!=",
-            TokenKind::Le => "<=",
-            TokenKind::Ge => ">=",
-            TokenKind::And => "&&",
-            TokenKind::Or => "||",
-            TokenKind::Shl => "<<",
-            TokenKind::Shr => ">>",
-            TokenKind::PlusEq => "+=",
-            TokenKind::MinusEq => "-=",
-            TokenKind::StarEq => "*=",
-            TokenKind::SlashEq => "/=",
-            TokenKind::PercentEq => "%=",
-            TokenKind::ShlEq => "<<=",
-            TokenKind::ShrEq => ">>=",
-            TokenKind::AmpEq => "&=",
-            TokenKind::PipeEq => "|=",
-            TokenKind::CaretEq => "^=",
-            TokenKind::Inc => "++",
-            TokenKind::Dec => "--",
-            TokenKind::Eof => "eof",
-        }
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        use TokenKind::*;
+        let str = match self {
+            Ident(_) => "identifier".to_owned(),
+            Keyword(x) => x.to_string(),
+            Literal(x) => x.to_string(),
+            Plus => "+".to_owned(),
+            Minus => "-".to_owned(),
+            Star => "*".to_owned(),
+            Slash => "/".to_owned(),
+            Percent => "%".to_owned(),
+            Amp => "&".to_owned(),
+            Pipe => "|".to_owned(),
+            Caret => "caret".to_owned(),
+            Tilde => "~".to_owned(),
+            Bang => "!".to_owned(),
+            Assign => "=".to_owned(),
+            Lt => "<".to_owned(),
+            Gt => ">".to_owned(),
+            LParen => "(".to_owned(),
+            RParen => ")".to_owned(),
+            LBrace => "{".to_owned(),
+            RBrace => "}".to_owned(),
+            LBracket => "[".to_owned(),
+            RBracket => "]".to_owned(),
+            Comma => ",".to_owned(),
+            Semi => ";".to_owned(),
+            Colon => ":".to_owned(),
+            Dot => ".".to_owned(),
+            Arrow => "->".to_owned(),
+            Question => "?".to_owned(),
+            Ellipsis => "...".to_owned(),
+            Eq => "==".to_owned(),
+            Ne => "!=".to_owned(),
+            Le => "<=".to_owned(),
+            Ge => ">=".to_owned(),
+            And => "&&".to_owned(),
+            Or => "||".to_owned(),
+            Shl => "<<".to_owned(),
+            Shr => ">>".to_owned(),
+            PlusEq => "+=".to_owned(),
+            MinusEq => "-=".to_owned(),
+            StarEq => "*=".to_owned(),
+            SlashEq => "/=".to_owned(),
+            PercentEq => "%=".to_owned(),
+            ShlEq => "<<=".to_owned(),
+            ShrEq => ">>=".to_owned(),
+            AmpEq => "&=".to_owned(),
+            PipeEq => "|=".to_owned(),
+            CaretEq => "^=".to_owned(),
+            Inc => "++".to_owned(),
+            Dec => "--".to_owned(),
+            Eof => "eof".to_owned(),
+        };
+        write!(f, "{}", str)
     }
 }
 
-impl Keyword {
-    pub fn kind_str(&self) -> &'static str {
-        match self {
+impl Display for Keyword {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
             Keyword::Auto => "auto",
             Keyword::Break => "break",
             Keyword::Case => "case",
@@ -256,17 +299,19 @@ impl Keyword {
             Keyword::Bool => "_Bool",
             Keyword::Complex => "_Complex",
             Keyword::Imaginary => "_Imaginary",
-        }
+        };
+        write!(f, "{}", msg)
     }
 }
 
-impl LiteralKind {
-    pub fn kind_str(&self) -> &'static str {
-        match self {
+impl Display for LiteralKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             LiteralKind::Integer { .. } => "integer",
             LiteralKind::Float { .. } => "float",
             LiteralKind::Char { .. } => "char",
             LiteralKind::String { .. } => "string",
-        }
+        };
+        write!(f, "{}", str)
     }
 }

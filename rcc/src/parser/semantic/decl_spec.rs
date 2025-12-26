@@ -1,17 +1,16 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
-use crate::lex::types::token_kind::Symbol;
 use crate::lex::types::token_kind::TokenKind;
 use crate::parser::ast::DeclKey;
 use crate::parser::ast::ExprKey;
 use crate::parser::ast::common::StructOrUnion;
-use crate::parser::ast::types::Qualifier;
 use crate::parser::common::TypeSpecState;
 use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
+use std::fmt::{Display, Formatter};
 
 ///
 /// # Members
@@ -146,8 +145,14 @@ impl TypeSpec {
         }
     }
 
-    pub fn kind_str(&self) -> &'static str {
-        match &self.kind {
+    pub fn is(&self, kind: &TypeSpecKind) -> bool {
+        std::mem::discriminant(&self.kind) == std::mem::discriminant(kind)
+    }
+}
+
+impl Display for TypeSpec {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let msg = match &self.kind {
             TypeSpecKind::Void => "void",
             TypeSpecKind::Char => "char",
             TypeSpecKind::Short => "short",
@@ -157,15 +162,11 @@ impl TypeSpec {
             TypeSpecKind::Double => "double",
             TypeSpecKind::Signed => "signed",
             TypeSpecKind::Unsigned => "unsigned",
-            TypeSpecKind::Record(_) => "struct",
-            TypeSpecKind::Record(_) => "union",
+            TypeSpecKind::Record(_) => "record",
             TypeSpecKind::Enum(_) => "enum",
             TypeSpecKind::TypeName(_, _) => "type-name",
-        }
-    }
-
-    pub fn is(&self, kind: &TypeSpecKind) -> bool {
-        std::mem::discriminant(&self.kind) == std::mem::discriminant(kind)
+        };
+        write!(f, "{}", msg)
     }
 }
 
@@ -284,7 +285,7 @@ pub struct StructSpecBody {
 #[derive(Clone, Debug)]
 pub struct StructSpec {
     pub kind: StructOrUnion,
-    pub name: Option<Symbol>,
+    pub name: Option<Ident>,
     pub body: Option<StructSpecBody>,
     pub span: Span,
 }
@@ -306,7 +307,7 @@ pub struct Enumerator {
 #[derive(Clone, Debug)]
 pub struct EnumSpec {
     pub enum_span: Span, // 关键字enum的span
-    pub name: Option<Symbol>,
+    pub name: Option<Ident>,
     pub body: Option<Vec<DeclKey>>, // 内部声明，应该都是 enumerator
     pub span: Span,
 }

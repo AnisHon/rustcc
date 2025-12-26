@@ -64,7 +64,7 @@ pub(crate) fn parse_decl_spec(ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
     let lo = ctx.stream.span();
 
     let mut storage: Option<StorageSpec> = None;
-    let mut type_quals: Qualifier = Qualifier::default();
+    let mut type_quals = TypeQuals::default();
     let mut func_spec: Option<FuncSpec> = None;
 
     let mut int_cnt = 0;
@@ -234,7 +234,7 @@ fn to_type_spec_status(
                 // 重复的
                 (_, Some(_)) => {
                     let error = ParserError::duplicate(
-                        spec.kind_str().to_owned(),
+                        spec.to_string(),
                         DECL_SPEC.to_owned(),
                         span,
                     );
@@ -281,8 +281,7 @@ fn parse_type_spec(
             // 转移失败
             let prev = prev_spec
                 .expect("prev_spec not exists")
-                .kind_str()
-                .to_owned();
+                .to_string();
             let error = ParserError::non_combinable(prev, DECL_SPEC.to_owned(), span);
             return Err(error);
         }
@@ -302,36 +301,34 @@ fn parse_type_spec(
 /// 解析 type qualifier
 /// - `ctx`: Context
 /// - `type_qual`: result qualifier. yes, it's output parameter
-fn parse_type_qual(ctx: &mut CompCtx, type_qual: &mut Qualifier) -> ParserResult<()> {
+fn parse_type_qual(ctx: &mut CompCtx, type_quals: &mut TypeQuals) -> ParserResult<()> {
     let token = ctx.stream.next();
 
     let kw = token
         .kind
         .as_keyword()
         .expect("wrong! token is not keyword");
+    
+    let qual = Some(TypeQual::new(token));
 
     // 追踪原来的 type_qual
-    let origin;
-    match kw {
+    let origin = match kw {
         Keyword::Const => {
-            origin = type_qual.is_const;
-            type_qual.is_const = true;
+            &mut type_quals.is_const
         }
         Keyword::Restrict => {
-            origin = type_qual.is_restrict;
-            type_qual.is_restrict = true;
+            &mut type_quals.is_restrict
         }
         Keyword::Volatile => {
-            origin = type_qual.is_volatile;
-            type_qual.is_volatile = true;
+            &mut type_quals.is_volatile
         }
         _ => unreachable!("wrong! token is keyword but not one of const, restrict, volatile"),
-    }
+    };
 
     // 出现重复了，发个Warning
-    if origin {
+    if let Some(x) = origin.as_ref() {
         let error =
-            ParserError::duplicate(kw.kind_str().to_string(), DECL_SPEC.to_string(), token.span);
+            ParserError::duplicate(kw.kind_str().to_string(), DECL_SPEC.to_string(), );
         ctx.send_error(error)?;
     }
 
@@ -766,7 +763,7 @@ fn parse_enum_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
     let name = consume_ident(ctx).map(Ident::new);
 
     // 抽成 insert enum 函数
-    let ty = match name {
+    let ty = match name.as_ref() {
         None => {
             let kind = TypeBuilderKind::new_enum(ctx);
             let builder = TypeBuilder::new(kind);

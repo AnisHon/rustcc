@@ -2,7 +2,7 @@ use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::TokenKind;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::parser_core::*;
-use crate::parser::parser_decl::{parse_decl_after_declarator, parse_declarator};
+use crate::parser::parser_decl::{parse_decl, parse_decl_after_declarator, parse_declarator};
 use crate::parser::parser_stmt::parse_compound_stmt;
 use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::ast::func::{ExternalDecl, FuncDecl, FuncDef, TranslationUnit};

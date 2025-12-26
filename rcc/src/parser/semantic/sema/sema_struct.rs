@@ -11,15 +11,18 @@ pub struct Sema {
 }
 impl Sema {
     pub fn new() -> Self {
-        let curr_decl = Rc::new(RefCell::new(CommonDeclContext::new(DeclContextKind::File, None)));
+        let curr_decl = Rc::new(RefCell::new(CommonDeclContext::new(
+            DeclContextKind::File,
+            None,
+        )));
         let type_context = TypeContext::new();
-        
+
         Self {
             curr_decl,
             type_context,
         }
     }
-    
+
     /// 进入decl
     /// # Arguments
     /// - `kind`: 类型
@@ -50,12 +53,12 @@ impl Sema {
     pub fn get_decl_context(&self) -> DeclContextRef {
         Rc::clone(&self.curr_decl)
     }
-    
+
     pub fn insert_decl(&mut self, decl: DeclKey) -> ParserResult<()> {
         self.curr_decl.borrow_mut().insert(decl)
     }
 
-    pub fn insert_parent(&mut self, decl: DeclRef) -> ParserResult<()> {
+    pub fn insert_parent(&mut self, decl: DeclKey) -> ParserResult<()> {
         let curr_decl = self.curr_decl.borrow_mut();
         let parent_decl = curr_decl.get_parent().unwrap();
         parent_decl.borrow_mut().insert(decl)
@@ -64,5 +67,4 @@ impl Sema {
     pub fn lookup_chain(&self, symbol: Symbol) -> Option<DeclRef> {
         self.curr_decl.borrow().lookup_chain(symbol)
     }
-    
 }

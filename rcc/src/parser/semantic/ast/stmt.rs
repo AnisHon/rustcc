@@ -1,4 +1,4 @@
-use crate::parser::ast::{ExprKey, StmtKey};
+pub(crate) use crate::parser::ast::{ExprKey, StmtKey};
 use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::comp_ctx::CompCtx;
@@ -6,8 +6,7 @@ use crate::parser::semantic::sema::decl::decl_context::DeclContextRef;
 use crate::types::span::{Pos, Span};
 use slotmap::new_key_type;
 
-new_key_type! {
-}
+new_key_type! {}
 
 #[derive(Clone, Debug)]
 pub enum StmtKind {

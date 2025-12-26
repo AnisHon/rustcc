@@ -5,7 +5,7 @@ use crate::{
     parser::{
         ast::{
             ExprKey, TypeKey,
-            exprs::{ExprKind, NumberConstant},
+            exprs::ExprKind,
             types::{ArraySize, FloatSize, IntegerSize, Qualifier},
         },
         common::TypeSpecState,
@@ -186,6 +186,7 @@ fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySiz
         return Err(error);
     }
 
+    // 这里需要改成使用value
     // 如果不是 constant 就是 VLA, 否则是Static的普通静态数组
     let number = match expr.kind {
         ExprKind::Constant(x) => x,
@@ -194,7 +195,7 @@ fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySiz
 
     // 获取数组大小
     let array_size = match number {
-        NumberConstant::Integer { value } => value,
+        IntConstant::Integer { value } => value,
         _ => unreachable!("not an integer"),
     };
 

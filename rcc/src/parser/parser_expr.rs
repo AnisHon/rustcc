@@ -2,7 +2,8 @@ use crate::err::parser_error;
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, LiteralKind, TokenKind};
-use crate::parser::ast::exprs::{ExprKey, ExprKind, Parameter};
+use crate::parser::ast::ExprKey;
+use crate::parser::ast::exprs::{ExprKind, Parameter};
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::parser_core::*;
 use crate::parser::parser_decl::parse_type_name;
@@ -371,7 +372,7 @@ fn parse_exclusive_or_expr_rhs(ctx: &mut CompCtx, lhs: ExprKey, lo: Span) -> Par
         let span = Span::span(lo, hi);
 
         let kind = ExprKind::make_binary(lhs, op, rhs);
-        let expr = make_expr( ctx, kind, span)?;
+        let expr = make_expr(ctx, kind, span)?;
 
         return parse_exclusive_or_expr_rhs(ctx, expr, lo);
     }

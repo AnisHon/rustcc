@@ -23,12 +23,14 @@ impl Type {
 
     pub fn is_void_ptr(&self, ctx: &CompCtx) -> bool {
         match &self.kind {
-            TypeKind::Pointer { elem_ty } => matches!(ctx.get_type(*elem_ty).kind, TypeKind::Void),
+            TypeKind::Pointer { elem_ty } => {
+                matches!(ctx.type_ctx.get_type(*elem_ty).kind, TypeKind::Void)
+            }
             _ => false,
         }
     }
 
-    pub fn is_integer(&self) -> bool {{
-        self.kind.is_integer()
-    }}
+    pub fn is_integer(&self) -> bool {
+        { self.kind.is_integer() }
+    }
 }

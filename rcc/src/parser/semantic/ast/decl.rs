@@ -58,7 +58,7 @@ pub enum DeclKind {
     },
     RecordField {
         // int a : 10;
-        bit_field: Option<u128>,
+        bit_field: Option<ExprKey>,
     },
     Record {
         kind: StructOrUnion,
@@ -69,7 +69,7 @@ pub enum DeclKind {
         kind: StructOrUnion,
     }, // struct name;
     EnumField {
-        expr: Option<u128>,
+        expr: Option<ExprKey>,
     },
     Enum {
         // enum name { ... }

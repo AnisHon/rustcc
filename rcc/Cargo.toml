@@ -13,3 +13,4 @@ thiserror.workspace = true
 phf = { version = "0.13.1", features = ["macros"] }
 unicode-ident = "1.0.19"
 rustc-hash = "2.1.1"
+lazy_static = "1.5.0"
