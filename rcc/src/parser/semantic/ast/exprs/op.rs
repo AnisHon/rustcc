@@ -45,7 +45,7 @@ impl AssignOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum BinOpKind {
     Plus, Minus, Mul, Div, Mod,
     BitAnd, BitOr, BitXor,
@@ -90,7 +90,7 @@ impl BinOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum UnaryOpKind {
     AddrOf,
     Deref,

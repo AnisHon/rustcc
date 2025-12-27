@@ -150,13 +150,19 @@ impl TypeCtx {
     }
 
     // 字符串类型, 无法保证 immutable
-    pub fn get_string_type(&mut self, sz: u64) -> Result<TypeKey, TypeError> {
+    pub fn get_string_type(&mut self, sz: u64) -> TypeKey {
+        // c 的 string 似乎不是 const 类型
         let elem_ty = self.get_char();
         let size = ArraySize::Static(sz);
         let kind = TypeBuilderKind::Array { elem_ty, size };
         let ty = TypeBuilder::new(kind);
 
-        self.build_type(ty)
+        self.build_type(ty).expect("build string failed")
+    }
+
+    pub fn get_pointer(&mut self, elem_ty: TypeKey) -> TypeKey {
+        let builder = TypeBuilder::new(TypeBuilderKind::Pointer { elem_ty });
+        self.build_type(builder).expect("build pointer fail")
     }
 
     /// 获取未知类型
@@ -176,4 +182,5 @@ impl TypeCtx {
         self.enum_counter += 1;
         enum_id
     }
+
 }

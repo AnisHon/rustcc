@@ -6,6 +6,7 @@ impl Type {
         matches!(&self.kind, TypeKind::Unknown)
     }
 
+    /// 算数类型，Integer  Floating
     pub fn is_arithmetic(&self) -> bool {
         matches!(
             self.kind,
@@ -17,6 +18,7 @@ impl Type {
         matches!(self.kind, TypeKind::Pointer { .. } | TypeKind::Array { .. })
     }
 
+    /// scalar : pointer, 算数类型
     pub fn is_scalar(&self) -> bool {
         self.is_pointer() || self.is_arithmetic()
     }
@@ -31,6 +33,6 @@ impl Type {
     }
 
     pub fn is_integer(&self) -> bool {
-        { self.kind.is_integer() }
+        self.kind.is_integer()
     }
 }

@@ -31,7 +31,7 @@ pub enum ErrorKind {
     Redefinition { symbol: &'static str, prev: DeclKey },
     #[error("Undefined '{symbol}'")]
     Undefined { symbol: &'static str },
-    #[error("Subscripted value is not an array,pointer,or vector")]
+    #[error("Subscripted value is not an array, pointer or vector")]
     NonSubscripted,
     #[error("No Member named '{field}' in '{ty}'")]
     NoMember { field: String, ty: String },
@@ -52,9 +52,11 @@ pub enum ErrorKind {
         field: Option<Symbol>,
     },
     #[error("{err}")]
-    TypeError {
-        err: TypeError
-    }
+    TypeError { err: TypeError },
+    #[error("Statement requires expression of scalar type")]
+    NotScalar { ty: TypeKey },
+    #[error("Incompatible operand types")]
+    Incompatible { ty1: TypeKey, ty2: TypeKey },
 }
 
 impl ErrorKind {
@@ -92,7 +94,10 @@ impl ErrorLevel {
             | NotStructOrUnion { .. }
             | NotIntConstant
             | IntegerTooLarge
-            | BitFieldExceed { .. } | TypeError { .. } => Error,
+            | BitFieldExceed { .. }
+            | TypeError { .. }
+            | NotScalar { .. }
+            | Incompatible { .. } => Error,
             Duplicate { .. } => Warning,
         }
     }
@@ -149,6 +154,16 @@ impl ParserError {
         Self::new(kind, span)
     }
 
+    pub fn not_scalar_type(ty: TypeKey, span: Span) -> Self {
+        let kind = ErrorKind::NotScalar { ty };
+        Self::new(kind, span)
+    }
+
+    pub fn non_subscripted(span: Span) -> Self {
+        let kind = ErrorKind::NonSubscripted;
+        Self::new(kind, span)
+    }
+
     pub fn integer_too_large(span: Span) -> Self {
         let kind = ErrorKind::IntegerTooLarge;
         Self::new(kind, span)
@@ -180,6 +195,11 @@ impl ParserError {
 
     pub fn non_combinable(prev: String, ctx: String, span: Span) -> Self {
         let kind = ErrorKind::NonCombinable { prev, context: ctx };
+        Self::new(kind, span)
+    }
+
+    pub fn incompatable(ty1: TypeKey, ty2: TypeKey, span: Span) -> Self {
+        let kind = ErrorKind::Incompatible { ty1, ty2 };
         Self::new(kind, span)
     }
 

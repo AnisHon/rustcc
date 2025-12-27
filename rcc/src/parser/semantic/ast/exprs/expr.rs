@@ -6,15 +6,17 @@ use crate::parser::ast::{ExprKey, TypeKey};
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::sema::expr::value_type::ValueType;
 use crate::types::span::Span;
+use crate::util::ap_float::APFloat;
+use crate::util::ap_int::APInt;
 use enum_as_inner::EnumAsInner;
-use num_bigint::BigInt;
+use ibig::IBig;
 
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub ty: TypeKey,
     pub span: Span,
-    pub value: Option<BigInt>,
+    pub value: Option<Constant>,
 }
 
 #[derive(Clone, Debug, EnumAsInner)]
@@ -200,15 +202,25 @@ impl Expr {
         ValueType::value_type(self) == ValueType::LValue
     }
 
-    pub fn should_int_constant(&self) -> ParserResult<BigInt> {
+    pub fn should_int_constant(&self) -> ParserResult<APInt> {
         // 不是 constant 出错
         let num = self
             .value
             .clone()
-            .ok_or(ParserError::not_int_constant(self.span))?;
+            .ok_or(ParserError::not_int_constant(self.span))?
+            .into_intager()
+            .map_err(|_| ParserError::not_int_constant(self.span))?;
+
 
         Ok(num)
     }
+}
+
+#[derive(Debug, Clone, EnumAsInner)]
+pub enum Constant {
+    Intager{ value: APInt, },
+    Float{ value: APFloat, },
+    String{ value: Symbol },
 }
 
 #[derive(Debug, Clone)]
