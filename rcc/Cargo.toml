@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 slotmap.workspace = true
 petgraph.workspace = true
-num-bigint.workspace = true
 enum-as-inner = "0.6.1"
 strum = "0.27.2"
 thiserror.workspace = true
@@ -15,4 +14,3 @@ unicode-ident = "1.0.19"
 rustc-hash = "2.1.1"
 lazy_static = "1.5.0"
 ibig = "0.3.6"
-rug = "1.28.0"

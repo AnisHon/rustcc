@@ -3,11 +3,12 @@ use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
 use crate::parser::ast::DeclKey;
 use crate::parser::ast::ExprKey;
+use crate::parser::ast::TypeKey;
 use crate::parser::ast::common::StructOrUnion;
-use crate::parser::common::TypeSpecState;
 use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
+use crate::parser::semantic::sema::type_ctx::type_builder::TypeBuilderKind;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
 use std::fmt::{Display, Formatter};
@@ -24,9 +25,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, Clone)]
 pub struct DeclSpec {
     pub storage: Option<StorageSpec>, // 全局上下文的时候默认extern
-    pub signed: Option<bool>,
-    pub base_type: TypeSpecState,
-    pub base_spec: Option<TypeSpec>,
+    pub kind: TypeBuilderKind,
     pub type_quals: TypeQuals,
     pub func_spec: Option<FuncSpec>,
     pub span: Span,
@@ -47,15 +46,17 @@ pub struct StorageSpec {
     pub span: Span,
 }
 
-impl StorageSpec {
-    pub fn kind_str(&self) -> &'static str {
-        match self.kind {
-            StorageSpecKind::Typedef => "typedef",
-            StorageSpecKind::Extern => "extern",
-            StorageSpecKind::Static => "static",
-            StorageSpecKind::Auto => "auto",
-            StorageSpecKind::Register => "register",
-        }
+impl Display for StorageSpec {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        use StorageSpecKind::*;
+        let str = match self.kind {
+            Typedef => "typedef",
+            Extern => "extern",
+            Static => "static",
+            Auto => "auto",
+            Register => "register",
+        };
+        write!(f, "{}", str)
     }
 }
 impl StorageSpec {
@@ -200,16 +201,19 @@ impl TypeQual {
             span: token.span,
         }
     }
-
-    pub fn kind_str(&self) -> &'static str {
-        match self.kind {
-            TypeQualKind::Const => "const",
-            TypeQualKind::Restrict => "restrict",
-            TypeQualKind::Volatile => "volatile",
-        }
-    }
 }
 
+impl Display for TypeQual {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        use TypeQualKind::*;
+        let str = match self.kind {
+            Const => "const",
+            Restrict => "restrict",
+            Volatile => "volatile",
+        };
+        write!(f, "{}", str) 
+    }
+}
 /// Qualifier
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TypeQuals {
@@ -244,11 +248,15 @@ impl FuncSpec {
             span: token.span,
         }
     }
-    pub fn kind_str(&self) -> &'static str {
-        match self.kind {
+}
+
+impl Display for FuncSpec {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self.kind {
             FuncSpecKind::Inline => "inline",
-        }
-    }
+        };
+        write!(f, "{}", str)
+    } 
 }
 
 #[derive(Clone, Debug)]

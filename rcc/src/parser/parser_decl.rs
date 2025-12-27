@@ -1,9 +1,8 @@
 use crate::err::parser_error;
+use crate::constant::str::DECL_SPEC;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token_kind::{Keyword, TokenKind};
-use crate::parser::ast::types::Qualifier;
 use crate::parser::ast::{DeclKey, TypeKey};
-use crate::parser::common::TypeSpecState;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::parser_core::*;
 use crate::parser::parser_expr::parse_assign_expr;
@@ -12,13 +11,11 @@ use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::decl_spec::*;
 use crate::parser::semantic::declarator::*;
 use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
-use crate::parser::semantic::sema::decl::declarator::PartialDecl;
+use crate::parser::semantic::sema::decl::declarator::{PartialDecl, act_on_decl_spec};
 use crate::parser::semantic::sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind};
 use crate::types::span::{Pos, Span};
 use std::rc::Rc;
-use std::string::ParseError;
 
-const DECL_SPEC: &str = "declaration specifier";
 
 fn check_declarator(ctx: &CompCtx) -> bool {
     let kind = &ctx.stream.peek().kind;
@@ -63,57 +60,29 @@ pub(crate) fn parse_decl_after_declarator(
 pub(crate) fn parse_decl_spec(ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
     let lo = ctx.stream.span();
 
-    let mut storage: Option<StorageSpec> = None;
-    let mut type_quals = TypeQuals::default();
-    let mut func_spec: Option<FuncSpec> = None;
-
-    let mut int_cnt = 0;
-    let mut signed = None;
-    let mut state = TypeSpecState::Init;
-    let mut spec: Option<TypeSpec> = None;
+    let mut storages: Vec<StorageSpec> = Vec::new();
+    let mut type_quals: Vec<TypeQual> = Vec::new();
+    let mut func_specs: Vec<FuncSpec> = Vec::new();
+    let mut specs: Vec<TypeSpec> = Vec::new();
 
     loop {
         let token = ctx.stream.peek();
         if is_storage_spec(token) {
+            let spec = StorageSpec::new(ctx.stream.next());
+            storages.push(spec);
             // typedef extern static auto register
-            let spec = parse_storage_spec(ctx)?;
-
-            if let Some(storage) = &storage {
-                let error = if storage.kind == spec.kind {
-                    ParserError::duplicate(
-                        spec.kind_str().to_owned(),
-                        DECL_SPEC.to_owned(),
-                        storage.span,
-                    )
-                } else {
-                    return Err(ParserError::non_combinable(
-                        spec.kind_str().to_owned(),
-                        DECL_SPEC.to_owned(),
-                        storage.span,
-                    ));
-                };
-                ctx.send_error(error)?;
-            }
-            storage = Some(spec);
         } else if is_type_spec(ctx, token) {
             // 解析组合下一个 type spec
-            spec = parse_type_spec(ctx, &mut int_cnt, &mut signed, &mut state, spec.as_ref())?;
+            let spec = parse_type_spec(ctx)?;
+            specs.push(spec);
         } else if is_type_qual(token) {
             // const restrict volatile
-            parse_type_qual(ctx, &mut type_quals)?;
+            let spec = TypeQual::new(ctx.stream.next());
+            type_quals.push(spec);
         } else if check_keyword(ctx, Keyword::Inline) {
             // inline
             let spec = parse_function_spec(ctx)?;
-
-            if func_spec.is_some() {
-                let error = ParserError::duplicate(
-                    spec.kind_str().to_owned(),
-                    DECL_SPEC.to_owned(),
-                    spec.span,
-                );
-                ctx.send_error(error)?;
-            }
-            func_spec = Some(spec);
+            func_specs.push(spec);
         } else {
             break;
         };
@@ -122,26 +91,23 @@ pub(crate) fn parse_decl_spec(ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
 
-    let decl_spec = Rc::new(DeclSpec {
-        storage,
-        signed,
-        base_spec: spec,
-        base_type: state,
-        type_quals,
-        func_spec,
-        span,
-    });
+    // 构建 decl_spec
+    let decl_spec = act_on_decl_spec(
+        ctx, 
+        storages, 
+        type_quals, 
+        func_specs, 
+        type_specs, 
+        span
+    )?;
+
     Ok(decl_spec)
 }
 
-fn parse_storage_spec(ctx: &mut CompCtx) -> ParserResult<StorageSpec> {
-    let token = ctx.stream.next();
-    let storage_spec = StorageSpec::new(token);
-    Ok(storage_spec)
-}
-
-/// 获取 type spec
-fn get_type_spec(ctx: &mut CompCtx) -> ParserResult<TypeSpec> {
+/// 解析type spec
+fn parse_type_spec(
+    ctx: &mut CompCtx,
+) -> ParserResult<TypeSpec> {
     let token = ctx.stream.peek();
     let span = token.span;
     let spec = match &token.kind {
@@ -186,122 +152,14 @@ fn get_type_spec(ctx: &mut CompCtx) -> ParserResult<TypeSpec> {
         _ => unreachable!(),
     };
 
-    Ok(spec)
-}
-
-/// 将 spec 转换为 state, 顺便检查一下错误，设置一下int_cnt signed
-fn to_type_spec_status(
-    int_cnt: &mut usize,
-    signed: &mut Option<bool>,
-    state: TypeSpecState,
-    spec: &TypeSpec,
-    span: Span,
-) -> ParserResult<TypeSpecState> {
-    use TypeSpecKind::*;
-
-    let next_state: TypeSpecState = match &spec.kind {
-        Int => {
-            // 重复定义int
-            if *int_cnt > 1 {
-                let error =
-                    ParserError::non_combinable("int".to_string(), DECL_SPEC.to_string(), span);
-                return Err(error);
-            }
-            *int_cnt += 1;
-            TypeSpecState::Int
-        }
-
-        Signed | Unsigned => {
-            // 检测重复定义
-            match (&spec.kind, *signed) {
-                // 冲突的
-                (Signed, Some(false)) => {
-                    let error = ParserError::non_combinable(
-                        "unsigned".to_owned(),
-                        DECL_SPEC.to_owned(),
-                        span,
-                    );
-                    return Err(error);
-                }
-                (Unsigned, Some(true)) => {
-                    let error = ParserError::non_combinable(
-                        "signed".to_owned(),
-                        DECL_SPEC.to_owned(),
-                        span,
-                    );
-                    return Err(error);
-                }
-                // 重复的
-                (_, Some(_)) => {
-                    let error = ParserError::duplicate(
-                        spec.to_string(),
-                        DECL_SPEC.to_owned(),
-                        span,
-                    );
-                    return Err(error);
-                }
-                _ => {}
-            };
-
-            *signed = Some(spec.kind.is_signed());
-            return Ok(state);
-        }
-        Void => TypeSpecState::Void,
-        Char => TypeSpecState::Char,
-        Short => TypeSpecState::Short,
-        Long => TypeSpecState::Long,
-        Float => TypeSpecState::Float,
-        Double => TypeSpecState::Double,
-        Record(_) => TypeSpecState::Struct,
-        TypeSpecKind::Record(_) => TypeSpecState::Union,
-        TypeSpecKind::Enum(_) => TypeSpecState::Enum,
-        TypeSpecKind::TypeName(_, _) => TypeSpecState::TypeName,
-    };
-
-    Ok(next_state)
-}
-
-/// 解析type spec
-fn parse_type_spec(
-    ctx: &mut CompCtx,
-    int_cnt: &mut usize,
-    signed: &mut Option<bool>,
-    state: &mut TypeSpecState,
-    prev_spec: Option<&TypeSpec>,
-) -> ParserResult<Option<TypeSpec>> {
-    let span = ctx.stream.span();
-    let spec = get_type_spec(ctx)?;
-
-    let curr_state = to_type_spec_status(int_cnt, signed, *state, &spec, span)?;
-
     // 组合
-    *state = match TypeSpecState::combine(*state, curr_state) {
-        Some(state) => state,
-        None => {
-            // 转移失败
-            let prev = prev_spec
-                .expect("prev_spec not exists")
-                .to_string();
-            let error = ParserError::non_combinable(prev, DECL_SPEC.to_owned(), span);
-            return Err(error);
-        }
-    };
-
-    // 返回有用的 spec，无用的 spec 置空
-    let spec = match &spec.kind {
-        TypeSpecKind::Record(_)
-        | TypeSpecKind::Record(_)
-        | TypeSpecKind::Enum(_)
-        | TypeSpecKind::TypeName(_, _) => Some(spec),
-        _ => None,
-    };
     Ok(spec)
 }
 
 /// 解析 type qualifier
 /// - `ctx`: Context
 /// - `type_qual`: result qualifier. yes, it's output parameter
-fn parse_type_qual(ctx: &mut CompCtx, type_quals: &mut TypeQuals) -> ParserResult<()> {
+fn parse_type_qual(ctx: &mut CompCtx) -> ParserResult<()> {
     let token = ctx.stream.next();
 
     let kw = token
@@ -327,8 +185,11 @@ fn parse_type_qual(ctx: &mut CompCtx, type_quals: &mut TypeQuals) -> ParserResul
 
     // 出现重复了，发个Warning
     if let Some(x) = origin.as_ref() {
-        let error =
-            ParserError::duplicate(kw.kind_str().to_string(), DECL_SPEC.to_string(), );
+        let error =ParserError::duplicate(
+            kw.to_string(), 
+            DECL_SPEC,
+            token.span
+        );
         ctx.send_error(error)?;
     }
 
@@ -487,29 +348,25 @@ fn parse_type_qual_list(ctx: &mut CompCtx) -> ParserResult<TypeQuals> {
     loop {
         if is_type_qual(ctx.stream.peek()) {
             let qual = TypeQual::new(ctx.stream.next());
-            let mut is_dup = false;
 
             // 设置 const restrict volatile
-            match &qual.kind {
+            let field = match &qual.kind {
                 Const => {
-                    is_dup = type_quals.is_const.is_some();
-                    type_quals.is_const = Some(qual);
+                    &mut type_quals.is_const
                 }
                 Restrict => {
-                    is_dup = type_quals.is_restrict.is_some();
-                    type_quals.is_restrict = Some(qual);
+                    &mut type_quals.is_restrict 
                 }
                 Volatile => {
-                    is_dup = type_quals.is_volatile.is_some();
-                    type_quals.is_volatile = Some(qual);
+                    &mut type_quals.is_volatile
                 }
-            }
+            };
 
             // 重复发一个警告
-            if is_dup {
+            if field.is_some() {
                 let error = ParserError::duplicate(
-                    qual.kind_str().to_string(),
-                    DECL_SPEC.to_owned(),
+                    qual.to_string(),
+                    DECL_SPEC,
                     qual.span,
                 );
                 send_error(ctx, error);
@@ -762,20 +619,7 @@ fn parse_enum_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
 
     let name = consume_ident(ctx).map(Ident::new);
 
-    // 抽成 insert enum 函数
-    let ty = match name.as_ref() {
-        None => {
-            let kind = TypeBuilderKind::new_enum(ctx);
-            let builder = TypeBuilder::new(kind);
-            ctx.type_ctx
-                .build_type(builder)
-                .map_err(|err| ParserError::from_type_error(err, kw))?
-        }
-        Some(x) => match ctx.scope_mgr.lookup_local_tag(x.symbol) {
-            None => {}
-            Some(x) => {}
-        },
-    }
+   
 
     // todo 如果没有 name 向类型和符号添加一次前向声明，如果有 name 就查询符号表
 

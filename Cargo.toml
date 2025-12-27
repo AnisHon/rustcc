@@ -25,6 +25,7 @@ slotmap = "=1.0.7"
 num-bigint = "0.4.6"
 
 [dependencies]
+inkwell = "0.7.1"
 lazy_static = "1.5.0"
 
 

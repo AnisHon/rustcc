@@ -4,7 +4,6 @@ use crate::lex::types::token_kind::Symbol;
 use crate::parser::ast::{DeclKey, TypeKey};
 use crate::parser::common::Ident;
 use crate::types::span::Span;
-use core::error;
 use std::backtrace::Backtrace;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
@@ -188,13 +187,13 @@ impl ParserError {
         Self::new(kind, span)
     }
 
-    pub fn duplicate(item: String, ctx: String, span: Span) -> Self {
-        let kind = ErrorKind::Duplicate { item, context: ctx };
+    pub fn duplicate(item: String, ctx: &str, span: Span) -> Self {
+        let kind = ErrorKind::Duplicate { item, context: ctx.to_owned() };
         Self::new(kind, span)
     }
 
-    pub fn non_combinable(prev: String, ctx: String, span: Span) -> Self {
-        let kind = ErrorKind::NonCombinable { prev, context: ctx };
+    pub fn non_combinable(prev: String, ctx: &str, span: Span) -> Self {
+        let kind = ErrorKind::NonCombinable { prev, context: ctx.to_owned() };
         Self::new(kind, span)
     }
 

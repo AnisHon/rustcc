@@ -111,11 +111,11 @@ impl ScopeMgr {
     scope_insert!(insert_label, labels);
     scope_insert!(insert_member, members);
 
-    fn insert_ident(&mut self, ctx: &CompCtx, key: DeclKey) -> ParserResult<()> {
+    pub fn insert_ident(&mut self, key: DeclKey) -> ParserResult<()> {
         todo!()
     }
 
-    fn insert_tag(&mut self, ctx: &CompCtx, key: DeclKey) -> ParserResult<()> {
+    pub fn insert_tag(&mut self, key: DeclKey) -> ParserResult<()> {
         todo!()
     }
 }

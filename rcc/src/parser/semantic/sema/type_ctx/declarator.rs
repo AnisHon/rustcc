@@ -1,4 +1,5 @@
-use crate::parser::semantic::decl_spec::TypeSpecKind;
+use crate::parser::semantic::decl_spec::{DeclSpec};
+use crate::types::span::Span;
 use crate::{
     constant::typ::MAX_ARRAY_LEN,
     err::parser_error::{self, ParserError, ParserResult},
@@ -11,7 +12,7 @@ use crate::{
         common::TypeSpecState,
         comp_ctx::CompCtx,
         semantic::{
-            decl_spec::{DeclSpec, ParamDecl},
+            decl_spec::{ParamDecl},
             declarator::{Declarator, DeclaratorChunkKind},
             sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind},
         },
@@ -19,21 +20,27 @@ use crate::{
 };
 
 /// 解析type主体部分
-fn resolve_type_base(ctx: &mut CompCtx, spec: &DeclSpec) -> ParserResult<TypeBuilderKind> {
-    let signed = spec.signed;
+/// - `span`: TypeSpec的span
+pub fn resolve_type_spec(
+    ctx: &mut CompCtx, 
+    signed: Option<TypeSpec>, 
+    state: TypeSpecState, 
+    decl: Option<DeclKey>,
+    span: Span,
+) -> ParserResult<TypeBuilderKind> {
 
     // 查错
-    match spec.base_type {
+    match state {
         TypeSpecState::Float
         | TypeSpecState::Double
         | TypeSpecState::LongDouble
-        | TypeSpecState::Struct
-        | TypeSpecState::Union
+        | TypeSpecState::Record
         | TypeSpecState::Enum
         | TypeSpecState::TypeName => {
             // 不能组合signed unsigned
             if signed.is_some() {
-                todo!("can not combine unsigned/signed")
+                let err = ParserError::non_combinable(, "declaration specifier", span);
+                return Err(err);
             }
         }
         _ => {}
@@ -73,20 +80,10 @@ fn resolve_type_base(ctx: &mut CompCtx, spec: &DeclSpec) -> ParserResult<TypeBui
         TypeSpecState::LongDouble => TypeBuilderKind::Floating {
             size: FloatSize::LongDouble,
         },
-        TypeSpecState::Struct
-        | TypeSpecState::Union
+        TypeSpecState::Record
         | TypeSpecState::Enum
         | TypeSpecState::TypeName => {
-            let base_spec = spec
-                .base_spec
-                .as_ref()
-                .expect("when record enum typename, base_spec should not be none");
-            let decl = match base_spec.kind {
-                TypeSpecKind::Record(decl)
-                | TypeSpecKind::Enum(decl)
-                | TypeSpecKind::TypeName(_, decl) => decl,
-                _ => unreachable!("expect Record Enum TypeName, got {:?}", base_spec.kind),
-            };
+            let decl = decl.expect("decl should not be none");
             let decl = ctx.get_decl(decl);
             let ty = ctx.type_ctx.get_type(decl.ty);
             let kind = TypeBuilderKind::from_type_kind(ty.kind.clone());
@@ -99,14 +96,16 @@ fn resolve_type_base(ctx: &mut CompCtx, spec: &DeclSpec) -> ParserResult<TypeBui
 }
 
 /// 解析decl_spec
-fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> ParserResult<TypeKey> {
-    let type_quals = decl_spec.type_quals;
-    let kind = resolve_type_base(ctx, decl_spec)?;
+/// - `span`: TypeSpec的span
+pub fn resolve_decl_spec(
+    ctx: &mut CompCtx, 
+    decl_spec: DeclSpec,
+) -> ParserResult<TypeKey> {
+    let kind = decl_spec.kind; 
     let builder = TypeBuilder::new_with_qual(Qualifier::new(&type_quals), kind);
 
     // 去重
-    let ty = ctx
-        .type_ctx
+    let ty = ctx.type_ctx
         .build_type(builder)
         .map_err(|err| ParserError::from_type_error(err, decl_spec.span))?;
     Ok(ty)

@@ -73,13 +73,10 @@ pub enum DeclKind {
     },
     Enum {
         // enum name { ... }
-        kw: Span,
         enums: Vec<DeclKey>,
         decl_context: DeclContextRef,
     },
-    EnumRef {
-        kw: Span,
-    },
+    EnumRef
 }
 
 impl Decl {

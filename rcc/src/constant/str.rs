@@ -1,0 +1,1 @@
+pub const DECL_SPEC: &str = "declaration specifier";
