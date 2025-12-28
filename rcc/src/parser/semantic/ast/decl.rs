@@ -1,9 +1,7 @@
-pub(crate) use crate::parser::ast::common::StructOrUnion;
 use crate::parser::ast::{DeclKey, ExprKey, TypeKey};
 use crate::parser::semantic::ast::stmt::Stmt;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::StorageSpec;
-use crate::parser::semantic::sema::decl::decl_context::DeclContextRef;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
 
@@ -61,22 +59,17 @@ pub enum DeclKind {
         bit_field: Option<ExprKey>,
     },
     Record {
-        kind: StructOrUnion,
-        fields: Vec<DeclGroup>,
-        decl_context: DeclContextRef,
+        kind: Record,
+        fields: Option<Vec<DeclGroup>>, // 当 fields 为 none 时为不完全类型
+                                        // decl_context: DeclContextRef,
     },
-    RecordRef {
-        kind: StructOrUnion,
-    }, // struct name;
     EnumField {
         expr: Option<ExprKey>,
     },
     Enum {
-        // enum name { ... }
-        enums: Vec<DeclKey>,
-        decl_context: DeclContextRef,
+        enums: Option<Vec<DeclKey>>, // 当 enums 为 none 时为不完全类型
+                                     // decl_context: DeclContextRef,
     },
-    EnumRef
 }
 
 impl Decl {

@@ -1,156 +1,17 @@
-use crate::parser::semantic::decl_spec::{DeclSpec};
-use crate::types::span::Span;
+use ibig::ibig;
+
 use crate::{
     constant::typ::MAX_ARRAY_LEN,
     err::parser_error::{self, ParserError, ParserResult},
     parser::{
-        ast::{
-            ExprKey, TypeKey,
-            exprs::ExprKind,
-            types::{ArraySize, FloatSize, IntegerSize, Qualifier},
-        },
-        common::TypeSpecState,
+        ast::{ExprKey, TypeKey, exprs::ExprKind, types::ArraySize},
         comp_ctx::CompCtx,
         semantic::{
-            decl_spec::{ParamDecl},
-            declarator::{Declarator, DeclaratorChunkKind},
+            decl_spec::ParamDecl,
             sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind},
         },
     },
 };
-
-/// 解析type主体部分
-/// - `span`: TypeSpec的span
-pub fn resolve_type_spec(
-    ctx: &mut CompCtx, 
-    signed: Option<TypeSpec>, 
-    state: TypeSpecState, 
-    decl: Option<DeclKey>,
-    span: Span,
-) -> ParserResult<TypeBuilderKind> {
-
-    // 查错
-    match state {
-        TypeSpecState::Float
-        | TypeSpecState::Double
-        | TypeSpecState::LongDouble
-        | TypeSpecState::Record
-        | TypeSpecState::Enum
-        | TypeSpecState::TypeName => {
-            // 不能组合signed unsigned
-            if signed.is_some() {
-                let err = ParserError::non_combinable(, "declaration specifier", span);
-                return Err(err);
-            }
-        }
-        _ => {}
-    }
-
-    let is_signed = signed.unwrap_or(false);
-
-    // 解析为TypeKind
-    let kind = match spec.base_type {
-        TypeSpecState::Void => TypeBuilderKind::Void,
-        TypeSpecState::Char => TypeBuilderKind::Integer {
-            is_signed,
-            size: IntegerSize::Char,
-        },
-        TypeSpecState::Short => TypeBuilderKind::Integer {
-            is_signed,
-            size: IntegerSize::Short,
-        },
-        TypeSpecState::Int => TypeBuilderKind::Integer {
-            is_signed,
-            size: IntegerSize::Int,
-        },
-        TypeSpecState::Long => TypeBuilderKind::Integer {
-            is_signed,
-            size: IntegerSize::Long,
-        },
-        TypeSpecState::LongLong => TypeBuilderKind::Integer {
-            is_signed,
-            size: IntegerSize::LongLong,
-        },
-        TypeSpecState::Float => TypeBuilderKind::Floating {
-            size: FloatSize::Float,
-        },
-        TypeSpecState::Double => TypeBuilderKind::Floating {
-            size: FloatSize::Double,
-        },
-        TypeSpecState::LongDouble => TypeBuilderKind::Floating {
-            size: FloatSize::LongDouble,
-        },
-        TypeSpecState::Record
-        | TypeSpecState::Enum
-        | TypeSpecState::TypeName => {
-            let decl = decl.expect("decl should not be none");
-            let decl = ctx.get_decl(decl);
-            let ty = ctx.type_ctx.get_type(decl.ty);
-            let kind = TypeBuilderKind::from_type_kind(ty.kind.clone());
-            kind
-        }
-        _ => unreachable!("unknown states type: {:?}", spec.base_type),
-    };
-
-    Ok(kind)
-}
-
-/// 解析decl_spec
-/// - `span`: TypeSpec的span
-pub fn resolve_decl_spec(
-    ctx: &mut CompCtx, 
-    decl_spec: DeclSpec,
-) -> ParserResult<TypeKey> {
-    let kind = decl_spec.kind; 
-    let builder = TypeBuilder::new_with_qual(Qualifier::new(&type_quals), kind);
-
-    // 去重
-    let ty = ctx.type_ctx
-        .build_type(builder)
-        .map_err(|err| ParserError::from_type_error(err, decl_spec.span))?;
-    Ok(ty)
-}
-
-/// 解析declarator
-pub fn resolve_declarator(ctx: &mut CompCtx, declarator: &Declarator) -> ParserResult<TypeKey> {
-    use DeclaratorChunkKind::*;
-
-    let base_ty = resolve_decl_spec(ctx, &declarator.decl_spec)?;
-    let mut ty = base_ty;
-
-    // 解析chunks，这里一定要反着解析
-    for chunk in declarator.chunks.iter().rev() {
-        // 结合成新类型
-        let new_ty = match &chunk.kind {
-            // 数组类型
-            Array { expr } => resolve_array(ctx, ty, *expr)?,
-
-            // pointer 类型
-            Pointer {
-                type_quals: type_qual,
-                ..
-            } => {
-                let pointer = TypeBuilderKind::Pointer { elem_ty: ty };
-                TypeBuilder::new_with_qual(Qualifier::new(type_qual), pointer)
-            }
-
-            // 函数类型
-            Function { param, .. } => resolve_function(ctx, ty, param)?,
-            // DeclaratorChunkKind::Paren { .. } => {
-            //     // ignore
-            //     continue;
-            // }
-        };
-
-        // 尝试去重
-        ty = ctx
-            .type_ctx
-            .build_type(new_ty)
-            .map_err(|err| ParserError::from_type_error(err, chunk.span))?;
-    }
-
-    Ok(base_ty)
-}
 
 /// 解析数组
 /// - `ctx`: 编译器上下文
@@ -174,37 +35,26 @@ fn resolve_array(
 }
 
 /// 解析数组大小
+/// todo 重构
 fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySize> {
     let expr = ctx.pop_expr(expr);
     let expr_ty = ctx.type_ctx.get_type(expr.ty);
 
     // 不是 int 直接出错
-    if !expr_ty.is_integer() {
-        let kind = parser_error::ErrorKind::NotIntConstant;
-        let error = ParserError::new(kind, expr.span);
-        return Err(error);
-    }
-
-    // 这里需要改成使用value
-    // 如果不是 constant 就是 VLA, 否则是Static的普通静态数组
-    let number = match expr.kind {
-        ExprKind::Constant(x) => x,
-        _ => return Ok(ArraySize::VLA),
-    };
-
-    // 获取数组大小
-    let array_size = match number {
-        IntConstant::Integer { value } => value,
-        _ => unreachable!("not an integer"),
+    let array_size = expr.value.map(|x| x.as_intager()).flatten();
+    let array_size = match array_size {
+        Some(x) => x,
+        None => {
+            let kind = parser_error::ErrorKind::NotIntConstant;
+            let error = ParserError::new(kind, expr.span);
+            return Err(error);
+        }
     };
 
     // 转换为 int constant
-    if array_size > MAX_ARRAY_LEN {
-        let error = ParserError::integer_too_large(expr.span);
-        return Err(error);
-    }
+    let array_size = array_size.as_usize();
 
-    Ok(ArraySize::Static(array_size as u64))
+    Ok(ArraySize::Static(array_size))
 }
 
 /// 解析函数类型

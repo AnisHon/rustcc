@@ -4,7 +4,6 @@ use std::sync::{mpsc, Arc};
 use petgraph::dot::{Config, Dot};
 use crate::lex::token_stream::TokenStream;
 use crate::parser::ast::visitor::Visitor;
-use crate::parser::parser_core::Parser;
 use crate::parser::Sema;
 use crate::writer::ast_graph::AstGraph;
 

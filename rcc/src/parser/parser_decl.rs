@@ -1,21 +1,39 @@
-use crate::err::parser_error;
-use crate::constant::str::DECL_SPEC;
-use crate::err::parser_error::{ParserError, ParserResult};
-use crate::lex::types::token_kind::{Keyword, TokenKind};
-use crate::parser::ast::{DeclKey, TypeKey};
-use crate::parser::comp_ctx::CompCtx;
-use crate::parser::parser_core::*;
-use crate::parser::parser_expr::parse_assign_expr;
-use crate::parser::semantic::ast::decl::{DeclGroup, Initializer, InitializerList, StructOrUnion};
-use crate::parser::semantic::common::{Ident, IdentList};
-use crate::parser::semantic::decl_spec::*;
-use crate::parser::semantic::declarator::*;
-use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
-use crate::parser::semantic::sema::decl::declarator::{PartialDecl, act_on_decl_spec};
-use crate::parser::semantic::sema::type_ctx::type_builder::{TypeBuilder, TypeBuilderKind};
-use crate::types::span::{Pos, Span};
-use std::rc::Rc;
+use crate::{
+    err::parser_error::{self, ParserError, ParserResult},
+    lex::types::token_kind::{Keyword, TokenKind},
+    parser::{
+        ast::{
+            DeclKey,
+            decl::{DeclGroup, Initializer},
+        },
+        common::{Ident, IdentList},
+        comp_ctx::CompCtx,
+        parser_core::{check, consume_ident, expect, expect_keyword_pair},
+        semantic::{
+            decl_spec::{
+                DeclSpec, Enumerator, FuncSpec, ParamList, RecordForm, RecordSuffix, StorageSpec,
+                TypeQual, TypeQualKind, TypeQuals, TypeSpec,
+            },
+            declarator::{Declarator, DeclaratorChunk, InitDeclarator},
+            sema::decl::{
+                decl_context::DeclContextKind,
+                declarator::DeclSpecBuilder,
+                record::{
+                    insert_enum_ref, insert_record_def, insert_record_ref, lookup_enum,
+                    lookup_struct,
+                },
+            },
+        },
+    },
+    types::span::Span,
+};
 
+fn expect_semi_or_lbrace_error(ctx: &CompCtx) -> ParserError {
+    let kind = parser_error::ErrorKind::Expect {
+        expect: "identifier or '{'".to_owned(),
+    };
+    error_here(ctx, kind)
+}
 
 fn check_declarator(ctx: &CompCtx) -> bool {
     let kind = &ctx.stream.peek().kind;
@@ -63,7 +81,7 @@ pub(crate) fn parse_decl_spec(ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
     let mut storages: Vec<StorageSpec> = Vec::new();
     let mut type_quals: Vec<TypeQual> = Vec::new();
     let mut func_specs: Vec<FuncSpec> = Vec::new();
-    let mut specs: Vec<TypeSpec> = Vec::new();
+    let mut type_specs: Vec<TypeSpec> = Vec::new();
 
     loop {
         let token = ctx.stream.peek();
@@ -74,7 +92,7 @@ pub(crate) fn parse_decl_spec(ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
         } else if is_type_spec(ctx, token) {
             // 解析组合下一个 type spec
             let spec = parse_type_spec(ctx)?;
-            specs.push(spec);
+            type_specs.push(spec);
         } else if is_type_qual(token) {
             // const restrict volatile
             let spec = TypeQual::new(ctx.stream.next());
@@ -92,22 +110,21 @@ pub(crate) fn parse_decl_spec(ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
     let span = Span::span(lo, hi);
 
     // 构建 decl_spec
-    let decl_spec = act_on_decl_spec(
-        ctx, 
-        storages, 
-        type_quals, 
-        func_specs, 
-        type_specs, 
-        span
-    )?;
+    let builder = DeclSpecBuilder {
+        storages,
+        type_quals,
+        func_specs,
+        type_specs,
+        span,
+    };
+
+    let decl_spec = builder.build(ctx)?;
 
     Ok(decl_spec)
 }
 
 /// 解析type spec
-fn parse_type_spec(
-    ctx: &mut CompCtx,
-) -> ParserResult<TypeSpec> {
+fn parse_type_spec(ctx: &mut CompCtx) -> ParserResult<TypeSpec> {
     let token = ctx.stream.peek();
     let span = token.span;
     let spec = match &token.kind {
@@ -129,13 +146,13 @@ fn parse_type_spec(
         TokenKind::Keyword(kw) => match kw {
             Keyword::Struct => {
                 // 由这个函数自己消耗 struct token
-                let spec = parse_struct_or_union_spec(ctx)?;
+                let spec = parse_record_spec(ctx)?;
                 let kind = TypeSpecKind::Record(spec);
                 TypeSpec { kind, span }
             }
             Keyword::Union => {
                 // 由这个函数自己消耗 union token
-                let spec = parse_struct_or_union_spec(ctx)?;
+                let spec = parse_record_spec(ctx)?;
                 let kind = TypeSpecKind::Record(spec);
                 TypeSpec { kind, span }
             }
@@ -156,45 +173,35 @@ fn parse_type_spec(
     Ok(spec)
 }
 
-/// 解析 type qualifier
-/// - `ctx`: Context
-/// - `type_qual`: result qualifier. yes, it's output parameter
-fn parse_type_qual(ctx: &mut CompCtx) -> ParserResult<()> {
-    let token = ctx.stream.next();
+// /// 解析 type qualifier
+// /// - `ctx`: Context
+// /// - `type_qual`: result qualifier. yes, it's output parameter
+// fn parse_type_qual(ctx: &mut CompCtx) -> ParserResult<()> {
+//     let token = ctx.stream.next();
 
-    let kw = token
-        .kind
-        .as_keyword()
-        .expect("wrong! token is not keyword");
-    
-    let qual = Some(TypeQual::new(token));
+//     let kw = token
+//         .kind
+//         .as_keyword()
+//         .expect("wrong! token is not keyword");
 
-    // 追踪原来的 type_qual
-    let origin = match kw {
-        Keyword::Const => {
-            &mut type_quals.is_const
-        }
-        Keyword::Restrict => {
-            &mut type_quals.is_restrict
-        }
-        Keyword::Volatile => {
-            &mut type_quals.is_volatile
-        }
-        _ => unreachable!("wrong! token is keyword but not one of const, restrict, volatile"),
-    };
+//     let qual = Some(TypeQual::new(token));
 
-    // 出现重复了，发个Warning
-    if let Some(x) = origin.as_ref() {
-        let error =ParserError::duplicate(
-            kw.to_string(), 
-            DECL_SPEC,
-            token.span
-        );
-        ctx.send_error(error)?;
-    }
+//     // 追踪原来的 type_qual
+//     let origin = match kw {
+//         Keyword::Const => &mut type_quals.is_const,
+//         Keyword::Restrict => &mut type_quals.is_restrict,
+//         Keyword::Volatile => &mut type_quals.is_volatile,
+//         _ => unreachable!("wrong! token is keyword but not one of const, restrict, volatile"),
+//     };
 
-    Ok(())
-}
+//     // 出现重复了，发个Warning
+//     if let Some(x) = origin.as_ref() {
+//         let error = ParserError::duplicate(kw.to_string(), DECL_SPEC, token.span);
+//         ctx.send_error(error)?;
+//     }
+
+//     Ok(())
+// }
 
 fn parse_function_spec(ctx: &mut CompCtx) -> ParserResult<FuncSpec> {
     let inline = ctx.stream.next();
@@ -203,6 +210,8 @@ fn parse_function_spec(ctx: &mut CompCtx) -> ParserResult<FuncSpec> {
 }
 
 /// 兼容abstract_declarator
+/// 假设 `int **( (*a)() )[]` 结果应该是 `setname(a) [ * () [] * * ] int`
+/// 解析的时候应该反过来
 pub(crate) fn parse_declarator(ctx: &mut CompCtx, declarator: &mut Declarator) -> ParserResult<()> {
     let lo = ctx.stream.span();
 
@@ -229,11 +238,12 @@ pub(crate) fn parse_declarator(ctx: &mut CompCtx, declarator: &mut Declarator) -
     Ok(())
 }
 
-/// 解析 direct declarator 的第一步，非循环部分
-fn parse_direct_declarator_first(
+/// 解析 direct declarator 的第一步，非循环部分，包括 `ident | (ident)`
+fn parse_direct_declarator_suffix(
     ctx: &mut CompCtx,
     declarator: &mut Declarator,
 ) -> ParserResult<()> {
+    // todo 这里可能有问题， abstract declarator 可能出问题
     if let Some(ident) = consume_ident(ctx) {
         // 设置name
         let ident = Ident::new(ident);
@@ -244,7 +254,7 @@ fn parse_direct_declarator_first(
         let _ = expect(ctx, TokenKind::RParen)?;
     } else {
         unreachable!(
-            "parse_direct_declarator_first: unexpected {:?}",
+            "parse_direct_declarator_suffix: unexpected {:?}",
             ctx.stream.peek()
         );
     };
@@ -255,7 +265,7 @@ fn parse_direct_declarator_first(
 /// 解析direct declarator
 fn parse_direct_declarator(ctx: &mut CompCtx, declarator: &mut Declarator) -> ParserResult<()> {
     // 非循环部分
-    parse_direct_declarator_first(ctx, declarator)?;
+    parse_direct_declarator_suffix(ctx, declarator)?;
 
     // 循环部分 [] ()
     loop {
@@ -351,24 +361,14 @@ fn parse_type_qual_list(ctx: &mut CompCtx) -> ParserResult<TypeQuals> {
 
             // 设置 const restrict volatile
             let field = match &qual.kind {
-                Const => {
-                    &mut type_quals.is_const
-                }
-                Restrict => {
-                    &mut type_quals.is_restrict 
-                }
-                Volatile => {
-                    &mut type_quals.is_volatile
-                }
+                Const => &mut type_quals.is_const,
+                Restrict => &mut type_quals.is_restrict,
+                Volatile => &mut type_quals.is_volatile,
             };
 
             // 重复发一个警告
             if field.is_some() {
-                let error = ParserError::duplicate(
-                    qual.to_string(),
-                    DECL_SPEC,
-                    qual.span,
-                );
+                let error = ParserError::duplicate(qual.to_string(), DECL_SPEC, qual.span);
                 send_error(ctx, error);
             }
         } else {
@@ -416,27 +416,27 @@ fn parse_init_declarator(
             declarator
         }
     };
-    let mut eq: Option<Pos> = None;
-    let mut init: Option<Initializer> = None;
-    if let Some(assign_token) = consume(ctx, TokenKind::Assign) {
-        // 解析initializer部分
-        eq = Some(assign_token.span.to_pos());
-        init = Some(parse_initializer(ctx)?);
-    }
+
+    // 解析initializer部分
+    let mut init = match consume(ctx, TokenKind::Assign) {
+        Some(_) => Some(parse_initializer(ctx)?),
+        None => None,
+    };
 
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
 
     let init_declarator = InitDeclarator {
         declarator,
-        eq,
         init,
         span,
     };
+
     let decl = sema.act_on_init_declarator(init_declarator)?;
     Ok(decl)
 }
 
+/// 解析 initalizer
 fn parse_initializer(ctx: &mut CompCtx) -> ParserResult<Initializer> {
     let init = if let Some(lparen) = consume(ctx, TokenKind::LParen) {
         let l = lparen.span.to_pos();
@@ -466,50 +466,86 @@ fn parse_initializer_list(ctx: &mut CompCtx) -> ParserResult<InitializerList> {
     Ok(list)
 }
 
-fn parse_struct_or_union_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
+/// 解析 record `struct/union [ident]` 部分
+fn parse_record_suffix(ctx: &mut CompCtx) -> ParserResult<RecordSuffix> {
     let lo = ctx.stream.span();
 
     // 消耗struct union关键字
     let kw = expect_keyword_pair(ctx, Keyword::Struct, Keyword::Union)?;
-    let record_kind = StructOrUnion::new(kw);
+    let record_kind = Record::new(kw);
+
     let name = consume_ident(ctx).map(Ident::new); // 尝试解析名字
-    let mut body = None;
 
+    // 计算临时 span
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
 
-    // 进入struct上下文
-    sema.enter_decl(DeclContextKind::Record);
-
-    // 如果没有名字不需要处理声明
-    if let Some(name) = &name {
-        sema.act_on_record_ref(record_kind.clone(), name.clone(), span)?;
-    }
-
-    // 尝试解析内部声明
-    if let Some(lbrace) = consume(ctx, TokenKind::LBrace) {
-        let r = lbrace.span.to_pos();
-        let group = parse_struct_decl_list(ctx)?;
-        let l = expect(ctx, TokenKind::RBrace)?.span.to_pos();
-        body = Some(StructSpecBody {
-            r,
-            groups: group,
-            l,
-        })
-    }
-
-    let hi = ctx.stream.prev_span();
-    let span = Span::span(lo, hi);
-
-    // 语义分析
-    let spec = StructSpec {
-        kind: record_kind,
+    Ok(RecordSuffix {
+        record: record_kind,
         name,
-        body,
         span,
-    };
+    })
+}
 
-    let decl = sema.act_on_finish_record(spec)?;
+/// 区分 声明 定义 引用
+fn classify_record_form(ctx: &mut CompCtx, suffix: RecordSuffix) -> ParserResult<RecordForm> {
+    if check(ctx, TokenKind::LBrace) {
+        // 定义
+        Ok(RecordForm::Definition {
+            record: suffix.record,
+            name: suffix.name,
+        })
+    } else if let Some(name) = suffix.name {
+        if check(ctx, TokenKind::Semi) {
+            // 声明
+            Ok(RecordForm::Declaration {
+                name,
+                record: suffix.record,
+                span: suffix.span,
+            })
+        } else {
+            // 引用
+            Ok(RecordForm::Reference {
+                name,
+                record: suffix.record,
+                span: suffix.span,
+            })
+        }
+    } else {
+        // 出错
+        Err(expect_semi_or_lbrace_error(ctx))
+    }
+}
+
+/// 解析 record
+fn parse_record_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
+    // 解析前缀
+    let suffix = parse_record_suffix(ctx)?;
+
+    // 区分声明/定义/引用
+    let form = classify_record_form(ctx, suffix)?;
+
+    // 执行操作
+    let decl = match form {
+        RecordForm::Definition { record, name } => {
+            // 定义
+            // 前向声明
+            let decl_key = insert_record_def(ctx, record, name, span)?;
+            // 消耗 left brace
+            let _ = ctx.stream.next();
+            let group = parse_struct_decl_list(ctx)?;
+            let _ = expect(ctx, TokenKind::RBrace)?;
+            let hi = ctx.stream.prev_span();
+            let span = Span::span(lo, hi);
+
+            // act_on_finish_record_def 需要重新设置 span 和 fields
+            todo!()
+        }
+        RecordForm::Declaration { record, name, span } => {
+            insert_record_ref(ctx, record_kind, x, span)?
+        }
+        RecordForm::Reference { record, name, span } => lookup_struct(ctx, &record_kind, x, span)?,
+    };
     Ok(decl)
 }
 
@@ -601,13 +637,14 @@ fn parse_struct_declarator(ctx: &mut CompCtx, decl_spec: Rc<DeclSpec>) -> Parser
     Ok(decl)
 }
 
+// todo 重构成 parse_record_spec 的样子
 /// 解析enum声明或定义
 fn parse_enum_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
     // 准备枚举上下文
     sema.enter_decl(DeclContextKind::Enum);
     let lo = ctx.stream.span();
 
-    let kw = expect_keyword(ctx, Keyword::Enum)?.span;
+    expect_keyword(ctx, Keyword::Enum)?;
 
     // 检查是否合法
     if check_ident(ctx) || check(ctx, TokenKind::LBrace) {
@@ -619,55 +656,60 @@ fn parse_enum_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
 
     let name = consume_ident(ctx).map(Ident::new);
 
-   
+    // 计算一下当前的span，添加 Ref 声明
+    let hi = ctx.stream.prev_span();
+    let span = Span::span(lo, hi);
 
-    // todo 如果没有 name 向类型和符号添加一次前向声明，如果有 name 就查询符号表
+    let decl = if check(ctx, TokenKind::LBrace) {
+        // 定义，enum的定义不需要前向声明
+        let _ = ctx.stream.next(); // 跳过 left brace
 
-    let body;
-    if let Some(lbrace) = consume(ctx, TokenKind::LBrace) {
-        let mut decls = Vec::new();
-        // let mut commas = Vec::new();
-
-        let _l = lbrace.span.to_pos();
         // 解析枚举列表
-        parse_enumerator_list(ctx, &mut decls)?;
-        let _r = expect(ctx, TokenKind::RBrace)?.span.to_pos();
-        body = Some(decls);
+        let enums = parse_enumerator_list(ctx)?;
+        expect(ctx, TokenKind::RBrace)?;
+
+        let hi = ctx.stream.prev_span();
+        let span = Span::span(lo, hi);
+        let spec = EnumSpec { name, enums, span };
+        // todo: act_on_enum_spec;
+        todo!()
+    } else if let Some(x) = name {
+        // enum 有名字
+        if check(ctx, TokenKind::Semi) {
+            // 声明在当前作用域插入声明
+            insert_enum_ref(ctx, x, span)?
+        } else {
+            // 下一个token是其他东西，且 enum 有 name，是引用
+            lookup_enum(ctx, x, span)?
+        }
     } else {
-        // 出错
-        let expect = "identifier or '{'".to_owned();
-        let kind = parser_error::ErrorKind::Expect { expect };
-        let error = error_here(ctx, kind);
-        return Err(error);
-    }
+        // 完全不知道是什么东西出错
+        let err = expect_semi_or_lbrace_error(ctx);
+        return Err(err);
+    };
 
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
 
-    let spec = EnumSpec {
-        enum_span: kw,
-        name,
-        body,
-        span,
-    };
     // 完成并结束枚举上下文
     Ok(decl)
 }
 
-fn parse_enumerator_list(ctx: &mut CompCtx, decls: &mut Vec<DeclKey>) -> ParserResult<()> {
+fn parse_enumerator_list(ctx: &mut CompCtx) -> ParserResult<Vec<Enumerator>> {
+    let mut enums: Vec<Enumerator> = Vec::new();
     loop {
-        let decl = parse_enumerator(ctx)?;
-        decls.push(decl);
+        let enumerator = parse_enumerator(ctx)?;
+        enums.push(enumerator);
 
         if consume(ctx, TokenKind::Comma).is_none() {
             break;
         }
     }
-    Ok(())
+    Ok(enums)
 }
 
-// 解析枚举的成员，负责插入符号表
-fn parse_enumerator(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
+// 解析枚举的成员，不插入符号表
+fn parse_enumerator(ctx: &mut CompCtx) -> ParserResult<Enumerator> {
     let lo = ctx.stream.span();
 
     let ident = expect_ident(ctx)?;
@@ -681,8 +723,7 @@ fn parse_enumerator(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
     let span = Span::span(lo, hi);
 
     let enumerator = Enumerator { name, expr, span };
-    let decl = sema.act_on_enumerator(enumerator)?;
-    Ok(decl)
+    Ok(enumerator)
 }
 
 /// 函数列表，不包含左右括号，负责构建符号表

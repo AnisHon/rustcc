@@ -1,11 +1,7 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
-use crate::parser::ast::DeclKey;
-use crate::parser::ast::ExprKey;
-use crate::parser::ast::TypeKey;
-use crate::parser::ast::common::StructOrUnion;
-use crate::parser::semantic::ast::decl::DeclGroup;
+use crate::parser::ast::{DeclKey, ExprKey, common::StructOrUnion, decl::DeclGroup};
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
 use crate::parser::semantic::sema::type_ctx::type_builder::TypeBuilderKind;
@@ -211,7 +207,7 @@ impl Display for TypeQual {
             Restrict => "restrict",
             Volatile => "volatile",
         };
-        write!(f, "{}", str) 
+        write!(f, "{}", str)
     }
 }
 /// Qualifier
@@ -256,7 +252,7 @@ impl Display for FuncSpec {
             FuncSpecKind::Inline => "inline",
         };
         write!(f, "{}", str)
-    } 
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -282,6 +278,31 @@ impl Default for ParamList {
     }
 }
 
+/// Record 解析前期，只有 record 和 name
+pub struct RecordSuffix {
+    pub record: StructOrUnion,
+    pub name: Option<Ident>,
+    pub span: Span,
+}
+
+pub enum RecordForm {
+    Definition {
+        record: StructOrUnion,
+        name: Option<Ident>,
+    },
+    Declaration {
+        record: StructOrUnion,
+        name: Ident,
+        span: Span,
+    },
+    Reference {
+        record: StructOrUnion,
+        name: Ident,
+        span: Span,
+    },
+}
+
+// todo 可能不需要了
 #[derive(Clone, Debug)]
 pub struct StructSpecBody {
     pub l: Pos,
@@ -289,10 +310,11 @@ pub struct StructSpecBody {
     pub r: Pos,
 }
 
+// todo 可能不需要了
 // struct or union
 #[derive(Clone, Debug)]
 pub struct StructSpec {
-    pub kind: StructOrUnion,
+    pub kind: Record,
     pub name: Option<Ident>,
     pub body: Option<StructSpecBody>,
     pub span: Span,
@@ -314,8 +336,7 @@ pub struct Enumerator {
 
 #[derive(Clone, Debug)]
 pub struct EnumSpec {
-    pub enum_span: Span, // 关键字enum的span
     pub name: Option<Ident>,
-    pub body: Option<Vec<DeclKey>>, // 内部声明，应该都是 enumerator
+    pub enums: Vec<Enumerator>, // 内部声明，应该都是 enumerator
     pub span: Span,
 }

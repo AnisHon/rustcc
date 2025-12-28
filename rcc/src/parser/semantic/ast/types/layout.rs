@@ -2,8 +2,8 @@ use crate::{constant::typ::{DEFAULT_ALIGN, DEFAULT_SIZE}, parser::{ast::types::T
 
 #[derive(Debug, Clone)]
 pub struct TypeLayout {
-    pub size: u64,
-    pub align: u64,
+    pub size: usize,
+    pub align: usize,
 }
 
 impl TypeLayout {
@@ -16,7 +16,7 @@ impl TypeLayout {
 
 
     // todo: type is immutable, that should store in typestruct 
-    pub fn alignof(ctx: &CompCtx, ty: &Type) -> Option<u64> {
+    pub fn alignof(ctx: &CompCtx, ty: &Type) -> Option<usize> {
         use crate::parser::semantic::ast::types::type_struct::TypeKind::*;
         match &ty.kind {
             Void | Unknown  => None,
@@ -31,7 +31,7 @@ impl TypeLayout {
         }
     }
 
-    pub fn sizeof(ty: &Type) -> u64 {
+    pub fn sizeof(ty: &Type) -> usize {
         use super::TypeKind::*;
         match &ty.kind {
             Void => 1,
@@ -42,7 +42,7 @@ impl TypeLayout {
             Function { .. } => 1,
             Record { .. } => todo!(), 
             Enum { .. } => 4,
-            Unknown => return DEFAULT_SIZE as u64,
+            Unknown => return DEFAULT_SIZE,
         }
     }
 }

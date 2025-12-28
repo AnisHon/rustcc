@@ -1,5 +1,6 @@
-use ibig::{IBig};
+use ibig::{IBig, ibig};
 
+use crate::constant::typ::INT_BITWIDTH;
 
 /// 目前先用大数类型表示
 #[derive(Debug, Clone)]
@@ -9,22 +10,27 @@ pub struct APInt {
     value: IBig,
 }
 
-
 impl APInt {
     /// 创建 ApInt，会自动将输入值截断到 bit_width 位
     pub fn new(is_signed: bool, bit_width: usize, value: impl Into<IBig>) -> Self {
         let mut res = Self {
-                is_signed,
-                bit_width,
-                value: value.into(),
-            };
+            is_signed,
+            bit_width,
+            value: value.into(),
+        };
         res.truncate();
         res
     }
 
+    pub fn from_bool(b: bool) -> Self {
+        Self::new(true, INT_BITWIDTH, value)
+    }
+
     /// 截断到 bit_width
     fn truncate(&mut self) {
-        if self.bit_width == 0 { return; }
+        if self.bit_width == 0 {
+            return;
+        }
         let mask = (IBig::from(1) << self.bit_width) - 1;
         self.value &= mask;
         if self.is_signed {
@@ -92,5 +98,21 @@ impl APInt {
         let mut res = Self::new(self.is_signed, self.bit_width, &self.value >> shift);
         res.truncate();
         res
+    }
+
+    pub fn neg(&self) -> Self {
+        Self::new(self.is_signed, self.bit_width, -&self.value)
+    }
+
+    pub fn as_bool(&self) -> bool {
+        self.value != ibig!(0)
+    }
+
+    pub fn bitnot(&self) -> Self {
+        Self::new(self.is_signed, self.bit_width, !&self.value)
+    }
+
+    pub fn as_usize(&self) -> usize {
+        todo!("这里截断掉")
     }
 }

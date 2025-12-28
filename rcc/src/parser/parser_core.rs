@@ -4,19 +4,6 @@ use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
 use crate::parser::semantic::comp_ctx::CompCtx;
 
-// pub struct Parser<'a> {
-//     pub(crate) ctx: &'a mut CompCtx,
-//     pub(crate) sema: Sema,
-// }
-
-// pub fn new(ctx: &'a mut CompCtx, sema: Sema) -> Parser<'a> {
-//     Self { ctx, sema }
-// }
-
-pub fn send_error(ctx: &mut CompCtx, err: ParserError) {
-    todo!()
-}
-
 /// 根据条件决定是否next
 pub(crate) fn next_conditional(ctx: &mut CompCtx, cond: bool) -> Option<Token> {
     match cond {
@@ -53,9 +40,9 @@ pub(crate) fn expects(ctx: &mut CompCtx, kinds: &[TokenKind]) -> ParserResult<To
     if expected {
         Ok(ctx.stream.next())
     } else {
-        let expect: Vec<_> = kinds.iter().map(|x| x.kind_str()).collect();
+        let expect: Vec<_> = kinds.iter().map(|x| x.to_string()).collect();
         let expect = expect.join(", ");
-        let found = ctx.stream.peek().kind.kind_str().to_owned();
+        let found = ctx.stream.peek().kind.to_string();
 
         let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
         let error = error_here(ctx, error_kind);
@@ -70,8 +57,8 @@ pub(crate) fn expect(ctx: &mut CompCtx, kind: TokenKind) -> ParserResult<Token> 
     if expected {
         Ok(ctx.stream.next())
     } else {
-        let expect = kind.kind_str().to_owned();
-        let found = ctx.stream.peek().kind.kind_str().to_owned();
+        let expect = kind.to_string();
+        let found = ctx.stream.peek().kind.to_string();
 
         let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
         let error = error_here(ctx, error_kind);
@@ -90,7 +77,7 @@ pub(crate) fn expect_ident(ctx: &mut CompCtx) -> ParserResult<Token> {
 
         let kind = parser_error::ErrorKind::ExpectButFound {
             expect,
-            found: found.kind.kind_str().to_owned(),
+            found: found.kind.to_string(),
         };
         let error: ParserError = error_here(ctx, kind);
         Err(error)
@@ -103,7 +90,7 @@ pub(crate) fn expect_keyword(ctx: &mut CompCtx, keyword: Keyword) -> ParserResul
     if expected {
         Ok(ctx.stream.next())
     } else {
-        let expect = keyword.kind_str().to_owned();
+        let expect = keyword.to_string();
         let error_kind = parser_error::ErrorKind::Expect { expect };
         let error = error_here(ctx, error_kind);
         Err(error)
@@ -123,7 +110,7 @@ pub(crate) fn expect_keyword_pair(
     if expected {
         Ok(ctx.stream.next())
     } else {
-        let expect = format!("{}, {}", kw1.kind_str(), kw2.kind_str());
+        let expect = format!("{}, {}", kw1.to_string(), kw2.to_string());
         let error_kind = parser_error::ErrorKind::Expect { expect };
         let error = error_here(ctx, error_kind);
         Err(error)

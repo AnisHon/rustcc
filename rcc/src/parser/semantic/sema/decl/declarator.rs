@@ -3,7 +3,7 @@ use crate::err::parser_error::{ParserError, ParserResult};
 use crate::parser::ast::types::{IntegerSize, TypeKind};
 use crate::parser::common::TypeSpecState;
 use crate::parser::comp_ctx::CompCtx;
-use crate::parser::semantic::ast::decl::{Decl, DeclKind, StructOrUnion};
+use crate::parser::semantic::ast::decl::{Decl, DeclKind, Record};
 use crate::parser::semantic::ast::func::FuncDecl;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{
@@ -18,7 +18,6 @@ use crate::types::span::Span;
 use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
-
 #[derive(Debug)]
 pub struct PartialDecl {
     pub storage: Option<StorageSpec>,
@@ -26,158 +25,144 @@ pub struct PartialDecl {
     pub ty_key: TypeKey,
 }
 
-fn act_on_storages(storages: Vec<StorageSpec>) -> ParserResult<Option<StorageSpec>> {
-    let mut storage: Option<StorageSpec> = None;
-    for spec in storages {
-        if let Some(x) = storage {
-            let err = ParserError::duplicate(x.to_string(), DECL_SPEC, span);
-            return Err(err);
-        }
-        storage = Some(spec);
-    }
-
-    Ok(stroage)
+pub struct DeclSpecBuilder {
+    pub storages: Vec<StorageSpec>,
+    pub type_quals: Vec<TypeQual>,
+    pub func_specs: Vec<FuncSpec>,
+    pub type_specs: Vec<TypeSpec>,
+    pub span: Span,
 }
 
-fn act_on_type_quals(quals: Vec<TypeQual>) -> ParserResult<TypeQuals> {
-    use TypeQualKind::*;
-    let res = TypeQuals::default();
-    for qual in quals {
-        let field = match qual.kind {
-            Const => &mut res.is_const,
-            Restrict => &mut res.is_restrict,
-            Volatile => &mut res.is_volatile,
-        };
+impl DeclSpecBuilder {
+    pub fn build(self, ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
+        let storage = Self::act_on_storages(self.storages)?;
+        let type_quals = Self::act_on_type_quals(self.type_quals)?;
+        let func_spec = Self::act_on_func_specs(self.func_specs)?;
+        let kind = Self::act_on_type_specs(ctx, self.type_specs)?;
 
-        if let Some(x) = field {
-            let err = ParserError::duplicate(x.to_string(), DECL_SPEC, span);
-            return Err(err);
-        }
-        *field = Some(qual);
+        let decl_spec = Rc::new(DeclSpec {
+            storage,
+            type_quals,
+            func_spec,
+            kind,
+            span,
+        });
+
+        Ok(decl_spec)
     }
 
-    Ok(res)
-}
-
-fn act_on_func_specs(specs: Vec<FuncSpec>) -> ParserResult<Option<FuncSpec>> {
-    let mut func_spec: Option<FuncSpec> = None;
-    for spec in specs{
-        if let Some(x) = func_spec {
-            let err = ParserError::duplicate(x.to_string(), DECL_SPEC, span);
-            return Err(err);
-        }
-        func_spec = Some(spec);
-    }
-
-    Ok(stroage)
-}
-
-fn act_on_type_specs(ctx: &mut CompCtx, specs: Vec<TypeSpec>) -> ParserResult<TypeBuilderKind> {
-    use TypeSpecKind::*;
-    let mut state = TypeSpecState::Init;
-    let mut decl: Option<DeclKey> = None;
-    let mut is_signed: Option<TypeSpec> = None;
-    let mut int_cnt = 0;
-    let mut span = Span::default();
-
-    for spec in specs {
-        let next = match &spec.kind {
-            Void => TypeSpecState::Void,
-            Char => TypeSpecState::Char,
-            Short => TypeSpecState::Short,
-            Int => {
-                int_cnt += 1;
-                TypeSpecState::Int
-            }
-            Long => TypeSpecState::Long,
-            Float => TypeSpecState::Float,
-            Double => TypeSpecState::Double,
-            Record(x) => {
-                decl = Some(*x);
-                TypeSpecState::Record
-            }
-            Enum(x) => {
-                decl = Some(*x);
-                TypeSpecState::Enum
-            }
-            TypeName(_, x) => {
-                decl = Some(*x);
-                TypeSpecState::TypeName
-            }
-            Signed | Unsigned => {
-                if let Some(x) = is_signed {
-                    // 相同重复了
-                    if x.is(&spec.kind) {
-                        let err = ParserError::duplicate(
-                            x.to_string(), 
-                            DECL_SPEC, 
-                            spec.span
-                        );
-                        ctx.send_error(err);
-                    } else {
-                        let err = ParserError::non_combinable(
-                            x.to_string(), 
-                            DECL_SPEC, 
-                            spec.span
-                        );
-                        return Err(err)
-                    }
-                }
-                is_signed = Some(spec);
-                continue;
-            }
-        };
-
-        state = match TypeSpecState::combine(state, next) {
-            Some(x) => x,
-            None => {
-                let err = ParserError::non_combinable(
-                    spec.to_string(), 
-                    DECL_SPEC, 
-                    spec.span
-                );
+    fn act_on_storages(storages: Vec<StorageSpec>) -> ParserResult<Option<StorageSpec>> {
+        let mut storage: Option<StorageSpec> = None;
+        for spec in storages {
+            if let Some(x) = storage {
+                let err = ParserError::duplicate(x.to_string(), DECL_SPEC, span);
                 return Err(err);
-            },
-        };
-
-        if int_cnt > 1 {
-            let err = ParserError::non_combinable(
-                spec.to_string(), 
-                DECL_SPEC, 
-                spec.span
-            );
-            return Err(err);
+            }
+            storage = Some(spec);
         }
-        span = spec.span;
 
+        Ok(stroage)
     }
 
-    resolve_type_spec(state, decl, is_signed, int_cnt, span)
-}
+    fn act_on_type_quals(quals: Vec<TypeQual>) -> ParserResult<TypeQuals> {
+        use TypeQualKind::*;
+        let res = TypeQuals::default();
+        for qual in quals {
+            let field = match qual.kind {
+                Const => &mut res.is_const,
+                Restrict => &mut res.is_restrict,
+                Volatile => &mut res.is_volatile,
+            };
 
+            if let Some(x) = field {
+                let err = ParserError::duplicate(x.to_string(), DECL_SPEC, span);
+                return Err(err);
+            }
+            *field = Some(qual);
+        }
 
-pub fn act_on_decl_spec(
-    ctx: &mut CompCtx,
-    storages: Vec<StorageSpec>,
-    type_quals: Vec<TypeQual>,
-    func_specs: Vec<FuncSpec>,
-    type_specs: Vec<TypeSpec>,
-    span: Span
-) -> ParserResult<Rc<DeclSpec>> {
-    let storage = act_on_storages(storages)?;
-    let type_quals = act_on_type_quals(type_quals)?;
-    let func_spec = act_on_func_specs(func_specs)?;
-    let kind = act_on_type_specs(ctx, type_specs)?;
+        Ok(res)
+    }
 
-    let decl_spec = Rc::new(DeclSpec{
-        storage,
-        type_quals,
-        func_spec,
-        kind,
-        span,
-    });
+    fn act_on_func_specs(specs: Vec<FuncSpec>) -> ParserResult<Option<FuncSpec>> {
+        let mut func_spec: Option<FuncSpec> = None;
+        for spec in specs {
+            if let Some(x) = func_spec {
+                let err = ParserError::duplicate(x.to_string(), DECL_SPEC, span);
+                return Err(err);
+            }
+            func_spec = Some(spec);
+        }
 
-    Ok(decl_spec)
+        Ok(stroage)
+    }
+
+    fn act_on_type_specs(ctx: &mut CompCtx, specs: Vec<TypeSpec>) -> ParserResult<TypeBuilderKind> {
+        use TypeSpecKind::*;
+        let mut state = TypeSpecState::Init;
+        let mut decl: Option<DeclKey> = None;
+        let mut is_signed: Option<TypeSpec> = None;
+        let mut int_cnt = 0;
+        let mut span = Span::default();
+
+        for spec in specs {
+            let next = match &spec.kind {
+                Void => TypeSpecState::Void,
+                Char => TypeSpecState::Char,
+                Short => TypeSpecState::Short,
+                Int => {
+                    int_cnt += 1;
+                    TypeSpecState::Int
+                }
+                Long => TypeSpecState::Long,
+                Float => TypeSpecState::Float,
+                Double => TypeSpecState::Double,
+                Record(x) => {
+                    decl = Some(*x);
+                    TypeSpecState::Record
+                }
+                Enum(x) => {
+                    decl = Some(*x);
+                    TypeSpecState::Enum
+                }
+                TypeName(_, x) => {
+                    decl = Some(*x);
+                    TypeSpecState::TypeName
+                }
+                Signed | Unsigned => {
+                    if let Some(x) = is_signed {
+                        // 相同重复了
+                        if x.is(&spec.kind) {
+                            let err = ParserError::duplicate(x.to_string(), DECL_SPEC, spec.span);
+                            ctx.send_error(err);
+                        } else {
+                            let err =
+                                ParserError::non_combinable(x.to_string(), DECL_SPEC, spec.span);
+                            return Err(err);
+                        }
+                    }
+                    is_signed = Some(spec);
+                    continue;
+                }
+            };
+
+            state = match TypeSpecState::combine(state, next) {
+                Some(x) => x,
+                None => {
+                    let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
+                    return Err(err);
+                }
+            };
+
+            if int_cnt > 1 {
+                let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
+                return Err(err);
+            }
+            span = spec.span;
+        }
+
+        resolve_type_spec(state, decl, is_signed, int_cnt, span)
+    }
 }
 
 impl Sema {
@@ -436,7 +421,7 @@ impl Sema {
     pub fn act_on_record_ref(
         &mut self,
         ctx: &mut CompCtx,
-        record_kind: StructOrUnion,
+        record_kind: Record,
         name: Ident,
         span: Span,
     ) -> ParserResult<()> {
@@ -495,7 +480,7 @@ impl Sema {
         let decl_context = self.exit_decl();
         let ty = self.type_context.resolve_enum(&spec)?;
         let kw = spec.enum_span;
-        let kind = match spec.body {
+        let kind = match spec.enums {
             None => DeclKind::EnumRef { kw },
             Some(x) => DeclKind::Enum {
                 kw,

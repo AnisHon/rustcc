@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::parser::ast::decl::DeclKey;
+use crate::parser::ast::DeclKey;
 
 #[derive(Error, Debug)]
 #[error("{msg} {field}")]

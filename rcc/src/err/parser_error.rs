@@ -56,6 +56,8 @@ pub enum ErrorKind {
     NotScalar { ty: TypeKey },
     #[error("Incompatible operand types")]
     Incompatible { ty1: TypeKey, ty2: TypeKey },
+    #[error("use of '{name}' with tag type that does not match previous declaration")]
+    DeclNotMatch { prev: DeclKey, name: &'static str },
 }
 
 impl ErrorKind {
@@ -96,7 +98,8 @@ impl ErrorLevel {
             | BitFieldExceed { .. }
             | TypeError { .. }
             | NotScalar { .. }
-            | Incompatible { .. } => Error,
+            | Incompatible { .. }
+            | DeclNotMatch { .. } => Error,
             Duplicate { .. } => Warning,
         }
     }
@@ -188,18 +191,40 @@ impl ParserError {
     }
 
     pub fn duplicate(item: String, ctx: &str, span: Span) -> Self {
-        let kind = ErrorKind::Duplicate { item, context: ctx.to_owned() };
+        let kind = ErrorKind::Duplicate {
+            item,
+            context: ctx.to_owned(),
+        };
         Self::new(kind, span)
     }
 
     pub fn non_combinable(prev: String, ctx: &str, span: Span) -> Self {
-        let kind = ErrorKind::NonCombinable { prev, context: ctx.to_owned() };
+        let kind = ErrorKind::NonCombinable {
+            prev,
+            context: ctx.to_owned(),
+        };
         Self::new(kind, span)
     }
 
     pub fn incompatable(ty1: TypeKey, ty2: TypeKey, span: Span) -> Self {
         let kind = ErrorKind::Incompatible { ty1, ty2 };
         Self::new(kind, span)
+    }
+
+    pub fn decl_not_match(prev: DeclKey, name: Ident) -> Self {
+        let kind = ErrorKind::DeclNotMatch {
+            prev,
+            name: name.symbol.get(),
+        };
+        Self::new(kind, name.span)
+    }
+
+    pub fn redefinition(prev: DeclKey, name: Ident) -> Self {
+        let kind = ErrorKind::Redefinition {
+            symbol: name.symbol.get(),
+            prev,
+        };
+        Self::new(kind, ident.span)
     }
 
     pub fn from_scope_error(error: ScopeError, span: Span) -> Self {

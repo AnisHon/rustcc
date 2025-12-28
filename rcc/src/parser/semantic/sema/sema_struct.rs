@@ -1,6 +1,7 @@
+// todo 没什么用了，等待删除
+
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::Symbol;
-use crate::parser::ast::decl::DeclKey;
 use crate::parser::semantic::sema::decl::decl_context::*;
 use std::cell::RefCell;
 use std::rc::Rc;

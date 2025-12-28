@@ -65,11 +65,18 @@ impl APFloat {
 
     pub fn neg(&self) -> Self {
         match self {
-          (APFloat::F32(a), APFloat::F32(b)) => APFloat::F32(a / b),
-        (APFloat::F64(a), APFloat::F64(b)) => APFloat::F64(a / b),
-            (APFloat::F128(a), APFloat::F128(b)) => APFloat::F128(a / b),
-            _ => panic!("float type mismatch"),
+            APFloat::F32(a) => APFloat::F32(-a),
+            APFloat::F64(a) => APFloat::F64(-a),
+            APFloat::F80(a) => APFloat::F80(-a),
         }
+    }
+
+    pub fn as_bool(&self) -> bool {
+        match self {
+            APFloat::F32(a) => *a != 0.0,
+            APFloat::F64(a) => *a != 0.0,
+            APFloat::F80(a) => *a != 0.0,
+        } 
     }
 }
 

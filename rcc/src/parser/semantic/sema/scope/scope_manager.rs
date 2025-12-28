@@ -2,7 +2,7 @@ use crate::err::scope_error::ScopeError;
 use crate::parser::ast::DeclKey;
 use crate::parser::semantic::sema::scope::scope_struct::Scope;
 use crate::{
-    err::parser_error::ParserResult, lex::types::token_kind::Symbol, parser::comp_ctx::CompCtx,
+    lex::types::token_kind::Symbol
 };
 
 macro_rules! scope_enter_pop {
@@ -44,7 +44,7 @@ macro_rules! scope_lookup {
 
 macro_rules! scope_insert {
     ($insert:ident, $field:ident) => {
-        fn $insert(&mut self, name: Symbol, key: DeclKey) -> Result<(), ScopeError> {
+        pub fn $insert(&mut self, name: Symbol, key: DeclKey) -> Result<(), ScopeError> {
             // 符号重复定义
             if let Some(prev) = self.lookup_local_ident(name) {
                 return Err(ScopeError::Redefined {
@@ -110,12 +110,6 @@ impl ScopeMgr {
 
     scope_insert!(insert_label, labels);
     scope_insert!(insert_member, members);
-
-    pub fn insert_ident(&mut self, key: DeclKey) -> ParserResult<()> {
-        todo!()
-    }
-
-    pub fn insert_tag(&mut self, key: DeclKey) -> ParserResult<()> {
-        todo!()
-    }
+    scope_insert!(insert_ident, idents);
+    scope_insert!(insert_tag, tags);
 }

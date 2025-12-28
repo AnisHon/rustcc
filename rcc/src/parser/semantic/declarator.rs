@@ -2,7 +2,7 @@ use crate::parser::ast::ExprKey;
 use crate::parser::semantic::ast::decl::Initializer;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{DeclSpec, ParamDecl, TypeQuals};
-use crate::types::span::{Pos, Span};
+use crate::types::span::Span;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
@@ -46,7 +46,6 @@ impl DeclaratorChunk {
 #[derive(Clone, Debug)]
 pub struct InitDeclarator {
     pub declarator: Declarator,
-    pub eq: Option<Pos>,
     pub init: Option<Initializer>,
     pub span: Span,
 }
@@ -54,7 +53,6 @@ pub struct InitDeclarator {
 #[derive(Clone, Debug)]
 pub struct InitDeclaratorList {
     pub inits: Vec<InitDeclarator>,
-    pub commas: Vec<Pos>,
     pub span: Span,
 }
 
@@ -62,7 +60,6 @@ impl InitDeclaratorList {
     pub fn new() -> Self {
         Self {
             inits: Vec::new(),
-            commas: Vec::new(),
             span: Span::default(),
         }
     }
