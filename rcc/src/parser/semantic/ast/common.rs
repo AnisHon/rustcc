@@ -13,7 +13,7 @@ new_key_type! {
 
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum RecordKind {
     Struct,
     Union,

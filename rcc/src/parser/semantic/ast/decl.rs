@@ -1,3 +1,4 @@
+use crate::parser::ast::common::StructOrUnion;
 use crate::parser::ast::{DeclKey, ExprKey, TypeKey};
 use crate::parser::semantic::ast::stmt::Stmt;
 use crate::parser::semantic::common::Ident;
@@ -59,7 +60,7 @@ pub enum DeclKind {
         bit_field: Option<ExprKey>,
     },
     Record {
-        kind: Record,
+        kind: StructOrUnion,
         fields: Option<Vec<DeclGroup>>, // 当 fields 为 none 时为不完全类型
                                         // decl_context: DeclContextRef,
     },

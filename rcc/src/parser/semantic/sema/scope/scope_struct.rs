@@ -1,4 +1,5 @@
-use crate::{lex::types::token_kind::Symbol, parser::ast::decl::DeclKey};
+use crate::lex::types::token_kind::Symbol;
+use crate::parser::ast::DeclKey;
 use rustc_hash::FxHashMap;
 
 // 表示一个作用域
@@ -7,9 +8,6 @@ use rustc_hash::FxHashMap;
 pub struct Scope {
     pub sym_ht: FxHashMap<Symbol, DeclKey>,
 }
-
-
-
 
 // /// 管理结构体、联合体、枚举的标签
 // /// - `sym_ht`: symbol hash table
@@ -21,7 +19,7 @@ pub struct Scope {
 // impl TagsScope {
 //     pub fn new() -> Self {
 //         Self { sym_ht: FxHashMap::default() }
-//     } 
+//     }
 // }
 
 // /// 管理结构体/联合体成员
@@ -33,7 +31,7 @@ pub struct Scope {
 // impl MembersScope {
 //     pub fn new() -> Self {
 //         Self { sym_ht: FxHashMap::default() }
-//     } 
+//     }
 // }
 // /// 管理`goto`语句使用的标签
 // #[derive(Default, Debug)]
@@ -44,7 +42,7 @@ pub struct Scope {
 // impl LabelsScope {
 //     pub fn new() -> Self {
 //         Self { sym_ht: FxHashMap::default() }
-//     } 
+//     }
 // }
 
 // /// 管理普通标识符
@@ -56,5 +54,5 @@ pub struct Scope {
 // impl IdentsScope {
 //     pub fn new() -> Self {
 //         Self { sym_ht: FxHashMap::default() }
-//     } 
+//     }
 // }

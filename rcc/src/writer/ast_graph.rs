@@ -1,6 +1,6 @@
 use crate::parser::ast::ExprKey;
-use crate::parser::ast::decl::{DeclGroup, DeclKey, DeclKind, Initializer};
-use crate::parser::ast::exprs::{Expr, ExprKey, ExprKind};
+use crate::parser::ast::decl::{DeclGroup, DeclKind, Initializer};
+use crate::parser::ast::exprs::ExprKind;
 use crate::parser::ast::func::{ExternalDecl, FuncDef, TranslationUnit};
 use crate::parser::ast::stmt::{StmtKey, StmtKind};
 use crate::parser::ast::visitor::Visitor;

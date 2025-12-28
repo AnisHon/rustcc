@@ -282,7 +282,6 @@ impl Default for ParamList {
 pub struct RecordSuffix {
     pub record: StructOrUnion,
     pub name: Option<Ident>,
-    pub span: Span,
 }
 
 pub enum RecordForm {
@@ -293,13 +292,17 @@ pub enum RecordForm {
     Declaration {
         record: StructOrUnion,
         name: Ident,
-        span: Span,
     },
     Reference {
         record: StructOrUnion,
         name: Ident,
-        span: Span,
     },
+}
+
+pub enum EnumForm {
+    Definition { name: Option<Ident> },
+    Declaration { name: Ident },
+    Reference { name: Ident },
 }
 
 // todo 可能不需要了

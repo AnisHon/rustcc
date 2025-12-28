@@ -7,7 +7,6 @@ use crate::parser::parser_decl::parse_decl;
 use crate::parser::parser_expr::parse_expr;
 use crate::parser::semantic::ast::stmt::{Stmt, StmtKind};
 use crate::parser::semantic::common::Ident;
-use crate::parser::semantic::sema::decl::decl_context::DeclContextKind;
 use crate::types::span::Span;
 
 fn check_labeled_stmt(ctx: &CompCtx) -> bool {

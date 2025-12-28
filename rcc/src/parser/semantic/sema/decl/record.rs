@@ -1,9 +1,10 @@
+use crate::parser::ast::common::StructOrUnion;
 use crate::{
     err::parser_error::{ParserError, ParserResult},
     parser::{
         ast::{
             DeclKey,
-            decl::{Decl, DeclKind, Record},
+            decl::{Decl, DeclKind},
         },
         common::Ident,
         comp_ctx::CompCtx,
@@ -13,19 +14,24 @@ use crate::{
 };
 
 /// decl 是否是 enum ，如果不是返回 DeclNotMatch 错误
-fn is_enum(ctx: &CompCtx, decl: DeclKey, name: &Ident) -> ParserResult<()> {
+fn is_enum(ctx: &CompCtx, decl_key: DeclKey, name: &Ident) -> ParserResult<()> {
     let decl = ctx.get_decl(decl_key);
     // 检查 decl 是否正确
-    if !(decl.kind.is_enum()) {
+    if !decl.kind.is_enum() {
         // 不同类型出错
-        let error = ParserError::decl_not_match(prev, name.clone());
+        let error = ParserError::decl_not_match(decl_key, name.clone());
         return Err(error);
     }
     Ok(())
 }
 
 /// decl 是否是 record ，如果不是返回 DeclNotMatch 错误
-fn is_record(ctx: &CompCtx, record: &Record, decl: DeclKey, name: &Ident) -> ParserResult<()> {
+fn is_record(
+    ctx: &CompCtx,
+    record: &StructOrUnion,
+    decl_key: DeclKey,
+    name: &Ident,
+) -> ParserResult<()> {
     let decl = ctx.get_decl(decl_key);
     // 检查 decl 是否正确
     let res = decl
@@ -36,7 +42,7 @@ fn is_record(ctx: &CompCtx, record: &Record, decl: DeclKey, name: &Ident) -> Par
 
     if !res {
         // 不同类型出错
-        let error = ParserError::decl_not_match(prev, name.clone());
+        let error = ParserError::decl_not_match(decl_key, name.clone());
         return Err(error);
     }
     Ok(())
@@ -45,11 +51,11 @@ fn is_record(ctx: &CompCtx, record: &Record, decl: DeclKey, name: &Ident) -> Par
 /// 在当前作用域插入 enum 声明
 pub fn insert_enum_ref(ctx: &mut CompCtx, name: Ident, span: Span) -> ParserResult<DeclKey> {
     // 查询同级是否已经存在声明
-    let loopup_decl = ctx.scope_mgr.lookup_local_tag(x.symbol);
+    let lookup_decl = ctx.scope_mgr.lookup_local_tag(name.symbol);
 
     // 存在，复用
-    if let Some(x) = loopup_decl {
-        is_enum(ctx, decl, &name)?;
+    if let Some(x) = lookup_decl {
+        is_enum(ctx, x, &name)?;
         return Ok(x);
     }
 
@@ -66,7 +72,7 @@ pub fn insert_enum_ref(ctx: &mut CompCtx, name: Ident, span: Span) -> ParserResu
     let decl = Decl {
         storage: None,
         kind,
-        name: Some(name),
+        name: Some(name.clone()),
         ty,
         span,
     };
@@ -77,7 +83,7 @@ pub fn insert_enum_ref(ctx: &mut CompCtx, name: Ident, span: Span) -> ParserResu
     // 插入符号表
     ctx.scope_mgr
         .insert_tag(name.symbol, decl_key)
-        .map_err(|err| ParserError::from_scope_error(err, name.span));
+        .map_err(|err| ParserError::from_scope_error(err, name.span))?;
 
     Ok(decl_key)
 }
@@ -99,10 +105,10 @@ pub fn lookup_enum(ctx: &mut CompCtx, name: Ident, span: Span) -> ParserResult<D
 /// 构建 并将 record 插入符号表
 fn build_record_and_insert(
     ctx: &mut CompCtx,
-    record: Record,
+    record: StructOrUnion,
     name: Option<Ident>,
     span: Span,
-) -> ParserResu<DeclKey> {
+) -> ParserResult<DeclKey> {
     let kind = TypeBuilderKind::new_record(ctx, record.kind);
     let builder = TypeBuilder::new(kind);
     let ty = ctx
@@ -118,7 +124,7 @@ fn build_record_and_insert(
     let decl = Decl {
         storage: None,
         kind,
-        name,
+        name: name.clone(),
         ty,
         span,
     };
@@ -130,7 +136,7 @@ fn build_record_and_insert(
     if let Some(x) = name {
         ctx.scope_mgr
             .insert_tag(x.symbol, decl_key)
-            .map_err(|err| ParserError::from_scope_error(err, x.span));
+            .map_err(|err| ParserError::from_scope_error(err, x.span))?;
     }
 
     Ok(decl_key)
@@ -139,21 +145,21 @@ fn build_record_and_insert(
 /// 在当前作用域插入 record 声明
 pub fn insert_record_ref(
     ctx: &mut CompCtx,
-    record: Record,
+    record: StructOrUnion,
     name: Ident,
     span: Span,
 ) -> ParserResult<DeclKey> {
     // 查询同级是否已经存在声明
-    let loopup_decl = ctx.scope_mgr.lookup_local_tag(name.symbol);
+    let lookup_decl = ctx.scope_mgr.lookup_local_tag(name.symbol);
 
     // 存在，复用
-    if let Some(x) = loopup_decl {
+    if let Some(x) = lookup_decl {
         is_record(ctx, &record, x, &name)?; // 插入声明肯定不会出现 redefined
         return Ok(x);
     }
 
     // 不存在，构建
-    let decl = build_record_and_insert(ctx, record, Some(name), span);
+    let decl = build_record_and_insert(ctx, record, Some(name), span)?;
 
     Ok(decl)
 }
@@ -161,12 +167,13 @@ pub fn insert_record_ref(
 /// 在定义 record 之前，插入一个前向声明
 pub fn insert_record_def(
     ctx: &mut CompCtx,
-    record: Record,
+    record: StructOrUnion,
     name: Option<Ident>,
     span: Span,
 ) -> ParserResult<DeclKey> {
     // 查询同级是否已经存在声明
     let lookup_decl = name
+        .as_ref()
         .map(|x| ctx.scope_mgr.lookup_local_tag(x.symbol))
         .flatten();
 
@@ -202,8 +209,8 @@ pub fn insert_record_def(
 
         // 检查结果
         match res {
-            ResErr::NotMatch => return Err(ParserError::decl_not_match(prev, name)),
-            ResErr::Redefine => return Err(ParserError::redefinition(prev, name)),
+            ResErr::NotMatch => return Err(ParserError::decl_not_match(x, name)),
+            ResErr::Redefine => return Err(ParserError::redefinition(x, name)),
             ResErr::Ok => {}
         }
         // 是非完全声明可以直接使用
@@ -211,7 +218,7 @@ pub fn insert_record_def(
     }
 
     // 不存在，构建
-    let decl = build_record_and_insert(ctx, record, name, span);
+    let decl = build_record_and_insert(ctx, record, name, span)?;
 
     Ok(decl)
 }
@@ -219,7 +226,7 @@ pub fn insert_record_def(
 /// 引用 struct ，递归查找并引用
 pub fn lookup_struct(
     ctx: &mut CompCtx,
-    record: &Record,
+    record: &StructOrUnion,
     name: Ident,
     span: Span,
 ) -> ParserResult<DeclKey> {
