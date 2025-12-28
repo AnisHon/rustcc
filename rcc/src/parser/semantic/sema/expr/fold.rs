@@ -1,12 +1,15 @@
+use crate::parser::{ast::{ExprKey, exprs::{Constant, ExprKind, UnaryOpKind}}, comp_ctx::CompCtx};
+
 
 fn make_unsigned_long_long(n: u64, ty: TypeKey, span: Span) -> ExprKind {
-    let kind = ExprKind::Constant(LiteralKind::Integer { suffix: Some(IntSuffix::ULL), value: n });
+    let kind = Constant(LiteralKind::Integer { suffix: Some(IntSuffix::ULL), value: n });
     todo!()
 }
 
-/// 折叠常量表达式
-fn fold_expr(ctx: &mut CompCtx, expr: Expr) -> ParserResult<ExprKey> {
-    let kind: ExprKind = match expr.kind {
+/// 尝试折叠常量表达式，可以让表达式失效（从常量池删除，使失效）
+pub fn fold_expr(ctx: &mut CompCtx, kind: &ExprKind) -> ParserResult<Option<Value>> {
+
+    let kind: ExprKind = match kind {
         // ExprKind::Paren { expr, .. } => return Ok(expr), // 折叠括号
         ExprKind::SizeofExpr { expr: sizeof_expr, .. } => {
             let sizeof_expr = ctx.get_expr(sizeof_expr);
@@ -44,21 +47,36 @@ fn fold_expr(ctx: &mut CompCtx, expr: Expr) -> ParserResult<ExprKey> {
 }
 
 
-fn fold_unary(ctx: &CompCtx, op: UnaryOpKind, rhs_key: ExprKey) -> ExprKind {
+fn fold_unary(ctx: &CompCtx, op: UnaryOpKind, rhs_key: ExprKey) -> Option<Value> {
+    use UnaryOpKind::*;
     let rhs = ctx.get_expr(rhs_key);
-    if !rhs.kind.is_constant() {
-        return 
+    // 不是常量表达式直接返回
+    let value = rhs.value?; 
+
+    match value {
+        Constant::Float { value } {
+            match op {
+                Plus => value, // 完全不用变
+                Minus => value. ,
+                Not => ,
+                BitNot => ,
+                _ => return None,
+            }
+
+        }
+        Constant::Intager { value }  => {}
+        // 能支持一个*运算符
+        Constant::String { value } => {
+            match op {
+                Deref => value[u8],
+                _ => return None,
+            }
+        }
     }
 
-    match op {
-        UnaryOpKind::Plus => ,
-        UnaryOpKind::Minus =>  ,
-        UnaryOpKind::Not => ,
-        UnaryOpKind::BitNot => ,
-        _ => rhs.kind,
-    }
+
 }
 
-fn fold_binary(ctx: &CompCtx, lhs: ExprKey, op: BinOpKind, rhs: ExprKey) -> ExprKind {
+fn fold_binary(ctx: &CompCtx, lhs: ExprKey, op: BinOpKind, rhs: ExprKey) -> Option<Value> {
     todo!()
 }

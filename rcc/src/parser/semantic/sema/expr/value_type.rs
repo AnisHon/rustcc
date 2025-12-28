@@ -1,5 +1,13 @@
 use crate::parser::ast::exprs::{Expr, ExprKind, UnaryOpKind};
 
+/// 值上下文
+/// - `Value`: 发生取值，意味着成为 R-Value ，发生 Decay
+/// - `NoValue`: 没有发生取值，比如取址，SizeOf，所以不允许衰变，
+pub enum ValueCtx {
+    Value,
+    NoValue,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ValueType {
     LValue,

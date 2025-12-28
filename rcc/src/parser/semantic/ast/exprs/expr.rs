@@ -95,12 +95,6 @@ impl ExprKind {
         Self::Literal(kind)
     }
 
-    // pub fn make_paren(l: Token, expr: ExprKey, r: Token) -> Self {
-    //     let l = l.span.to_pos();
-    //     let r = r.span.to_pos();
-    //     Self::Paren{ l, expr, r }
-    // }
-
     pub fn make_index(base: ExprKey, index: ExprKey) -> Self {
         Self::ArraySubscript { base, index }
     }
@@ -220,7 +214,7 @@ impl Expr {
 pub enum Constant {
     Intager{ value: APInt, },
     Float{ value: APFloat, },
-    String{ value: Symbol },
+    String{ value: Vec<u8>, }, // 0 结尾 u8 数组，长度一定 >= 1  
 }
 
 #[derive(Debug, Clone)]
@@ -232,14 +226,12 @@ pub enum MemberAccessKind {
 #[derive(Debug, Clone)]
 pub struct Parameter {
     pub exprs: Vec<ExprKey>,
-    pub commas: Vec<Span>,
 }
 
 impl Parameter {
     pub fn new() -> Self {
         Self {
             exprs: Vec::new(),
-            commas: Vec::new(),
         }
     }
 }
