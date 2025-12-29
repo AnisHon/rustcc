@@ -1,9 +1,13 @@
 use crate::constant::str::DECL_SPEC;
 use crate::err::parser_error::{ParserError, ParserResult};
+use crate::parser::ast::types::{FloatSize, IntegerSize, TypeKind};
 use crate::parser::ast::{DeclKey, TypeKey};
 use crate::parser::common::TypeSpecState;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::semantic::common::Ident;
+use crate::parser::semantic::decl_spec::TypeSpecKind::{
+    Char, Double, Float, Int, Long, Short, Signed, Unsigned, Void,
+};
 use crate::parser::semantic::decl_spec::{
     DeclSpec, FuncSpec, StorageSpec, TypeQual, TypeQualKind, TypeQuals, TypeSpec, TypeSpecKind,
 };
@@ -92,13 +96,38 @@ impl DeclSpecBuilder {
 
     fn act_on_type_specs(ctx: &mut CompCtx, specs: Vec<TypeSpec>) -> ParserResult<TypeBuilderKind> {
         use TypeSpecKind::*;
+        assert!(!specs.is_empty());
         let mut state = TypeSpecState::Init;
         let mut decl: Option<DeclKey> = None;
         let mut is_signed: Option<TypeSpec> = None;
         let mut int_cnt = 0;
-        let mut span = Span::default();
+        let mut spec = specs.last().expect("specs should not empty").clone();
 
         for spec in specs {
+            // 检查
+            match &spec.kind {
+                Int => {
+                    let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
+                    return Err(err);
+                }
+                Float | Double | Record(_) | Enum(_) | TypeName(_, _) if is_signed.is_some() => {
+                    let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
+                    return Err(err);
+                }
+                Signed | Unsigned if is_signed.is_some() => {
+                    let x = is_signed.unwrap();
+                    // 相同重复了
+                    if x.is(&spec.kind) {
+                        let err = ParserError::duplicate(x.to_string(), DECL_SPEC, spec.span);
+                        ctx.send_error(err)?;
+                    } else {
+                        let err = ParserError::non_combinable(x.to_string(), DECL_SPEC, spec.span);
+                        return Err(err);
+                    }
+                }
+                _ => {}
+            }
+
             let next = match &spec.kind {
                 Void => TypeSpecState::Void,
                 Char => TypeSpecState::Char,
@@ -123,17 +152,6 @@ impl DeclSpecBuilder {
                     TypeSpecState::TypeName
                 }
                 Signed | Unsigned => {
-                    if let Some(x) = is_signed {
-                        // 相同重复了
-                        if x.is(&spec.kind) {
-                            let err = ParserError::duplicate(x.to_string(), DECL_SPEC, spec.span);
-                            ctx.send_error(err);
-                        } else {
-                            let err =
-                                ParserError::non_combinable(x.to_string(), DECL_SPEC, spec.span);
-                            return Err(err);
-                        }
-                    }
                     is_signed = Some(spec);
                     continue;
                 }
@@ -146,15 +164,77 @@ impl DeclSpecBuilder {
                     return Err(err);
                 }
             };
-
-            if int_cnt > 1 {
-                let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
-                return Err(err);
-            }
-            span = spec.span;
         }
+        let is_signed = is_signed.map(|x| x.kind.is_signed()).unwrap_or(false);
+        let builder_kind = Self::get_type_build_kind(ctx, state, is_signed, spec);
 
-        Ok()
+        Ok(builder_kind)
+    }
+
+    /// 构建 type builder kind, 不负责检查
+    fn get_type_build_kind(
+        ctx: &mut CompCtx,
+        state: TypeSpecState,
+        is_signed: bool,
+        spec: TypeSpec,
+    ) -> TypeBuilderKind {
+        let builder = match state {
+            TypeSpecState::Void => TypeBuilderKind::Void,
+            TypeSpecState::Char => TypeBuilderKind::Integer {
+                is_signed,
+                size: IntegerSize::Char,
+            },
+            TypeSpecState::Short => TypeBuilderKind::Integer {
+                is_signed,
+                size: IntegerSize::Short,
+            },
+            TypeSpecState::Int => TypeBuilderKind::Integer {
+                is_signed,
+                size: IntegerSize::Int,
+            },
+            TypeSpecState::Long => TypeBuilderKind::Integer {
+                is_signed,
+                size: IntegerSize::Long,
+            },
+            TypeSpecState::LongLong => TypeBuilderKind::Integer {
+                is_signed,
+                size: IntegerSize::LongLong,
+            },
+            TypeSpecState::Float => TypeBuilderKind::Floating {
+                size: FloatSize::Float,
+            },
+            TypeSpecState::Double => TypeBuilderKind::Floating {
+                size: FloatSize::Double,
+            },
+            TypeSpecState::LongDouble => TypeBuilderKind::Floating {
+                size: FloatSize::LongDouble,
+            },
+            TypeSpecState::Record => {
+                let decl = spec
+                    .kind
+                    .as_record()
+                    .expect("state is record, but spec is not");
+                let decl = ctx.get_decl(*decl);
+                let (record, _) = decl
+                    .kind
+                    .as_record()
+                    .expect("state is record, but decl is not");
+                TypeBuilderKind::new_record(ctx, record.kind)
+            }
+            TypeSpecState::Enum => TypeBuilderKind::new_enum(ctx),
+            TypeSpecState::TypeName => {
+                let (_, decl) = spec
+                    .kind
+                    .as_type_name()
+                    .expect("state is typename, but spec not");
+                let decl = ctx.get_decl(*decl);
+                let ty = ctx.type_ctx.get_type(decl.ty);
+
+                TypeBuilderKind::from_type_kind(&ty.kind)
+            }
+            _ => unreachable!(),
+        };
+        builder
     }
 }
 

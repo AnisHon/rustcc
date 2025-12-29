@@ -1,7 +1,7 @@
-use ibig::ibig;
-
+use crate::parser::ast::types::Qualifier;
+use crate::parser::semantic::decl_spec::{DeclSpec, TypeQuals, TypeSpec};
+use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind};
 use crate::{
-    constant::typ::MAX_ARRAY_LEN,
     err::parser_error::{self, ParserError, ParserResult},
     parser::{
         ast::{ExprKey, TypeKey, exprs::ExprKind, types::ArraySize},
@@ -12,6 +12,41 @@ use crate::{
         },
     },
 };
+use std::rc::Rc;
+
+/// 解析 decl_spec, 不消耗decl_spec
+fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: Rc<DeclSpec>) -> ParserResult<TypeKey> {
+    let qualifier = Qualifier::new(&decl_spec.type_quals);
+    let builder = TypeBuilder::new_with_qual(qualifier, decl_spec.kind.clone());
+
+    let ty = ctx
+        .type_ctx
+        .build_type(builder)
+        .map_err(|err| ParserError::from_type_error(err, decl_spec.span))?;
+
+    Ok(ty)
+}
+
+/// 解析 declarator, 不负责解析 decl_spec 的 storage 与 func_spec
+fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<TypeKey> {
+    use DeclaratorChunkKind::*;
+    let mut ty = resolve_decl_spec(ctx, declarator.decl_spec)?;
+
+    // 反向解析
+    for chunk in declarator.chunks.into_iter().rev() {
+        let builder = match chunk.kind {
+            Array { expr } => resolve_array(ctx, ty, expr)?,
+            Pointer { type_quals } => resolve_pointer(ty, type_quals),
+            Function { param } => resolve_function(ctx, ty, param)?,
+        };
+        ty = ctx
+            .type_ctx
+            .build_type(builder)
+            .map_err(|err| ParserError::from_type_error(err, chunk.span))?;
+    }
+
+    Ok(ty)
+}
 
 /// 解析数组
 /// - `ctx`: 编译器上下文
@@ -61,7 +96,7 @@ fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySiz
 fn resolve_function(
     ctx: &mut CompCtx,
     ret_ty: TypeKey,
-    param: &ParamDecl,
+    param: ParamDecl,
 ) -> ParserResult<TypeBuilder> {
     // 获取参数列表，可能是KR类型，这个类型理论上是不能用于声明函数类型的
     let list = match param {
@@ -88,4 +123,10 @@ fn resolve_function(
     };
 
     Ok(TypeBuilder::new(func))
+}
+
+fn resolve_pointer(elem_ty: TypeKey, quals: TypeQuals) -> TypeBuilder {
+    let qualifier = Qualifier::new(&quals);
+    let kind = TypeBuilderKind::Pointer { elem_ty };
+    TypeBuilder::new_with_qual(qualifier, kind)
 }

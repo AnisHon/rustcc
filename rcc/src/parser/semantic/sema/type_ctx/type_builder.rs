@@ -119,28 +119,6 @@ pub enum TypeBuilderKind {
 }
 
 impl TypeBuilderKind {
-    pub fn from_type_kind(kind: TypeKind) -> Self {
-        match kind {
-            TypeKind::Void => TypeBuilderKind::Void,
-            TypeKind::Integer { is_signed, size } => TypeBuilderKind::Integer { is_signed, size },
-            TypeKind::Floating { size } => TypeBuilderKind::Floating { size },
-            TypeKind::Pointer { elem_ty } => TypeBuilderKind::Pointer { elem_ty },
-            TypeKind::Array { elem_ty, size } => TypeBuilderKind::Array { elem_ty, size },
-            TypeKind::Function {
-                ret_ty,
-                params,
-                is_variadic,
-            } => TypeBuilderKind::Function {
-                ret_ty,
-                params,
-                is_variadic,
-            },
-            TypeKind::Record { kind, id, .. } => TypeBuilderKind::Record { kind, id },
-            TypeKind::Enum { id, .. } => TypeBuilderKind::Enum { id },
-            TypeKind::Unknown => TypeBuilderKind::Unknown,
-        }
-    }
-
     /// 构建一个全新的 record，分配一个 record id
     pub fn new_record(ctx: &mut CompCtx, kind: RecordKind) -> Self {
         let record_id = ctx.type_ctx.next_record_id();
@@ -154,5 +132,36 @@ impl TypeBuilderKind {
     pub fn new_enum(ctx: &mut CompCtx) -> Self {
         let enum_id = ctx.type_ctx.next_enum_id();
         Self::Enum { id: enum_id }
+    }
+
+    pub fn from_type_kind(kind: &TypeKind) -> Self {
+        match kind {
+            TypeKind::Void => TypeBuilderKind::Void,
+            TypeKind::Integer { is_signed, size } => TypeBuilderKind::Integer {
+                is_signed: *is_signed,
+                size: *size,
+            },
+            TypeKind::Floating { size } => TypeBuilderKind::Floating { size: *size },
+            TypeKind::Pointer { elem_ty } => TypeBuilderKind::Pointer { elem_ty: *elem_ty },
+            TypeKind::Array { elem_ty, size } => TypeBuilderKind::Array {
+                elem_ty: *elem_ty,
+                size: *size,
+            },
+            TypeKind::Function {
+                ret_ty,
+                params,
+                is_variadic,
+            } => TypeBuilderKind::Function {
+                ret_ty: *ret_ty,
+                params: *params,
+                is_variadic: *is_variadic,
+            },
+            TypeKind::Record { id, kind, .. } => TypeBuilderKind::Record {
+                kind: *kind,
+                id: *id,
+            },
+            TypeKind::Enum { id, .. } => TypeBuilderKind::Enum { id: *id },
+            TypeKind::Unknown => TypeBuilderKind::Unknown,
+        }
     }
 }
