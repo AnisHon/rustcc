@@ -28,7 +28,7 @@ fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: Rc<DeclSpec>) -> ParserResult
 }
 
 /// 解析 declarator, 不负责解析 decl_spec 的 storage 与 func_spec
-fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<TypeKey> {
+pub fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<TypeKey> {
     use DeclaratorChunkKind::*;
     let mut ty = resolve_decl_spec(ctx, declarator.decl_spec)?;
 

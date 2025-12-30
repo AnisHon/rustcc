@@ -1,16 +1,16 @@
 use crate::constant::str::DECL_SPEC;
 use crate::err::parser_error::{ParserError, ParserResult};
+use crate::parser::ast::decl::{Decl, DeclKind, Initializer};
 use crate::parser::ast::types::{FloatSize, IntegerSize, TypeKind};
 use crate::parser::ast::{DeclKey, TypeKey};
 use crate::parser::common::TypeSpecState;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::semantic::common::Ident;
-use crate::parser::semantic::decl_spec::TypeSpecKind::{
-    Char, Double, Float, Int, Long, Short, Signed, Unsigned, Void,
-};
 use crate::parser::semantic::decl_spec::{
     DeclSpec, FuncSpec, StorageSpec, TypeQual, TypeQualKind, TypeQuals, TypeSpec, TypeSpecKind,
 };
+use crate::parser::semantic::declarator::InitDeclarator;
+use crate::parser::semantic::sema::type_ctx::declarator::resolve_declarator;
 use crate::parser::semantic::sema::type_ctx::type_builder::TypeBuilderKind;
 use crate::types::span::Span;
 use std::rc::Rc;
@@ -28,6 +28,69 @@ pub struct DeclSpecBuilder {
     pub func_specs: Vec<FuncSpec>,
     pub type_specs: Vec<TypeSpec>,
     pub span: Span,
+}
+
+fn act_on_typedef() {}
+
+pub fn act_on_init_declarator(
+    ctx: &mut CompCtx,
+    init_declarator: InitDeclarator,
+) -> ParserResult<DeclKey> {
+    // let declarator = init_declarator.declarator;
+    // let name = declarator.name.clone();
+
+    // let decl_spec = Rc::clone(&declarator.decl_spec);
+    // let ty = resolve_declarator(ctx, declarator)?;
+
+    init_declarator.declarator.decl_spec.storage
+
+
+
+
+    let kind = if is_typedef {
+        if init_declarator.init.is_some() {
+            // todo 对 typedef 初始化 错误
+            todo!();
+        }
+        DeclKind::TypeDef
+    } else {
+        match ty.kind {
+            TypeKind::Void
+            | TypeKind::Integer { .. }
+            | TypeKind::Floating { .. }
+            | TypeKind::Pointer { .. }
+            | TypeKind::Array { .. } => DeclKind::VarInit {
+                eq: init_declarator.eq,
+                init: init_declarator.init,
+            },
+            TypeKind::Function { .. } => DeclKind::FuncRef,
+            TypeKind::Struct { .. } | TypeKind::StructRef { .. } => {
+                return Ok(type_spec.kind.into_struct().unwrap());
+            }
+            TypeKind::Union { .. } | TypeKind::UnionRef { .. } => {
+                return Ok(type_spec.kind.into_union().unwrap());
+            }
+            TypeKind::Enum { .. } | TypeKind::EnumRef { .. } => {
+                return Ok(type_spec.kind.into_enum().unwrap());
+            }
+            // TypeKind::Unknown => {}
+            _ => todo!(),
+        }
+    };
+
+    let decl = Decl {
+        storage,
+        name,
+        kind,
+        ty,
+        span: init_declarator.span,
+    };
+
+    let decl = ctx.insert_decl(decl);
+    // 添加decl
+    self.insert_decl(decl)?;
+    // println!("\n{:?}\n\n", self.curr_decl);
+    Ok(decl)
 }
 
 impl DeclSpecBuilder {
@@ -239,69 +302,6 @@ impl DeclSpecBuilder {
 }
 
 // impl Sema {
-//     pub fn act_on_init_declarator(
-//         &mut self,
-//         ctx: &mut CompCtx,
-//         init_declarator: InitDeclarator,
-//     ) -> ParserResult<DeclKey> {
-//         let declarator = init_declarator.declarator;
-//         // let storage = declarator.decl_spec.storage.clone();
-//         // let name = declarator.name.clone();
-//         let type_spec = declarator.decl_spec.type_specs.first().unwrap().clone();
-//         let PartialDecl {
-//             storage,
-//             name,
-//             ty_key,
-//         } = self.act_on_declarator(declarator)?;
-//
-//         let ty = ctx.get_type(ty_key);
-//
-//         let is_typedef = storage.as_ref().is_some_and(|x| x.kind.is_typedef());
-//         let kind = if is_typedef {
-//             if init_declarator.init.is_some() {
-//                 // todo 对 typedef 初始化 错误
-//                 todo!();
-//             }
-//             DeclKind::TypeDef
-//         } else {
-//             match ty.kind {
-//                 TypeKind::Void
-//                 | TypeKind::Integer { .. }
-//                 | TypeKind::Floating { .. }
-//                 | TypeKind::Pointer { .. }
-//                 | TypeKind::Array { .. } => DeclKind::VarInit {
-//                     eq: init_declarator.eq,
-//                     init: init_declarator.init,
-//                 },
-//                 TypeKind::Function { .. } => DeclKind::FuncRef,
-//                 TypeKind::Struct { .. } | TypeKind::StructRef { .. } => {
-//                     return Ok(type_spec.kind.into_struct().unwrap());
-//                 }
-//                 TypeKind::Union { .. } | TypeKind::UnionRef { .. } => {
-//                     return Ok(type_spec.kind.into_union().unwrap());
-//                 }
-//                 TypeKind::Enum { .. } | TypeKind::EnumRef { .. } => {
-//                     return Ok(type_spec.kind.into_enum().unwrap());
-//                 }
-//                 // TypeKind::Unknown => {}
-//                 _ => todo!(),
-//             }
-//         };
-//
-//         let decl = Decl {
-//             storage,
-//             name,
-//             kind,
-//             ty: ty_key,
-//             span: init_declarator.span,
-//         };
-//
-//         let decl = ctx.insert_decl(decl);
-//         // 添加decl
-//         self.insert_decl(decl)?;
-//         // println!("\n{:?}\n\n", self.curr_decl);
-//         Ok(decl)
-//     }
 //
 //     /// 解析record的成员，插入decl
 //     pub fn act_on_record_field(

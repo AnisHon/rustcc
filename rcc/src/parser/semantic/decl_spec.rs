@@ -27,7 +27,7 @@ pub struct DeclSpec {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, EnumAsInner)]
+#[derive(Debug, Clone, Eq, PartialEq, EnumAsInner, Copy)]
 pub enum StorageSpecKind {
     Typedef,
     Extern,

@@ -2,7 +2,7 @@ use crate::parser::ast::common::StructOrUnion;
 use crate::parser::ast::{DeclKey, ExprKey, TypeKey};
 use crate::parser::semantic::ast::stmt::Stmt;
 use crate::parser::semantic::common::Ident;
-use crate::parser::semantic::decl_spec::StorageSpec;
+use crate::parser::semantic::decl_spec::{FuncSpec, StorageSpec};
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
 
@@ -46,14 +46,14 @@ pub struct Decl {
 pub enum DeclKind {
     TypeDef,
     ParamVar,
-    FuncRef, // 函数声明
-    VarInit {
+    VarDecl {
         // int a = 10;
         init: Option<Initializer>,
     },
     Func {
-        // 函数定义
-        body: Box<Stmt>,
+        // 函数定义 或 声明
+        inline: Option<FuncSpec>,
+        body: Option<Box<Stmt>>,
     },
     RecordField {
         // int a : 10;

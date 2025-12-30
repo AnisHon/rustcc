@@ -2,6 +2,17 @@ use crate::lex::types::token_kind::Symbol;
 use crate::parser::ast::DeclKey;
 use rustc_hash::FxHashMap;
 
+/// Scope 当前类型
+#[derive(Debug, PartialEq, Clone, Copy, Eq)]
+pub enum ScopeKind {
+    Global,
+    Function,
+    Block,
+    ParamList,
+    Record,
+    // Enum,
+}
+
 // 表示一个作用域
 /// - `sym_ht`: symbol hash table
 #[derive(Debug, Default)]

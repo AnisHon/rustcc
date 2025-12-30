@@ -1,9 +1,7 @@
 use crate::err::scope_error::ScopeError;
+use crate::lex::types::token_kind::Symbol;
 use crate::parser::ast::DeclKey;
-use crate::parser::semantic::sema::scope::scope_struct::Scope;
-use crate::{
-    lex::types::token_kind::Symbol
-};
+use crate::parser::semantic::sema::scope::scope_struct::{Scope, ScopeKind};
 
 macro_rules! scope_enter_pop {
     ($enter:ident, $pop:ident, $field:ident) => {
@@ -64,11 +62,44 @@ macro_rules! scope_insert {
     };
 }
 
+/// 生成 pop_xxx leave_xxx 函数
+/// - `enter`: enter 函数名
+/// - `leave`: leave 函数名
+/// - `kind`: scope kind
+/// - `fields`: pop 和 push 的内容
+macro_rules! scope_enter_leave {
+    ($enter:ident, $leave:ident, $kind:ident, $($field:ident),+) => {
+        pub fn $enter(&mut self) {
+            self.kinds.push(ScopeKind::$kind);
+            $(
+                self.$field.push(Scope::default());
+            )*
+        }
+
+        pub fn $leave(&mut self) {
+            assert!(!self.kinds.is_empty());
+            assert_eq!(self.kinds.last().unwrap(), ScopeKind::$kind);
+            self.ctx.pop();
+            $(
+                assert!(!self.$field.is_empty());
+                self.$field.pop();
+            )*
+        }
+    };
+}
+
+/// Scope 管理器
+/// - `tags`: record enum
+/// - `members`: record fields
+/// - `labels`: goto label
+/// - `idents`: typedef var
+/// - `ctx`: current scope context
 pub struct ScopeMgr {
     tags: Vec<Scope>,
     members: Vec<Scope>,
     labels: Vec<Scope>,
     idents: Vec<Scope>,
+    kinds: Vec<ScopeKind>,
 }
 
 impl ScopeMgr {
@@ -78,6 +109,7 @@ impl ScopeMgr {
             members: Vec::new(),
             labels: Vec::new(),
             idents: Vec::new(),
+            kinds: Vec::new(),
         }
     }
 
@@ -93,10 +125,18 @@ impl ScopeMgr {
         None
     }
 
-    scope_enter_pop!(enter_tag, pop_tag, tags);
-    scope_enter_pop!(enter_member, pop_member, members);
-    scope_enter_pop!(enter_label, pop_label, labels);
-    scope_enter_pop!(enter_ident, pop_ident, idents);
+    pub fn pop_tag(&mut self) -> Scope {
+        assert!(!self.tags.is_empty());
+        match self.tags.pop() {
+            Some(x) => x,
+            None => unreachable!("`{}` can't be empty", stringify!(tags)),
+        }
+    }
+
+    // scope_enter_pop!(enter_tag, pop_tag, tags);
+    // scope_enter_pop!(enter_member, pop_member, members);
+    // scope_enter_pop!(enter_label, pop_label, labels);
+    // scope_enter_pop!(enter_ident, pop_ident, idents);
 
     scope_lookup!(lookup_tag, lookup_local_tag, must_lookup_tag, tags);
     scope_lookup!(
@@ -112,4 +152,26 @@ impl ScopeMgr {
     scope_insert!(insert_member, members);
     scope_insert!(insert_ident, idents);
     scope_insert!(insert_tag, tags);
+
+    scope_enter_leave!(enter_global, leave_global, Global, tags, idents);
+
+    scope_enter_leave!(
+        enter_function,
+        leave_function,
+        Function,
+        tags,
+        idents,
+        labels
+    );
+
+    scope_enter_leave!(enter_block, leave_block, Block, tags, idents);
+
+    scope_enter_leave!(enter_param, leave_param, ParamList, idents);
+
+    scope_enter_leave!(enter_record, leave_record, Record, tags);
+
+    pub fn get_kind(&self) -> ScopeKind {
+        assert!(!self.kinds.is_empty());
+        self.kinds.last().expect("impossible").clone()
+    }
 }
