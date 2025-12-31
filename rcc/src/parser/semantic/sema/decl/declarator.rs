@@ -1,6 +1,6 @@
-use crate::constant::str::DECL_SPEC;
+use std::collections::hash_map::Entry;
+use crate::constant::str::{DECL_SPEC, TYPEDEF_REQUIRE_NAME};
 use crate::err::parser_error::{ParserError, ParserResult};
-use crate::parser::ast::types::{FloatSize, IntegerSize};
 use crate::parser::ast::decl::{Decl, DeclKind, Initializer};
 use crate::parser::ast::types::{FloatSize, IntegerSize, TypeKind};
 use crate::parser::ast::{DeclKey, TypeKey};
@@ -15,6 +15,9 @@ use crate::parser::semantic::sema::type_ctx::declarator::resolve_declarator;
 use crate::parser::semantic::sema::type_ctx::type_builder::TypeBuilderKind;
 use crate::types::span::Span;
 use std::rc::Rc;
+use std::thread::scope;
+use crate::lex::types::token_kind::Symbol;
+use crate::parser::semantic::sema::scope::scope_struct::{LabelSymbol, ScopeSymbol};
 
 #[derive(Debug)]
 pub struct PartialDecl {
@@ -31,7 +34,69 @@ pub struct DeclSpecBuilder {
     pub span: Span,
 }
 
-fn act_on_typedef() {}
+fn insert_typedef(ctx: &mut CompCtx, decl_key: DeclKey) -> ParserResult<()> {
+    let decl = ctx.get_decl(decl_key);
+    let ty = decl.ty;
+    let name = match &decl.name {
+        Some(x) => x.clone(),
+        None => { // typedef 但是没有名字给一个 warning
+            let warning = ParserError::warning(TYPEDEF_REQUIRE_NAME.to_owned(), decl.span);
+            ctx.send_error(warning)?;
+            return Ok(()); // 名字都没有不用了
+        }
+    };
+
+    match ctx.scope_mgr.entry_local_ident(name.symbol) {
+        Entry::Occupied(mut x) => {
+            let symbol = x.get_mut();
+            // 声明的 type 不同错误
+            if symbol.ty != ty {
+                let error = ParserError::redefinition(symbol.get_decl(), name);
+                return Err(error);
+            }
+            symbol.def = Some(decl_key); // todo: 频繁覆盖这很奇怪
+        }
+        Entry::Vacant(x) => {
+            // 不存在，构造符号表
+            let name = *x.key();
+            x.insert(ScopeSymbol {
+                name,
+                decls: Vec::new(),
+                def: Some(decl_key),
+                ty,
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn act_on_typedef(ctx: &mut CompCtx, init_declarator: InitDeclarator) -> ParserResult<DeclKey> {
+    let name = init_declarator.declarator.name.clone();
+    let decl_spec = Rc::clone(&init_declarator.declarator.decl_spec);
+    assert!(decl_spec.storage.map(|x| x.kind.is_typedef()).unwrap_or(false)); // 一定是 typedef
+    let type_key = resolve_declarator(ctx, init_declarator.declarator)?;
+
+    // typedef 不能有初始化
+    if init_declarator.init.is_some() {
+        let storage = decl_spec.storage.expect("impossible");
+        let ident = name.expect("with init, but no name?");
+        let error = ParserError::illegal_init(storage.to_string(), ident.symbol, storage.span);
+        return Err(error);
+    }
+
+    let decl = Decl {
+        storage: decl_spec.storage,
+        name: name.clone(),
+        kind: DeclKind::TypeDef,
+        ty: type_key,
+        span: init_declarator.span,
+    };
+
+
+
+
+}
 
 pub fn act_on_init_declarator(
     ctx: &mut CompCtx,
@@ -44,9 +109,6 @@ pub fn act_on_init_declarator(
     // let ty = resolve_declarator(ctx, declarator)?;
 
     init_declarator.declarator.decl_spec.storage
-
-
-
 
     let kind = if is_typedef {
         if init_declarator.init.is_some() {
@@ -296,11 +358,12 @@ impl DeclSpecBuilder {
             Record => {
                 let decl = decl.expect("record decl should not be none");
                 let decl = ctx.get_decl(decl);
-                let (record, _) = decl
-                    .kind
-                    .as_record()
-                    .expect("state is record, but decl is not");
-                TypeBuilderKind::new_record(ctx, record.kind)
+                let record_kind = match &decl.kind {
+                    DeclKind::RecordDecl { kind, .. } => kind.kind,
+                    DeclKind::RecordDef { kind, .. } => kind.kind,
+                    _ => unreachable!("")
+                };
+                TypeBuilderKind::new_record(ctx, record_kind)
             }
             Enum => TypeBuilderKind::new_enum(ctx),
             TypeName => {
@@ -567,7 +630,7 @@ impl DeclSpecBuilder {
 //     ) -> ParserResult<DeclKey> {
 //         let decl_context = self.exit_decl();
 //         let ty = self.type_context.resolve_enum(&spec)?;
-//         let kw = spec.enum_span;
+//         let tkw = spec.enum_span;
 //         let kind = match spec.enums {
 //             None => DeclKind::EnumRef { kw },
 //             Some(x) => DeclKind::Enum {

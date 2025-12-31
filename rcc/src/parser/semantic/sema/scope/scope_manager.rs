@@ -7,6 +7,7 @@ use crate::parser::common::Ident;
 use crate::parser::semantic::sema::scope::scope_struct::{
     LabelScope, LabelSymbol, MemberScope, MemberSymbol, Scope, ScopeKind, ScopeSymbol,
 };
+use std::collections::hash_map::Entry;
 
 // macro_rules! scope_enter_pop {
 //     ($enter:ident, $pop:ident, $field:ident) => {
@@ -25,7 +26,7 @@ use crate::parser::semantic::sema::scope::scope_struct::{
 // }
 
 macro_rules! scope_lookup {
-    ($lookup:ident, $lookup_local:ident, $must_lookup:ident, $insert:ident, $field:ident, $return:ty, $scope_source:ident) => {
+    ($lookup:ident, $lookup_local:ident, $entry_local:ident, $must_lookup:ident, $insert:ident, $field:ident, $return:ty, $scope_source:ident) => {
         pub fn $lookup<'a>(&'a self, ident: &Ident) -> Option<&'a $return> {
             let sym = ident.symbol;
             let stack = &self.$field;
@@ -55,6 +56,14 @@ macro_rules! scope_lookup {
                 None => unreachable!("`{}` can't be empty", stringify!($field)),
             };
             scope.sym_ht.get(&sym)
+        }
+
+        pub fn $entry_local(&mut self, sym: Symbol) -> Entry<Symbol, $return> {
+            let scope = match self.$field.last_mut() {
+                Some(x) => x,
+                None => unreachable!("`{}` can't be empty", stringify!($field)),
+            };
+            scope.sym_ht.entry(sym)
         }
     };
 }
@@ -127,6 +136,7 @@ impl ScopeMgr {
     scope_lookup!(
         lookup_tag,
         lookup_local_tag,
+        entry_local_tag,
         must_lookup_tag,
         insert_tag,
         tags,
@@ -137,6 +147,7 @@ impl ScopeMgr {
     scope_lookup!(
         lookup_member,
         lookup_local_member,
+        entry_local_member,
         must_lookup_member,
         insert_member,
         members,
@@ -147,6 +158,7 @@ impl ScopeMgr {
     scope_lookup!(
         lookup_label,
         lookup_local_label,
+        entry_local_label,
         must_lookup_label,
         insert_label,
         labels,
@@ -157,6 +169,7 @@ impl ScopeMgr {
     scope_lookup!(
         lookup_ident,
         lookup_local_ident,
+        entry_local_ident,
         must_lookup_ident,
         insert_ident,
         idents,
@@ -205,6 +218,6 @@ impl ScopeMgr {
         let scope = self.tags.last_mut().expect("should not be empty");
         scope.sym_ht.insert(name.symbol, symbol);
 
-        return Ok(());
+        Ok(())
     }
 }

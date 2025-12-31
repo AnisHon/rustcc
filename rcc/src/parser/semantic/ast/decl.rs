@@ -9,11 +9,7 @@ use enum_as_inner::EnumAsInner;
 #[derive(Debug, Clone)]
 pub enum Initializer {
     Expr(ExprKey),
-    InitList {
-        l: Pos,
-        inits: InitializerList,
-        r: Pos,
-    },
+    InitList { inits: InitializerList },
 }
 
 #[derive(Clone, Debug)]

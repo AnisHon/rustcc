@@ -138,6 +138,20 @@ pub fn insert_record_decl(
     Ok(decl_key)
 }
 
+/// 填充 record 的前向声明
+pub fn fill_record_fwd_ref(ctx: &mut CompCtx, definition: DeclKey, decls: Vec<DeclKey>) {
+    for decl in decls.into_iter() {
+        let decl = ctx.get_decl_mut(decl);
+        assert!(decl.kind.is_record_decl());
+        match &mut decl.kind {
+            DeclKind::RecordDecl { def, .. } => {
+                *def = Some(definition);
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
 /// 插入 record 定义
 pub fn insert_record_def(
     ctx: &mut CompCtx,
@@ -146,7 +160,7 @@ pub fn insert_record_def(
     span: Span,
 ) -> ParserResult<DeclKey> {
     assert!(kind.is_record_def());
-    let record_kind = match kind {
+    let record_kind = match &kind {
         DeclKind::RecordDef { kind, .. } => kind.kind.clone(),
         _ => unreachable!(),
     };
@@ -173,6 +187,7 @@ pub fn insert_record_def(
         }
     };
 
+    // 构建 decl
     let decl = Decl {
         storage: None,
         kind,
@@ -181,10 +196,12 @@ pub fn insert_record_def(
         span,
     };
 
-    let decl_key = ctx.insert_decl(decl);
+    let def = ctx.insert_decl(decl);
 
-    let decls = lookup_or_insert_def(ctx, decl_key, ty, ScopeSource::Tag)?;
-    todo!("处理前向声明");
+    // 添加到符号表
+    let decls = lookup_or_insert_def(ctx, def, ty, ScopeSource::Tag)?;
+    // 填充前向引用
+    fill_record_fwd_ref(ctx, def, decls);
 
-    Ok(decl)
+    Ok(def)
 }

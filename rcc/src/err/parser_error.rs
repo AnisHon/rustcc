@@ -28,17 +28,9 @@ pub enum ErrorKind {
     Duplicate { item: String, context: String },
 
     #[error("Redefinition of '{symbol}'")]
-    Redefinition {
-        symbol: &'static str,
-        curr: DeclKey,
-        prev: DeclKey,
-    },
+    Redefinition { symbol: &'static str, prev: DeclKey },
     #[error("Redefinition of '{symbol}'")]
-    RedefinitionLabel {
-        symbol: &'static str,
-        curr: StmtKey,
-        prev: StmtKey,
-    },
+    RedefinitionLabel { symbol: &'static str, prev: StmtKey },
 
     #[error("Undefined '{symbol}'")]
     Undefined { symbol: &'static str },
@@ -53,8 +45,7 @@ pub enum ErrorKind {
     NotStructOrUnion { ty: TypeKey },
     #[error("Object Not Callable")]
     UnCallable,
-    #[error("{msg}")]
-    ErrorMessage { msg: String },
+
     #[error("is not an integer expression")]
     NotIntConstant,
     #[error("")]
@@ -72,17 +63,15 @@ pub enum ErrorKind {
     #[error("Incompatible operand types")]
     Incompatible { ty1: TypeKey, ty2: TypeKey },
     #[error("use of '{name}' with tag type that does not match previous declaration")]
-    DeclNotMatch {
-        prev: DeclKey,
-        curr: DeclKey,
-        name: &'static str,
-    },
+    DeclNotMatch { prev: DeclKey, name: &'static str },
     #[error("Conflicting types for '{name}'")]
-    ConflictingType {
-        prev: DeclKey,
-        curr: DeclKey,
-        name: &'static str,
-    },
+    ConflictingType { prev: DeclKey, name: &'static str },
+    #[error("{storage} '{name}' is initialized")]
+    IllegalInit { storage: String, name: &'static str },
+    #[error("{msg}")]
+    WarningMsg { msg: String },
+    #[error("{msg}")]
+    ErrorMessage { msg: String },
 }
 
 #[derive(Debug)]
@@ -116,8 +105,11 @@ impl ErrorLevel {
             | NotScalar { .. }
             | Incompatible { .. }
             | DeclNotMatch { .. }
-            | ConflictingType { .. } => Error,
-            Duplicate { .. } => Warning,
+            | ConflictingType { .. }
+            | IllegalInit { .. }
+            | UndefinedLabel { .. }
+            | RedefinitionLabel { .. } => Error,
+            Duplicate { .. } | WarningMsg { .. } => Warning,
         }
     }
 }
@@ -241,11 +233,21 @@ impl ParserError {
             symbol: name.symbol.get(),
             prev,
         };
-        Self::new(kind, ident.span)
+        Self::new(kind, name.span)
     }
 
-    // 重构为 from
-    pub fn from_scope_error(error: ScopeError, span: Span) -> Self {}
+    pub fn illegal_init(storage: String, name: Symbol, span: Span) -> Self {
+        let kind = ErrorKind::IllegalInit {
+            storage,
+            name: name.get(),
+        };
+        Self::new(kind, span)
+    }
+
+    pub fn warning(msg: String, span: Span) -> Self {
+        let kind = ErrorKind::WarningMsg { msg };
+        Self::new(kind, span)
+    }
 
     pub fn from_type_error(error: TypeError, span: Span) -> Self {
         let kind = ErrorKind::TypeError { err: error };
@@ -264,27 +266,23 @@ impl From<ScopeError> for ParserError {
     fn from(value: ScopeError) -> Self {
         use ScopeErrorKind::*;
         let kind = match value.kind {
-            Redefined { curr, prev } => ErrorKind::Redefinition {
+            Redefined { prev } => ErrorKind::Redefinition {
                 symbol: value.name,
                 prev,
-                curr,
             },
-            RedefinedLabel { curr, prev } => ErrorKind::RedefinitionLabel {
+            RedefinedLabel { prev } => ErrorKind::RedefinitionLabel {
                 symbol: value.name,
-                curr,
                 prev,
             },
             Undefined => ErrorKind::Undefined { symbol: value.name },
             UndefinedLabel => ErrorKind::UndefinedLabel { symbol: value.name },
-            Conflict { curr, prev } => match value.scope {
+            Conflict { prev } => match value.scope {
                 ScopeSource::Tag => ErrorKind::DeclNotMatch {
                     prev,
-                    curr,
                     name: value.name,
                 },
                 _ => ErrorKind::ConflictingType {
                     prev,
-                    curr,
                     name: value.name,
                 },
             },
