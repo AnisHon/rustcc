@@ -2,7 +2,7 @@ use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::TokenKind;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::parser_core::*;
-use crate::parser::parser_decl::{parse_decl, parse_decl_after_declarator, parse_declarator};
+use crate::parser::parser_decl::{parse_decl, parse_decl_after_declarator, parse_decl_spec, parse_declarator};
 use crate::parser::parser_stmt::parse_compound_stmt;
 use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::ast::func::{ExternalDecl, FuncDecl, FuncDef, TranslationUnit};
@@ -32,15 +32,18 @@ fn parse_external_decl(
     translation_unit: &mut TranslationUnit,
 ) -> ParserResult<()> {
     let lo = ctx.stream.span();
-    let decl_spec = parse_decl_list(ctx)?;
+
+    // 解析 declarator
+    let decl_spec = parse_decl_spec(ctx)?;
     let mut declarator = Declarator::new(decl_spec);
     parse_declarator(ctx, &mut declarator)?;
 
-    // todo 检查一下这个declarator是不是函数，不是函数直接进入Declaration解析，如果是
+    // todo 这里可能要复杂一些，检查 declaration 还是 function def, 可以搭配declarator 
 
     let external_decl = if check_decl_spec(ctx) || check(ctx, TokenKind::LBrace) {
-        // 进入decl
-        sema.enter_decl(DeclContextKind::Block);
+        // 进入参数作用域
+        
+
         // KR函数的参数
         let decl_list = match check_decl_spec(ctx) {
             true => Some(parse_decl_list(ctx)?),

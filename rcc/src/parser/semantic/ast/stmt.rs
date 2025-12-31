@@ -3,11 +3,12 @@ use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::comp_ctx::CompCtx;
 use crate::types::span::{Pos, Span};
+use enum_as_inner::EnumAsInner;
 use slotmap::new_key_type;
 
 new_key_type! {}
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumAsInner)]
 pub enum StmtKind {
     Expr {
         expr: Option<ExprKey>,
@@ -18,7 +19,6 @@ pub enum StmtKind {
     },
     Label {
         ident: Ident,
-        colon: Pos,
         stmt: StmtKey,
     }, // LABEL:
     Case {
@@ -77,9 +77,7 @@ pub enum StmtKind {
         body: StmtKey,
     },
     Goto {
-        goto_span: Span,
         ident: Ident,
-        semi: Pos,
     }, // goto LABEL;
     Continue {
         continue_span: Span,

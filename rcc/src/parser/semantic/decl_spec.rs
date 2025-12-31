@@ -317,7 +317,7 @@ pub struct StructSpecBody {
 // struct or union
 #[derive(Clone, Debug)]
 pub struct StructSpec {
-    pub kind: Record,
+    pub kind: StructOrUnion,
     pub name: Option<Ident>,
     pub body: Option<StructSpecBody>,
     pub span: Span,

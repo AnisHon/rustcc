@@ -150,7 +150,7 @@ impl TypeCtx {
     }
 
     // 字符串类型, 无法保证 immutable
-    pub fn get_string_type(&mut self, sz: u64) -> TypeKey {
+    pub fn get_string_type(&mut self, sz: usize) -> TypeKey {
         // c 的 string 似乎不是 const 类型
         let elem_ty = self.get_char();
         let size = ArraySize::Static(sz);

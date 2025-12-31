@@ -54,7 +54,7 @@ pub enum FloatSize {
     LongDouble,
 }
 
-impl FloatSize for IntegerSize {
+impl Display for FloatSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use FloatSize::*;
         let str = match self {
@@ -87,7 +87,7 @@ impl FloatSize {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
 pub enum ArraySize {
     Static(usize), // int a[10]
     VLA,           // int a[var]

@@ -1,10 +1,10 @@
 use crate::parser::ast::types::Qualifier;
-use crate::parser::semantic::decl_spec::{DeclSpec, TypeQuals, TypeSpec};
+use crate::parser::semantic::decl_spec::{DeclSpec, TypeQuals};
 use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind};
 use crate::{
     err::parser_error::{self, ParserError, ParserResult},
     parser::{
-        ast::{ExprKey, TypeKey, exprs::ExprKind, types::ArraySize},
+        ast::{ExprKey, TypeKey, types::ArraySize},
         comp_ctx::CompCtx,
         semantic::{
             decl_spec::ParamDecl,
@@ -76,7 +76,7 @@ fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySiz
     let expr_ty = ctx.type_ctx.get_type(expr.ty);
 
     // 不是 int 直接出错
-    let array_size = expr.value.map(|x| x.as_intager()).flatten();
+    let array_size = expr.value.map(|x| x.as_intager().cloned()).flatten();
     let array_size = match array_size {
         Some(x) => x,
         None => {

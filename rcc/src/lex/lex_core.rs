@@ -11,7 +11,6 @@ use unicode_ident::{is_xid_continue, is_xid_start};
 ///
 ///
 /// # Members
-
 pub struct Lex {
     content_manager: Arc<ContentManager>,
     curr_pos: usize,
@@ -302,17 +301,14 @@ impl Lex {
         let is_int = self.try_int(base)?;
         let kind = if is_int {
             let patten = self.get_patten(); // 获取当前数字的部分
-            let num = make_integer(patten, base);
-
+            let value = Symbol::new(patten);
             let suffix = self.try_int_suffix()?;
-
-            LiteralKind::Integer { value: num, suffix }
+            LiteralKind::Integer { value, suffix }
         } else {
             self.try_float()?;
             let patten = self.get_patten(); // 获取当前数字的部分
             let value = Symbol::new(patten);
             let suffix = self.try_float_suffix()?;
-            
             LiteralKind::Float { value, suffix }
         };
 
@@ -485,16 +481,16 @@ pub fn make_char(patten: &str) -> TokenKind {
     TokenKind::Literal(LiteralKind::Char { value })
 }
 
-pub fn make_integer(patten: &str, base: u32) -> u64 {
-    let patten = match base {
-        2 => &patten[2..],
-        8 => &patten[1..],
-        10 => patten,
-        16 => &patten[2..],
-        _ => unreachable!()
-    };
-    u64::from_str_radix(patten, base).unwrap()
-}
+// pub fn make_integer(patten: &str, base: u32) -> u64 {
+//     let patten = match base {
+//         2 => &patten[2..],
+//         8 => &patten[1..],
+//         10 => patten,
+//         16 => &patten[2..],
+//         _ => unreachable!()
+//     };
+//     u64::from_str_radix(patten, base).unwrap()
+// }
 
 
 

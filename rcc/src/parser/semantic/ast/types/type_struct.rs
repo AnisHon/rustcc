@@ -8,9 +8,9 @@ use enum_as_inner::EnumAsInner;
 use std::hash::Hash;
 use std::sync::OnceLock;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
 pub struct RecordID(pub usize);
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
 pub struct EnumID(pub usize);
 
 #[derive(Debug, Clone, Default)]

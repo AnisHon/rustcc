@@ -1,7 +1,7 @@
-use crate::err::scope_error::ScopeError;
+use crate::err::scope_error::{ScopeError, ScopeErrorKind, ScopeSource};
 use crate::err::type_error::TypeError;
 use crate::lex::types::token_kind::Symbol;
-use crate::parser::ast::{DeclKey, TypeKey};
+use crate::parser::ast::{DeclKey, StmtKey, TypeKey};
 use crate::parser::common::Ident;
 use crate::types::span::Span;
 use std::backtrace::Backtrace;
@@ -26,10 +26,25 @@ pub enum ErrorKind {
     NonCombinable { prev: String, context: String },
     #[error("Duplicate '{item}' {context}")]
     Duplicate { item: String, context: String },
+
     #[error("Redefinition of '{symbol}'")]
-    Redefinition { symbol: &'static str, prev: DeclKey },
+    Redefinition {
+        symbol: &'static str,
+        curr: DeclKey,
+        prev: DeclKey,
+    },
+    #[error("Redefinition of '{symbol}'")]
+    RedefinitionLabel {
+        symbol: &'static str,
+        curr: StmtKey,
+        prev: StmtKey,
+    },
+
     #[error("Undefined '{symbol}'")]
     Undefined { symbol: &'static str },
+    #[error("Undefined '{symbol}'")]
+    UndefinedLabel { symbol: &'static str },
+
     #[error("Subscripted value is not an array, pointer or vector")]
     NonSubscripted,
     #[error("No Member named '{field}' in '{ty}'")]
@@ -57,16 +72,17 @@ pub enum ErrorKind {
     #[error("Incompatible operand types")]
     Incompatible { ty1: TypeKey, ty2: TypeKey },
     #[error("use of '{name}' with tag type that does not match previous declaration")]
-    DeclNotMatch { prev: DeclKey, name: &'static str },
-}
-
-impl ErrorKind {
-    pub fn redefinition(symbol: Symbol, prev: DeclKey) -> ErrorKind {
-        ErrorKind::Redefinition {
-            symbol: symbol.get(),
-            prev,
-        }
-    }
+    DeclNotMatch {
+        prev: DeclKey,
+        curr: DeclKey,
+        name: &'static str,
+    },
+    #[error("Conflicting types for '{name}'")]
+    ConflictingType {
+        prev: DeclKey,
+        curr: DeclKey,
+        name: &'static str,
+    },
 }
 
 #[derive(Debug)]
@@ -99,7 +115,8 @@ impl ErrorLevel {
             | TypeError { .. }
             | NotScalar { .. }
             | Incompatible { .. }
-            | DeclNotMatch { .. } => Error,
+            | DeclNotMatch { .. }
+            | ConflictingType { .. } => Error,
             Duplicate { .. } => Warning,
         }
     }
@@ -227,16 +244,8 @@ impl ParserError {
         Self::new(kind, ident.span)
     }
 
-    pub fn from_scope_error(error: ScopeError, span: Span) -> Self {
-        let kind = match error {
-            ScopeError::Redefined { field, prev } => ErrorKind::Redefinition {
-                symbol: field,
-                prev,
-            },
-            ScopeError::Undefined { field } => ErrorKind::Undefined { symbol: field },
-        };
-        Self::new(kind, span)
-    }
+    // 重构为 from
+    pub fn from_scope_error(error: ScopeError, span: Span) -> Self {}
 
     pub fn from_type_error(error: TypeError, span: Span) -> Self {
         let kind = ErrorKind::TypeError { err: error };
@@ -247,5 +256,39 @@ impl ParserError {
 impl Display for ParserError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.level, self.error_kind)
+    }
+}
+
+/// ScopeError 到 ParserError
+impl From<ScopeError> for ParserError {
+    fn from(value: ScopeError) -> Self {
+        use ScopeErrorKind::*;
+        let kind = match value.kind {
+            Redefined { curr, prev } => ErrorKind::Redefinition {
+                symbol: value.name,
+                prev,
+                curr,
+            },
+            RedefinedLabel { curr, prev } => ErrorKind::RedefinitionLabel {
+                symbol: value.name,
+                curr,
+                prev,
+            },
+            Undefined => ErrorKind::Undefined { symbol: value.name },
+            UndefinedLabel => ErrorKind::UndefinedLabel { symbol: value.name },
+            Conflict { curr, prev } => match value.scope {
+                ScopeSource::Tag => ErrorKind::DeclNotMatch {
+                    prev,
+                    curr,
+                    name: value.name,
+                },
+                _ => ErrorKind::ConflictingType {
+                    prev,
+                    curr,
+                    name: value.name,
+                },
+            },
+        };
+        Self::new(kind, value.span)
     }
 }

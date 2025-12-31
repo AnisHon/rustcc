@@ -1,5 +1,6 @@
 use crate::constant::str::DECL_SPEC;
 use crate::err::parser_error::{ParserError, ParserResult};
+use crate::parser::ast::types::{FloatSize, IntegerSize};
 use crate::parser::ast::decl::{Decl, DeclKind, Initializer};
 use crate::parser::ast::types::{FloatSize, IntegerSize, TypeKind};
 use crate::parser::ast::{DeclKey, TypeKey};
@@ -105,7 +106,7 @@ impl DeclSpecBuilder {
             type_quals,
             func_spec,
             kind,
-            span,
+            span: self.span,
         });
 
         Ok(decl_spec)
@@ -157,6 +158,44 @@ impl DeclSpecBuilder {
         Ok(func_spec)
     }
 
+    /// 检查type spec是否正确
+    fn check_type_spec(
+        ctx: &mut CompCtx,
+        spec: &TypeSpec,
+        int_cnt: i32,
+        is_signed: Option<&TypeSpec>,
+    ) -> ParserResult<()> {
+        use TypeSpecKind::*;
+        match &spec.kind {
+            Int if int_cnt > 1 => {
+                // 多个 int 报错
+                let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
+                return Err(err);
+            }
+            Float | Double | Record(_) | Enum(_) | TypeName(_, _) if is_signed.is_some() => {
+                let prev = is_signed.expect("impossible").to_string();
+                let err = ParserError::non_combinable(prev, DECL_SPEC, spec.span);
+                return Err(err);
+            }
+            Signed | Unsigned if is_signed.is_some() => {
+                let prev = is_signed.expect("impossible").to_string();
+                let x = is_signed.unwrap();
+                if x.is(&spec.kind) {
+                    // 相同，重复
+                    let err = ParserError::duplicate(prev, DECL_SPEC, spec.span);
+                    ctx.send_error(err)?;
+                } else {
+                    // 不同，错误
+                    let err = ParserError::non_combinable(prev, DECL_SPEC, spec.span);
+                    return Err(err);
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
     fn act_on_type_specs(ctx: &mut CompCtx, specs: Vec<TypeSpec>) -> ParserResult<TypeBuilderKind> {
         use TypeSpecKind::*;
         assert!(!specs.is_empty());
@@ -164,32 +203,11 @@ impl DeclSpecBuilder {
         let mut decl: Option<DeclKey> = None;
         let mut is_signed: Option<TypeSpec> = None;
         let mut int_cnt = 0;
-        let mut spec = specs.last().expect("specs should not empty").clone();
 
+        // 状态机循环
         for spec in specs {
             // 检查
-            match &spec.kind {
-                Int => {
-                    let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
-                    return Err(err);
-                }
-                Float | Double | Record(_) | Enum(_) | TypeName(_, _) if is_signed.is_some() => {
-                    let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
-                    return Err(err);
-                }
-                Signed | Unsigned if is_signed.is_some() => {
-                    let x = is_signed.unwrap();
-                    // 相同重复了
-                    if x.is(&spec.kind) {
-                        let err = ParserError::duplicate(x.to_string(), DECL_SPEC, spec.span);
-                        ctx.send_error(err)?;
-                    } else {
-                        let err = ParserError::non_combinable(x.to_string(), DECL_SPEC, spec.span);
-                        return Err(err);
-                    }
-                }
-                _ => {}
-            }
+            Self::check_type_spec(ctx, &spec, int_cnt, is_signed.as_ref());
 
             let next = match &spec.kind {
                 Void => TypeSpecState::Void,
@@ -215,6 +233,7 @@ impl DeclSpecBuilder {
                     TypeSpecState::TypeName
                 }
                 Signed | Unsigned => {
+                    // 不参与循环
                     is_signed = Some(spec);
                     continue;
                 }
@@ -229,7 +248,7 @@ impl DeclSpecBuilder {
             };
         }
         let is_signed = is_signed.map(|x| x.kind.is_signed()).unwrap_or(false);
-        let builder_kind = Self::get_type_build_kind(ctx, state, is_signed, spec);
+        let builder_kind = Self::get_type_build_kind(ctx, state, is_signed, decl);
 
         Ok(builder_kind)
     }
@@ -239,63 +258,59 @@ impl DeclSpecBuilder {
         ctx: &mut CompCtx,
         state: TypeSpecState,
         is_signed: bool,
-        spec: TypeSpec,
+        decl: Option<DeclKey>,
     ) -> TypeBuilderKind {
+        use TypeSpecState::*;
+        // 根据最后状态判断类型
         let builder = match state {
-            TypeSpecState::Void => TypeBuilderKind::Void,
-            TypeSpecState::Char => TypeBuilderKind::Integer {
+            Void => TypeBuilderKind::Void,
+            Char => TypeBuilderKind::Integer {
                 is_signed,
                 size: IntegerSize::Char,
             },
-            TypeSpecState::Short => TypeBuilderKind::Integer {
+            Short => TypeBuilderKind::Integer {
                 is_signed,
                 size: IntegerSize::Short,
             },
-            TypeSpecState::Int => TypeBuilderKind::Integer {
+            Int => TypeBuilderKind::Integer {
                 is_signed,
                 size: IntegerSize::Int,
             },
-            TypeSpecState::Long => TypeBuilderKind::Integer {
+            Long => TypeBuilderKind::Integer {
                 is_signed,
                 size: IntegerSize::Long,
             },
-            TypeSpecState::LongLong => TypeBuilderKind::Integer {
+            LongLong => TypeBuilderKind::Integer {
                 is_signed,
                 size: IntegerSize::LongLong,
             },
-            TypeSpecState::Float => TypeBuilderKind::Floating {
+            Float => TypeBuilderKind::Floating {
                 size: FloatSize::Float,
             },
-            TypeSpecState::Double => TypeBuilderKind::Floating {
+            Double => TypeBuilderKind::Floating {
                 size: FloatSize::Double,
             },
-            TypeSpecState::LongDouble => TypeBuilderKind::Floating {
+            LongDouble => TypeBuilderKind::Floating {
                 size: FloatSize::LongDouble,
             },
-            TypeSpecState::Record => {
-                let decl = spec
-                    .kind
-                    .as_record()
-                    .expect("state is record, but spec is not");
-                let decl = ctx.get_decl(*decl);
+            Record => {
+                let decl = decl.expect("record decl should not be none");
+                let decl = ctx.get_decl(decl);
                 let (record, _) = decl
                     .kind
                     .as_record()
                     .expect("state is record, but decl is not");
                 TypeBuilderKind::new_record(ctx, record.kind)
             }
-            TypeSpecState::Enum => TypeBuilderKind::new_enum(ctx),
-            TypeSpecState::TypeName => {
-                let (_, decl) = spec
-                    .kind
-                    .as_type_name()
-                    .expect("state is typename, but spec not");
-                let decl = ctx.get_decl(*decl);
+            Enum => TypeBuilderKind::new_enum(ctx),
+            TypeName => {
+                let decl = decl.expect("record decl should not be none");
+                let decl = ctx.get_decl(decl);
                 let ty = ctx.type_ctx.get_type(decl.ty);
 
                 TypeBuilderKind::from_type_kind(&ty.kind)
             }
-            _ => unreachable!(),
+            Init => unreachable!("should not be init"),
         };
         builder
     }

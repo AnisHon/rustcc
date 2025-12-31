@@ -153,7 +153,7 @@ impl TypeBuilderKind {
                 is_variadic,
             } => TypeBuilderKind::Function {
                 ret_ty: *ret_ty,
-                params: *params,
+                params: params.clone(),
                 is_variadic: *is_variadic,
             },
             TypeKind::Record { id, kind, .. } => TypeBuilderKind::Record {

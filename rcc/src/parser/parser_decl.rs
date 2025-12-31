@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use crate::parser::parser_core::error_here;
 use crate::parser::semantic::decl_spec::{EnumForm, TypeQualKind};
 use crate::{
     constant::str::DECL_SPEC,
@@ -28,7 +29,7 @@ use crate::{
             sema::decl::{
                 declarator::{DeclSpecBuilder, PartialDecl},
                 record::{
-                    insert_enum_ref, insert_record_def, insert_record_ref, lookup_enum,
+                    insert_enum_decl, insert_record_decl, insert_record_def, lookup_enum,
                     lookup_struct,
                 },
             },
@@ -41,7 +42,7 @@ fn expect_semi_or_lbrace_error(ctx: &CompCtx) -> ParserError {
     let kind = parser_error::ErrorKind::Expect {
         expect: "identifier or '{'".to_owned(),
     };
-    ctx.error_here(kind)
+    error_here(ctx, kind)
 }
 
 /// 检查 declarator `{` '(` `[` `ident`
@@ -119,9 +120,11 @@ pub(crate) fn parse_decl_spec(ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
             break;
         };
     }
-
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
+
+    // 肯定不能为空
+    assert!(!type_specs.is_empty());
 
     // 构建 decl_spec
     let builder = DeclSpecBuilder {
@@ -148,7 +151,10 @@ fn parse_type_spec(ctx: &mut CompCtx) -> ParserResult<TypeSpec> {
             // 消耗 token
             let token = ctx.stream.next();
             let symbol = token.kind.into_ident().unwrap();
-            let ident = Ident { symbol, span };
+            let ident = Ident {
+                symbol,
+                span: token.span,
+            };
             let decl = ctx
                 .scope_mgr
                 .must_lookup_ident(symbol)
@@ -220,7 +226,7 @@ fn parse_function_spec(ctx: &mut CompCtx) -> ParserResult<FuncSpec> {
     Ok(func_spec)
 }
 
-/// 兼容abstract_declarator
+/// 兼容 abstract_declarator
 /// 假设 `int **( (*a)() )[]` 结果应该是 `setname(a) [ * () [] * * ] int`
 /// 解析的时候应该反过来
 pub(crate) fn parse_declarator(ctx: &mut CompCtx, declarator: &mut Declarator) -> ParserResult<()> {
@@ -228,16 +234,17 @@ pub(crate) fn parse_declarator(ctx: &mut CompCtx, declarator: &mut Declarator) -
 
     let mut pointers: Vec<DeclaratorChunk> = Vec::new();
 
-    // 解析 pointer
+    // 解析 pointer 部分
     if check_pointer(ctx) {
         parse_pointer(ctx, &mut pointers)?;
     }
 
-    // 解析 direct declarator
+    // 解析 direct declarator 部分
     if check_declarator(ctx) {
         parse_direct_declarator(ctx, declarator)?;
     }
 
+    // 合并 direct declarator 和 pointer
     // 反转插入
     pointers.reverse();
     declarator.chunks.append(&mut pointers);
@@ -549,7 +556,7 @@ fn parse_record_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
             // act_on_finish_record_def 需要重新设置 span 和 fields
             todo!()
         }
-        RecordForm::Declaration { record, name } => insert_record_ref(ctx, record, name, span)?,
+        RecordForm::Declaration { record, name } => insert_record_decl(ctx, record, name, span)?,
         RecordForm::Reference { record, name } => lookup_struct(ctx, &record, name, span)?,
     };
     Ok(decl)
@@ -611,7 +618,7 @@ fn parse_struct_declarator_list(
     Ok(())
 }
 
-/// 解析struct的成员，负责插入符号表
+/// 解析struct的成员，负责插入符号表，应该插入member
 fn parse_struct_declarator(ctx: &mut CompCtx, decl_spec: Rc<DeclSpec>) -> ParserResult<DeclKey> {
     let mut declarator = Declarator::new(decl_spec);
 
@@ -651,7 +658,7 @@ fn parse_enum_suffix(ctx: &mut CompCtx) -> ParserResult<Option<Ident>> {
         let kind = parser_error::ErrorKind::Expect {
             expect: "identifier or '{'".to_owned(),
         };
-        return Err(ctx.error_here(kind));
+        return Err(error_here(ctx, kind));
     }
 
     let name = consume_ident(ctx).map(Ident::new);
@@ -692,8 +699,10 @@ fn parse_enum_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
 
+    // 确定操作
     let form = classify_enum_form(ctx, name)?;
 
+    // 执行
     let decl = match form {
         EnumForm::Definition { name } => {
             let _ = ctx.stream.next(); // 跳过 left brace
@@ -708,7 +717,7 @@ fn parse_enum_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
 
             todo!("act on enum spec")
         }
-        EnumForm::Declaration { name } => insert_enum_ref(ctx, name, span)?,
+        EnumForm::Declaration { name } => insert_enum_decl(ctx, name, span)?,
         EnumForm::Reference { name } => lookup_enum(ctx, name, span)?,
     };
 
@@ -747,26 +756,28 @@ fn parse_enumerator(ctx: &mut CompCtx) -> ParserResult<Enumerator> {
     Ok(enumerator)
 }
 
-/// 函数列表，不包含左右括号，负责构建符号表
+/// 解析函数列表
+/// - 不包含左右括号
+/// - 不负责构建符号表
+/// - 不支持尾部逗号
 fn parse_parameter_list(ctx: &mut CompCtx) -> ParserResult<ParamList> {
     let lo = ctx.stream.span();
 
     let mut params: Vec<DeclKey> = Vec::new();
     let mut is_variadic = false;
 
-    // 解析第一个参数声明
-    let decl = parse_parameter_decl(ctx)?;
+    // 解析列表参数声明
+    loop {
+        let decl = parse_parameter_decl(ctx)?;
+        params.push(decl);
+        if consume(ctx, TokenKind::Comma).is_none() {
+            break;
+        }
 
-    params.push(decl);
-
-    // 解析后续参数声明
-    while let Some(comma) = consume(ctx, TokenKind::Comma) {
-        if let Some(token) = consume(ctx, TokenKind::Ellipsis) {
+        if consume(ctx, TokenKind::Ellipsis).is_some() {
             is_variadic = true;
             break;
         }
-        let decl = parse_parameter_decl(ctx)?;
-        params.push(decl);
     }
 
     let hi = ctx.stream.prev_span();
@@ -780,7 +791,7 @@ fn parse_parameter_list(ctx: &mut CompCtx) -> ParserResult<ParamList> {
     Ok(list)
 }
 
-/// 解析函数参数声明，负责插入符号表
+/// 解析函数参数声明，不负责插入符号表
 fn parse_parameter_decl(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
     let lo = ctx.stream.span();
 
@@ -797,7 +808,7 @@ fn parse_parameter_decl(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
 
     declarator.span = span;
 
-    // 这个函数要进行必要的检测，但一定不负责管理符号表
+    // 这个函数要进行必要的检测，不负责管理符号表
     let decl = sema.act_on_param_var(declarator)?;
 
     Ok(decl)

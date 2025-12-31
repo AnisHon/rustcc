@@ -130,7 +130,7 @@ impl Visitor for AstGraph<'_> {
                     self.visit_expr(x)
                 };
             }
-            DeclKind::Record { fields, .. } => {
+            DeclKind::RecordDef { fields, .. } => {
                 prev = self.make_node("record_def".to_owned());
                 fields.iter_mut().for_each(|x| self.walk_decl_group(x))
             }
@@ -143,7 +143,7 @@ impl Visitor for AstGraph<'_> {
                     self.visit_expr(*x)
                 }
             }
-            DeclKind::Enum { enums, .. } => {
+            DeclKind::EnumDef { enums, .. } => {
                 prev = self.make_node("enum_def".to_owned());
                 enums.iter().for_each(|x| self.visit_decl(*x))
             }

@@ -46,36 +46,71 @@ pub struct Decl {
 pub enum DeclKind {
     TypeDef,
     ParamVar,
+
+    // 变量声明，变量定义
     VarDecl {
-        // int a = 10;
+        def: Option<DeclKey>,
+    },
+    VarDef {
         init: Option<Initializer>,
     },
-    Func {
-        // 函数定义 或 声明
-        inline: Option<FuncSpec>,
-        body: Option<Box<Stmt>>,
+
+    // 函数声明 函数定义
+    FuncDecl {
+        def: Option<DeclKey>,
     },
+    FuncDef {
+        inline: Option<FuncSpec>,
+        body: Box<Stmt>,
+    },
+
+    // Record 成员 声明 定义
     RecordField {
         // int a : 10;
         bit_field: Option<ExprKey>,
     },
-    Record {
+    RecordDecl {
         kind: StructOrUnion,
-        fields: Option<Vec<DeclGroup>>, // 当 fields 为 none 时为不完全类型
-                                        // decl_context: DeclContextRef,
+        def: Option<DeclKey>,
     },
+    RecordDef {
+        kind: StructOrUnion,
+        fields: Vec<DeclGroup>, // 当 fields 为 none 时为不完全类型
+    },
+
+    // enum 成员 声明 定义
     EnumField {
         expr: Option<ExprKey>,
     },
-    Enum {
+    EnumDecl {
+        def: Option<DeclKey>,
+    },
+    EnumDef {
         enums: Option<Vec<DeclKey>>, // 当 enums 为 none 时为不完全类型
-                                     // decl_context: DeclContextRef,
     },
 }
 
 impl Decl {
     pub fn get_name(&self) -> Option<&Ident> {
         self.name.as_ref()
+    }
+
+    /// 是否是声明
+    pub fn is_decl(&self) -> bool {
+        use DeclKind::*;
+        matches!(
+            &self.kind,
+            FuncDecl { .. } | RecordDecl { .. } | EnumDecl { .. } | VarDecl { .. }
+        )
+    }
+
+    /// 是否是定义
+    pub fn is_def(&self) -> bool {
+        use DeclKind::*;
+        matches!(
+            &self.kind,
+            FuncDef { .. } | RecordDef { .. } | EnumDef { .. } | VarDef { .. }
+        )
     }
 }
 
