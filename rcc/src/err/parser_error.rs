@@ -12,9 +12,9 @@ pub type ParserResult<T> = Result<T, ParserError>;
 
 #[derive(Error, Debug)]
 pub enum ErrorKind {
-    #[error("expect {expect} found {found}")]
+    #[error("Expect {expect} found {found}")]
     ExpectButFound { expect: String, found: String },
-    #[error("expect {expect}")]
+    #[error("Expected {expect}")]
     Expect { expect: String },
     #[error("{ty} is not assignable")]
     NotAssignable { ty: String },
@@ -241,6 +241,11 @@ impl ParserError {
             storage,
             name: name.get(),
         };
+        Self::new(kind, span)
+    }
+
+    pub fn expect(msg: &str, span: Span) -> Self {
+        let kind = ErrorKind::Expect { expect: msg.to_owned() };
         Self::new(kind, span)
     }
 

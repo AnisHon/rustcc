@@ -149,7 +149,7 @@ fn parse_postfix_expr(ctx: &mut CompCtx) -> ParserResult<ExprKey> {
     Ok(expr)
 }
 
-/// 解析 expression 列表 
+/// 解析 expression 列表
 fn parse_expr_list(ctx: &mut CompCtx) -> ParserResult<Parameter> {
     let mut param = Parameter::new();
     if check(ctx, TokenKind::RParen) {
@@ -159,7 +159,7 @@ fn parse_expr_list(ctx: &mut CompCtx) -> ParserResult<Parameter> {
     loop {
         let expr = parse_assign_expr(ctx)?;
         param.exprs.push(expr);
-        
+
         if let Some(_) = consume(ctx, TokenKind::Comma) {
         } else if check(ctx, TokenKind::RParen) {
             break;
@@ -207,7 +207,6 @@ fn parse_unary_expr(ctx: &mut CompCtx) -> ParserResult<ExprKey> {
     let expr = make_expr(ctx, kind, span)?;
     Ok(expr)
 }
-
 
 fn parse_cast_expr(ctx: &mut CompCtx) -> ParserResult<ExprKey> {
     let lo = ctx.stream.span();

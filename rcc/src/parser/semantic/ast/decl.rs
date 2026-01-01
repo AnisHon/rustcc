@@ -113,8 +113,8 @@ impl Decl {
 #[derive(Debug, Clone)]
 pub struct DeclGroup {
     pub decls: Vec<DeclKey>,
-    pub commas: Vec<Pos>,
-    pub semi: Pos,
+    // pub commas: Vec<Pos>,
+    // pub semi: Pos,
     pub span: Span,
 }
 
@@ -122,8 +122,8 @@ impl Default for DeclGroup {
     fn default() -> Self {
         Self {
             decls: Vec::new(),
-            commas: Vec::new(),
-            semi: Pos::default(),
+            // commas: Vec::new(),
+            // semi: Pos::default(),
             span: Span::default(),
         }
     }

@@ -1,6 +1,4 @@
-use std::collections::hash_map::Entry;
-
-use crate::err::scope_error::{ScopeError, ScopeErrorKind};
+use crate::err::scope_error::ScopeError;
 use crate::lex::types::token_kind::Symbol;
 use crate::parser::ast::{DeclKey, StmtKey, TypeKey};
 use rustc_hash::FxHashMap;
@@ -8,7 +6,7 @@ use rustc_hash::FxHashMap;
 /// Scope 当前类型
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub enum ScopeKind {
-    Global,
+    File,
     Function,
     Block,
     ParamList,

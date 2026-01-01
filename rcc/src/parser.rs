@@ -11,7 +11,7 @@
 pub mod parser_core;
 mod parser_decl;
 mod parser_expr;
-mod parser_function;
+mod parser_extern;
 mod parser_stmt;
 mod semantic;
 

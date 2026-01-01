@@ -1,6 +1,8 @@
 use crate::parser::ast::types::Qualifier;
-use crate::parser::semantic::decl_spec::{DeclSpec, TypeQuals};
+use crate::parser::common::Ident;
+use crate::parser::semantic::decl_spec::{DeclSpec, StorageSpec, TypeQuals};
 use crate::parser::semantic::declarator::{Declarator, DeclaratorChunkKind};
+use crate::types::span::Span;
 use crate::{
     err::parser_error::{self, ParserError, ParserResult},
     parser::{
@@ -12,10 +14,17 @@ use crate::{
         },
     },
 };
-use std::rc::Rc;
+
+/// 解析 declarator 后的结果
+pub struct DeclInfo {
+    pub ty: TypeKey,
+    pub name: Option<Ident>,
+    pub storage: Option<StorageSpec>,
+    pub span: Span,
+}
 
 /// 解析 decl_spec, 不消耗decl_spec
-fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: Rc<DeclSpec>) -> ParserResult<TypeKey> {
+fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> ParserResult<TypeKey> {
     let qualifier = Qualifier::new(&decl_spec.type_quals);
     let builder = TypeBuilder::new_with_qual(qualifier, decl_spec.kind.clone());
 
@@ -28,9 +37,11 @@ fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: Rc<DeclSpec>) -> ParserResult
 }
 
 /// 解析 declarator, 不负责解析 decl_spec 的 storage 与 func_spec
-pub fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<TypeKey> {
+pub fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<DeclInfo> {
     use DeclaratorChunkKind::*;
-    let mut ty = resolve_decl_spec(ctx, declarator.decl_spec)?;
+    let decl_spec = declarator.decl_spec;
+
+    let mut ty = resolve_decl_spec(ctx, &decl_spec)?;
 
     // 反向解析
     for chunk in declarator.chunks.into_iter().rev() {
@@ -45,7 +56,15 @@ pub fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserRe
             .map_err(|err| ParserError::from_type_error(err, chunk.span))?;
     }
 
-    Ok(ty)
+    // 构建 decl_info
+    let decl_info = DeclInfo {
+        ty,
+        name: declarator.name,
+        storage: decl_spec.storage.clone(),
+        span: declarator.span,
+    };
+
+    Ok(decl_info)
 }
 
 /// 解析数组

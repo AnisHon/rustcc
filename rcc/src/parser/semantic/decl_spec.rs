@@ -278,31 +278,17 @@ impl Default for ParamList {
     }
 }
 
-/// Record 解析前期，只有 record 和 name
+/// Record 解析前期
 pub struct RecordSuffix {
     pub record: StructOrUnion,
     pub name: Option<Ident>,
+    pub span: Span,
 }
 
-pub enum RecordForm {
-    Definition {
-        record: StructOrUnion,
-        name: Option<Ident>,
-    },
-    Declaration {
-        record: StructOrUnion,
-        name: Ident,
-    },
-    Reference {
-        record: StructOrUnion,
-        name: Ident,
-    },
-}
-
-pub enum EnumForm {
-    Definition { name: Option<Ident> },
-    Declaration { name: Ident },
-    Reference { name: Ident },
+/// Enum 解析前缀，
+pub struct EnumSuffix {
+    pub name: Option<Ident>,
+    pub span: Span,
 }
 
 // todo 可能不需要了

@@ -96,7 +96,7 @@ macro_rules! scope_enter_leave {
 
 /// Scope 管理器
 /// - `tags`: record enum
-/// - `members`: record fields
+/// - `members`: record fields，可能用不到待定
 /// - `labels`: goto label
 /// - `idents`: typedef var
 /// - `ctx`: current scope context
@@ -177,7 +177,7 @@ impl ScopeMgr {
         Ident
     );
 
-    scope_enter_leave!(enter_global, leave_global, Global, tags, idents);
+    scope_enter_leave!(enter_global, leave_global, File, tags, idents);
 
     scope_enter_leave!(
         enter_function,

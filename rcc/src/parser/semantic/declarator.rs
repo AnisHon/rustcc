@@ -65,4 +65,10 @@ impl InitDeclaratorList {
     }
 }
 
-pub struct FunctionDeclarator {}
+
+/// decl 解析前缀
+pub struct DeclPrefix {
+    pub decl_spec: Rc<DeclSpec>,
+    pub declarator: Option<Declarator>,
+    pub lo: Span,
+}

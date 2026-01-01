@@ -9,7 +9,6 @@ use crate::types::span::Span;
 use crate::util::ap_float::APFloat;
 use crate::util::ap_int::APInt;
 use enum_as_inner::EnumAsInner;
-use ibig::IBig;
 
 #[derive(Debug, Clone)]
 pub struct Expr {
