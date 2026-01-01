@@ -13,7 +13,6 @@ use crate::{
         ast::{
             DeclKey, TypeKey,
             common::StructOrUnion,
-            decl::{DeclGroup, Initializer, InitializerList},
         },
         common::{Ident, IdentList},
         comp_ctx::CompCtx,
@@ -30,13 +29,15 @@ use crate::{
             },
             declarator::{Declarator, DeclaratorChunk, DeclaratorChunkKind, InitDeclarator},
             sema::decl::{
-                declarator::{DeclSpecBuilder},
                 record::{insert_enum_decl, insert_record_decl},
             },
         },
     },
     types::span::Span,
 };
+use crate::parser::ast::decls::decl::{DeclGroup, InitializerList};
+use crate::parser::ast::decls::initializer::Initializer;
+use crate::parser::semantic::sema::decl::decl_spec::DeclSpecBuilder;
 use crate::parser::semantic::sema::type_ctx::declarator::resolve_declarator;
 
 fn expect_semi_or_lbrace_error(ctx: &CompCtx) -> ParserError {
@@ -500,7 +501,6 @@ fn parse_initializer_list(ctx: &mut CompCtx) -> ParserResult<InitializerList> {
             break;
         }
         let init = parse_initializer(ctx)?;
-        list.commas.push(comma.span.to_pos());
         list.inits.push(init);
     }
     Ok(list)

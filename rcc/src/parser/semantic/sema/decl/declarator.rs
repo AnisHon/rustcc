@@ -1,6 +1,5 @@
 use crate::constant::str::TYPEDEF_REQUIRE_NAME;
 use crate::err::parser_error::{ParserError, ParserResult};
-use crate::parser::ast::decl::{Decl, DeclKind, Initializer, InitializerList};
 use crate::parser::ast::types::{ArraySize, TypeKind};
 use crate::parser::ast::{DeclKey, TypeKey};
 use crate::parser::comp_ctx::CompCtx;
@@ -9,6 +8,7 @@ use crate::parser::semantic::declarator::InitDeclarator;
 use crate::parser::semantic::sema::scope::scope_struct::{ScopeKind, ScopeSymbol};
 use crate::parser::semantic::sema::type_ctx::declarator::{DeclInfo, resolve_declarator};
 use std::collections::hash_map::Entry;
+use crate::parser::ast::decls::initializer::Initializer;
 use crate::parser::ast::types::TypeKind::{Unknown, Void};
 
 /// 将 typedef 插入符号表，负责处理名字问题，类型不匹配问题

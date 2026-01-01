@@ -1,6 +1,5 @@
 pub mod common;
-pub mod decl;
-mod decls;
+pub mod decls;
 pub mod exprs;
 pub mod func;
 pub mod stmt;

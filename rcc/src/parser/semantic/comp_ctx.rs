@@ -1,12 +1,12 @@
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::token_stream::TokenStream;
+use crate::parser::ast::decls::decl::Decl;
+use crate::parser::ast::exprs::Expr;
+use crate::parser::ast::stmt::Stmt;
 use crate::parser::ast::{DeclKey, ExprKey, StmtKey};
-use crate::parser::ast::decl::{Decl};
-use crate::parser::ast::exprs::{Expr};
-use crate::parser::ast::stmt::{Stmt};
+use crate::parser::semantic::sema::scope::scope_manager::ScopeMgr;
 use crate::parser::semantic::sema::type_ctx::type_ctx::TypeCtx;
 use slotmap::SlotMap;
-use crate::parser::semantic::sema::scope::scope_manager::ScopeMgr;
 
 macro_rules! make_get {
     ($get:ident, $get_mut:ident, $insert:ident, $field:ident, $key_ty:ty, $ty:ty) => {

@@ -1,5 +1,5 @@
 use crate::parser::ast::ExprKey;
-use crate::parser::semantic::ast::decl::Initializer;
+use crate::parser::ast::decls::initializer::Initializer;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{DeclSpec, ParamDecl, TypeQuals};
 use crate::types::span::Span;
@@ -64,7 +64,6 @@ impl InitDeclaratorList {
         }
     }
 }
-
 
 /// decl 解析前缀
 pub struct DeclPrefix {

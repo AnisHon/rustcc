@@ -1,15 +1,13 @@
 use crate::err::parser_error::ParserResult;
 use crate::lex::types::token_kind::TokenKind;
+use crate::parser::ast::decls::decl::DeclGroup;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::parser_core::*;
-use crate::parser::parser_decl::{
-    parse_decl, parse_decl_after_declarator, parse_decl_prefix
-};
+use crate::parser::parser_decl::{parse_decl, parse_decl_after_declarator, parse_decl_prefix};
 use crate::parser::parser_stmt::parse_compound_stmt;
-use crate::parser::semantic::ast::decl::DeclGroup;
 use crate::parser::semantic::ast::func::{ExternalDecl, FuncDecl, FuncDef, TranslationUnit};
 use crate::parser::semantic::ast::stmt::Stmt;
-use crate::parser::semantic::declarator::{DeclPrefix};
+use crate::parser::semantic::declarator::DeclPrefix;
 use crate::types::span::Span;
 
 fn check_decl_spec(ctx: &CompCtx) -> bool {

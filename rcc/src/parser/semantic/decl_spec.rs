@@ -1,7 +1,9 @@
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::Keyword;
 use crate::lex::types::token_kind::TokenKind;
-use crate::parser::ast::{DeclKey, ExprKey, common::StructOrUnion, decl::DeclGroup};
+use crate::parser::ast::common::StructOrUnion;
+use crate::parser::ast::decls::decl::DeclGroup;
+use crate::parser::ast::{DeclKey, ExprKey};
 use crate::parser::semantic::common::{Ident, IdentList};
 use crate::parser::semantic::declarator::*;
 use crate::parser::semantic::sema::type_ctx::type_builder::TypeBuilderKind;

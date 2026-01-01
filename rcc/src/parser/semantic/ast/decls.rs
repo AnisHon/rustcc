@@ -1,3 +1,2 @@
 pub mod decl;
-mod initializer;
-mod record;
+pub mod initializer;
