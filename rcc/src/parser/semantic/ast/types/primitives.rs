@@ -1,3 +1,4 @@
+use enum_as_inner::EnumAsInner;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
@@ -87,7 +88,7 @@ impl FloatSize {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy, EnumAsInner)]
 pub enum ArraySize {
     Static(usize), // int a[10]
     VLA,           // int a[var]

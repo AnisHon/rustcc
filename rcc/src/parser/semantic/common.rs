@@ -12,32 +12,25 @@ impl Ident {
     pub fn new(token: Token) -> Self {
         let symbol = token.kind.into_ident().unwrap();
         let span = token.span;
-        Self {
-            symbol,
-            span
-        }
+        Self { symbol, span }
     }
 }
-
 
 #[derive(Clone, Debug)]
 
 pub struct IdentList {
     pub idents: Vec<Ident>,
-    pub commas: Vec<Pos>,
-    pub span: Span
+    pub span: Span,
 }
 
 impl IdentList {
     pub fn new() -> Self {
         Self {
             idents: Vec::new(),
-            commas: Vec::new(),
-            span: Span::default()
+            span: Span::default(),
         }
     }
 }
-
 
 /// 状态机状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

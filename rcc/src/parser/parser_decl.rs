@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::constant::str::EXPECT_IDENT_OR_LB;
 use crate::parser::parser_core::error_here;
-use crate::parser::semantic::decl_spec::{EnumSuffix, TypeQualKind};
+use crate::parser::semantic::decl_spec::{EnumSuffix, RecordSuffix, TypeQualKind};
 use crate::parser::semantic::declarator::DeclPrefix;
 use crate::parser::semantic::sema::decl::declarator::act_on_init_declarator;
 use crate::{
@@ -30,13 +30,14 @@ use crate::{
             },
             declarator::{Declarator, DeclaratorChunk, DeclaratorChunkKind, InitDeclarator},
             sema::decl::{
-                declarator::{DeclSpecBuilder, PartialDecl},
+                declarator::{DeclSpecBuilder},
                 record::{insert_enum_decl, insert_record_decl},
             },
         },
     },
     types::span::Span,
 };
+use crate::parser::semantic::sema::type_ctx::declarator::resolve_declarator;
 
 fn expect_semi_or_lbrace_error(ctx: &CompCtx) -> ParserError {
     let kind = parser_error::ErrorKind::Expect {
@@ -176,11 +177,11 @@ fn parse_type_spec(ctx: &mut CompCtx) -> ParserResult<TypeSpec> {
                 symbol,
                 span: token.span,
             };
-            let decl = ctx
+            let scope = ctx
                 .scope_mgr
-                .must_lookup_ident(symbol)
-                .map_err(|x| ParserError::from_scope_error(x, token.span))?;
-            TypeSpecKind::TypeName(ident, decl)
+                .must_lookup_ident(ident.clone())?;
+            let decl_key = scope.get_decl();
+            TypeSpecKind::TypeName(ident, decl_key)
         }
 
         // keyword struct union enum
@@ -475,13 +476,13 @@ fn parse_init_declarator(
     Ok(decl)
 }
 
-/// 解析 initalizer
+/// 解析 initializer
 fn parse_initializer(ctx: &mut CompCtx) -> ParserResult<Initializer> {
     let init = if let Some(lparen) = consume(ctx, TokenKind::LParen) {
         let l = lparen.span.to_pos();
         let inits = parse_initializer_list(ctx)?;
         let r = expect(ctx, TokenKind::RParen)?.span.to_pos();
-        Initializer::InitList { l, inits, r }
+        Initializer::InitList { inits }
     } else {
         let expr = parse_assign_expr(ctx)?;
         Initializer::Expr(expr)
@@ -596,7 +597,6 @@ fn parse_struct_decl(ctx: &mut CompCtx) -> ParserResult<DeclGroup> {
 
     let hi = ctx.stream.prev_span();
     let span = Span::span(lo, hi);
-    group.semi = semi;
     group.span = span;
 
     Ok(group)
@@ -612,11 +612,9 @@ fn parse_struct_declarator_list(
     let decl = parse_struct_declarator(ctx, Rc::clone(&decl_spec))?;
     group.decls.push(decl);
 
-    while let Some(comma) = consume(ctx, TokenKind::Comma) {
-        let comma = comma.span.to_pos();
+    while let Some(_) = consume(ctx, TokenKind::Comma) {
         let decl = parse_struct_declarator(ctx, Rc::clone(&decl_spec))?;
         group.decls.push(decl);
-        group.commas.push(comma);
     }
 
     Ok(())
@@ -689,7 +687,7 @@ fn parse_enum_spec(ctx: &mut CompCtx) -> ParserResult<DeclKey> {
         None => None,
     };
 
-    let mut def_decl: Option<DeclKey> = None;
+    let def_decl: Option<DeclKey> = None;
 
     if consume(ctx, TokenKind::RBrace).is_some() {
         // 解析枚举列表
@@ -815,30 +813,23 @@ fn parse_ident_list(ctx: &mut CompCtx) -> ParserResult<IdentList> {
     let ident = Ident::new(ident);
     list.idents.push(ident);
 
-    while let Some(comma) = consume(ctx, TokenKind::Comma) {
+    while let Some(_) = consume(ctx, TokenKind::Comma) {
         let ident = expect_ident(ctx)?;
         let ident = Ident::new(ident);
         list.idents.push(ident);
-        list.commas.push(comma.span.to_pos());
     }
 
     Ok(list)
 }
 
+/// 解析 type name
 pub(crate) fn parse_type_name(ctx: &mut CompCtx) -> ParserResult<TypeKey> {
-    let lo = ctx.stream.span();
-
     let decl_specs = parse_decl_spec(ctx)?;
     let mut declarator = Declarator::new(decl_specs);
     if check_declarator(ctx) {
         parse_declarator(ctx, &mut declarator)?;
     };
 
-    let hi = ctx.stream.prev_span();
-    let span = Span::span(lo, hi);
-
-    declarator.span = span;
-
-    let PartialDecl { ty_key: ty, .. } = sema.act_on_declarator(declarator)?;
-    Ok(ty)
+    let info = resolve_declarator(ctx, declarator)?;
+    Ok(info.ty)
 }

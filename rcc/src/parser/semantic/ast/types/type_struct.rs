@@ -40,16 +40,15 @@ impl Type {
     }
 
     /// 是否为完整类型，不完整类型是不能直接使用的（但是可以间接使用）
-    /// `Void` `Unkown` 是绝对的不完整类型
+    /// `Void` `Unknown` 是绝对的不完整类型
     /// `Record` `Enum` 取决于是否有定义，纯声明是绝对的不完整类型
     /// 其余都是完整类型
     pub fn is_complete(&self) -> bool {
         use TypeKind::*;
         match &self.kind {
             Void | Unknown => false,
-            Integer { .. } | Floating { .. } | Pointer { .. } | Array { .. } | Function { .. } => {
-                true
-            }
+            Integer { .. } | Floating { .. } | Pointer { .. } | Function { .. } => true,
+            Array { size, .. } => !size.is_incomplete(),
             Record { def, .. } => def.is_some(),
             Enum { def, .. } => def.is_some(),
         }
@@ -57,12 +56,11 @@ impl Type {
 
     /// 获取 layout
     pub fn get_layout(&mut self, ctx: &CompCtx) -> &TypeLayout {
-        self.layout.get_or_init(|| { TypeLayout::new(ctx, self) })
+        self.layout.get_or_init(|| TypeLayout::new(ctx, self))
     }
-
 }
 
-#[derive(Debug, Clone, Default,EnumAsInner)]
+#[derive(Debug, Clone, Default, EnumAsInner)]
 pub enum TypeKind {
     Void,
     Integer {

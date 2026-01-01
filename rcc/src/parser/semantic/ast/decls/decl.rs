@@ -1,21 +1,15 @@
 use crate::parser::ast::common::StructOrUnion;
+use crate::parser::ast::decls::initializer::Initializer;
 use crate::parser::ast::{DeclKey, ExprKey, TypeKey};
 use crate::parser::semantic::ast::stmt::Stmt;
 use crate::parser::semantic::common::Ident;
 use crate::parser::semantic::decl_spec::{FuncSpec, StorageSpec};
-use crate::types::span::{Pos, Span};
+use crate::types::span::Span;
 use enum_as_inner::EnumAsInner;
-
-#[derive(Debug, Clone)]
-pub enum Initializer {
-    Expr(ExprKey),
-    InitList { inits: InitializerList },
-}
 
 #[derive(Clone, Debug)]
 pub struct InitializerList {
     pub inits: Vec<Initializer>,
-    pub commas: Vec<Pos>,
     pub span: Span,
 }
 
@@ -23,7 +17,6 @@ impl InitializerList {
     pub fn new() -> Self {
         Self {
             inits: Vec::new(),
-            commas: Vec::new(),
             span: Span::default(),
         }
     }

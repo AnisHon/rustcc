@@ -1,37 +1,15 @@
-use crate::constant::str::{DECL_SPEC, TYPEDEF_REQUIRE_NAME};
+use crate::constant::str::TYPEDEF_REQUIRE_NAME;
 use crate::err::parser_error::{ParserError, ParserResult};
-use crate::parser::ast::decl::{Decl, DeclKind, Initializer};
-use crate::parser::ast::types::{FloatSize, IntegerSize, TypeKind};
+use crate::parser::ast::decl::{Decl, DeclKind, Initializer, InitializerList};
+use crate::parser::ast::types::{ArraySize, TypeKind};
 use crate::parser::ast::{DeclKey, TypeKey};
-use crate::parser::common::TypeSpecState;
 use crate::parser::comp_ctx::CompCtx;
-use crate::parser::semantic::common::Ident;
-use crate::parser::semantic::decl_spec::{
-    DeclSpec, FuncSpec, StorageSpec, StorageSpecKind, TypeQual, TypeQualKind, TypeQuals, TypeSpec,
-    TypeSpecKind,
-};
+use crate::parser::semantic::decl_spec::{StorageSpec, StorageSpecKind};
 use crate::parser::semantic::declarator::InitDeclarator;
 use crate::parser::semantic::sema::scope::scope_struct::{ScopeKind, ScopeSymbol};
 use crate::parser::semantic::sema::type_ctx::declarator::{DeclInfo, resolve_declarator};
-use crate::parser::semantic::sema::type_ctx::type_builder::TypeBuilderKind;
-use crate::types::span::Span;
 use std::collections::hash_map::Entry;
-use std::rc::Rc;
-
-#[derive(Debug)]
-pub struct PartialDecl {
-    pub storage: Option<StorageSpec>,
-    pub name: Option<Ident>,
-    pub ty_key: TypeKey,
-}
-
-pub struct DeclSpecBuilder {
-    pub storages: Vec<StorageSpec>,
-    pub type_quals: Vec<TypeQual>,
-    pub func_specs: Vec<FuncSpec>,
-    pub type_specs: Vec<TypeSpec>,
-    pub span: Span,
-}
+use crate::parser::ast::types::TypeKind::{Unknown, Void};
 
 /// 将 typedef 插入符号表，负责处理名字问题，类型不匹配问题
 /// todo: 可能放到 scope 模块更合适
@@ -74,13 +52,12 @@ fn insert_typedef(ctx: &mut CompCtx, decl_key: DeclKey) -> ParserResult<()> {
 }
 
 fn default_storage_kind(ctx: &CompCtx) -> StorageSpecKind {
-    use ScopeKind::*;
     match ctx.scope_mgr.get_kind() {
-        File => StorageSpecKind::Extern,
-        Function => StorageSpecKind::Auto,
-        Block => StorageSpecKind::Auto,
-        ParamList => StorageSpecKind::Auto,
-        Record => unreachable!("record should not have storage class"),
+        ScopeKind::File => StorageSpecKind::Extern,
+        ScopeKind::Function => StorageSpecKind::Auto,
+        ScopeKind::Block => StorageSpecKind::Auto,
+        ScopeKind::ParamList => StorageSpecKind::Auto,
+        ScopeKind::Record => unreachable!("record should not have storage class"),
     }
 }
 
@@ -94,7 +71,6 @@ fn is_typedef(storage: Option<&StorageSpec>) -> bool {
 
 // 是否是定义 todo 使用 DefinitionKind 表示 Tentative 定义
 fn is_definition(ctx: &mut CompCtx, decl_info: &DeclInfo, has_init: bool) -> bool {
-    use ScopeKind::*;
     // 表示显式定义了 extern，不是隐式的
     let extern_kw = decl_info
         .storage
@@ -104,9 +80,11 @@ fn is_definition(ctx: &mut CompCtx, decl_info: &DeclInfo, has_init: bool) -> boo
 
     // 判断是否是声明
     match ctx.scope_mgr.get_kind() {
-        File => has_init || !extern_kw, // 如果有init一定是定义，如果没有，且没有声明 extern 默认是临时定义
-        Function | Block => !extern_kw, // 这种作用域下，只 extern 才是声明，而且 extern 不允许有初始化
-        ParamList | Record => unreachable!("param_list and record are not supported"),
+        ScopeKind::File => has_init || !extern_kw, // 如果有init一定是定义，如果没有，且没有声明 extern 默认是临时定义
+        ScopeKind::Function | ScopeKind::Block => !extern_kw, // 这种作用域下，只 extern 才是声明，而且 extern 不允许有初始化
+        ScopeKind::ParamList | ScopeKind::Record => {
+            unreachable!("param_list and record are not supported")
+        }
     }
 }
 
@@ -138,6 +116,57 @@ fn act_on_typedef(ctx: &mut CompCtx, decl_info: DeclInfo, has_init: bool) -> Par
     Ok(decl_key)
 }
 
+fn act_on_array_initializer(ctx: &mut CompCtx, elem_ty: TypeKey, size: &mut ArraySize, init: &Initializer) -> ParserResult<()> {
+    let inits = match init {
+        Initializer::Expr(x) => {
+            // 报错，数组不能用一个普通expression初始化
+            todo!()
+        }
+        Initializer::InitList { inits } =>
+           inits
+    };
+
+    match size {
+        ArraySize::Static(x) => match init {
+            Initializer::Expr(x) => {
+                // 数组没有初始化
+                todo!("")
+            }
+            Initializer::InitList { inits } => {}
+        }
+           todo!("超出了 发一个警告"),
+        ArraySize::Incomplete => {
+            // Incomplete推导
+            *size = ArraySize::Static(inits.inits.len());
+        }
+        _ => ,
+    },
+
+    Ok(())
+}
+
+fn check_initializer_type(ctx: &mut CompCtx, ty: TypeKey, init: &Initializer) -> ParserResult<()> {
+    use TypeKind::*;
+    let ty = ctx.type_ctx.get_type_mut(ty);
+    match &mut ty.kind {
+        Unknown | Function { .. } | Void => unreachable!(),
+        Integer { .. } | Floating { .. } | Pointer { .. } | Enum { .. } => {}
+        Array { elem_ty, size } =>
+            act_on_array_initializer(ctx, *elem_ty, size, init)?,
+        Record { .. } => {}
+    }
+    Ok(())
+}
+
+fn act_on_initializer(
+    ctx: &CompCtx,
+    decl: DeclKey,
+    is_def: bool,
+    init: Option<Initializer>,
+) -> ParserResult<Initializer> {
+    let decl = ctx.get_decl(decl);
+}
+
 pub fn act_on_init_declarator(
     ctx: &mut CompCtx,
     init_declarator: InitDeclarator,
@@ -148,13 +177,12 @@ pub fn act_on_init_declarator(
     // 构建类型
     let decl_info = resolve_declarator(ctx, init_declarator.declarator)?;
 
-
     let has_init = init_declarator.init.is_some();
 
     // typedef 需要特殊处理
     if is_typedef(decl_info.storage.as_ref()) {
-        return act_on_typedef(ctx, decl_info, has_init)
-    } 
+        return act_on_typedef(ctx, decl_info, has_init);
+    }
 
     // 是否是定义
     let is_def = is_definition(ctx, &decl_info, has_init);
@@ -167,229 +195,6 @@ pub fn act_on_init_declarator(
 
     // todo: 插入符号表
     todo!();
-}
-
-impl DeclSpecBuilder {
-    pub fn build(self, ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
-        let storage = Self::act_on_storages(self.storages)?;
-        let type_quals = Self::act_on_type_quals(self.type_quals)?;
-        let func_spec = Self::act_on_func_specs(self.func_specs)?;
-        let kind = Self::act_on_type_specs(ctx, self.type_specs)?;
-
-        let decl_spec = Rc::new(DeclSpec {
-            storage,
-            type_quals,
-            func_spec,
-            kind,
-            span: self.span,
-        });
-
-        Ok(decl_spec)
-    }
-
-    fn act_on_storages(storages: Vec<StorageSpec>) -> ParserResult<Option<StorageSpec>> {
-        let mut storage: Option<StorageSpec> = None;
-        for spec in storages {
-            if let Some(x) = storage {
-                let err = ParserError::duplicate(x.to_string(), DECL_SPEC, spec.span);
-                return Err(err);
-            }
-            storage = Some(spec);
-        }
-
-        Ok(storage)
-    }
-
-    fn act_on_type_quals(quals: Vec<TypeQual>) -> ParserResult<TypeQuals> {
-        use TypeQualKind::*;
-        let mut res = TypeQuals::default();
-        for qual in quals {
-            let field = match qual.kind {
-                Const => &mut res.is_const,
-                Restrict => &mut res.is_restrict,
-                Volatile => &mut res.is_volatile,
-            };
-
-            if let Some(x) = field {
-                let err = ParserError::duplicate(x.to_string(), DECL_SPEC, qual.span);
-                return Err(err);
-            }
-            *field = Some(qual);
-        }
-
-        Ok(res)
-    }
-
-    fn act_on_func_specs(specs: Vec<FuncSpec>) -> ParserResult<Option<FuncSpec>> {
-        let mut func_spec: Option<FuncSpec> = None;
-        for spec in specs {
-            if let Some(x) = func_spec {
-                let err = ParserError::duplicate(x.to_string(), DECL_SPEC, spec.span);
-                return Err(err);
-            }
-            func_spec = Some(spec);
-        }
-
-        Ok(func_spec)
-    }
-
-    /// 检查type spec是否正确
-    fn check_type_spec(
-        ctx: &mut CompCtx,
-        spec: &TypeSpec,
-        int_cnt: i32,
-        is_signed: Option<&TypeSpec>,
-    ) -> ParserResult<()> {
-        use TypeSpecKind::*;
-        match &spec.kind {
-            Int if int_cnt > 1 => {
-                // 多个 int 报错
-                let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
-                return Err(err);
-            }
-            Float | Double | Record(_) | Enum(_) | TypeName(_, _) if is_signed.is_some() => {
-                let prev = is_signed.expect("impossible").to_string();
-                let err = ParserError::non_combinable(prev, DECL_SPEC, spec.span);
-                return Err(err);
-            }
-            Signed | Unsigned if is_signed.is_some() => {
-                let prev = is_signed.expect("impossible").to_string();
-                let x = is_signed.unwrap();
-                if x.is(&spec.kind) {
-                    // 相同，重复
-                    let err = ParserError::duplicate(prev, DECL_SPEC, spec.span);
-                    ctx.send_error(err)?;
-                } else {
-                    // 不同，错误
-                    let err = ParserError::non_combinable(prev, DECL_SPEC, spec.span);
-                    return Err(err);
-                }
-            }
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    fn act_on_type_specs(ctx: &mut CompCtx, specs: Vec<TypeSpec>) -> ParserResult<TypeBuilderKind> {
-        use TypeSpecKind::*;
-        debug_assert!(!specs.is_empty());
-        let mut state = TypeSpecState::Init;
-        let mut decl: Option<DeclKey> = None;
-        let mut is_signed: Option<TypeSpec> = None;
-        let mut int_cnt = 0;
-
-        // 状态机循环
-        for spec in specs {
-            // 检查
-            Self::check_type_spec(ctx, &spec, int_cnt, is_signed.as_ref());
-
-            let next = match &spec.kind {
-                Void => TypeSpecState::Void,
-                Char => TypeSpecState::Char,
-                Short => TypeSpecState::Short,
-                Int => {
-                    int_cnt += 1;
-                    TypeSpecState::Int
-                }
-                Long => TypeSpecState::Long,
-                Float => TypeSpecState::Float,
-                Double => TypeSpecState::Double,
-                Record(x) => {
-                    decl = Some(*x);
-                    TypeSpecState::Record
-                }
-                Enum(x) => {
-                    decl = Some(*x);
-                    TypeSpecState::Enum
-                }
-                TypeName(_, x) => {
-                    decl = Some(*x);
-                    TypeSpecState::TypeName
-                }
-                Signed | Unsigned => {
-                    // 不参与循环
-                    is_signed = Some(spec);
-                    continue;
-                }
-            };
-
-            state = match TypeSpecState::combine(state, next) {
-                Some(x) => x,
-                None => {
-                    let err = ParserError::non_combinable(spec.to_string(), DECL_SPEC, spec.span);
-                    return Err(err);
-                }
-            };
-        }
-        let is_signed = is_signed.map(|x| x.kind.is_signed()).unwrap_or(false);
-        let builder_kind = Self::get_type_build_kind(ctx, state, is_signed, decl);
-
-        Ok(builder_kind)
-    }
-
-    /// 构建 type builder kind, 不负责检查
-    fn get_type_build_kind(
-        ctx: &mut CompCtx,
-        state: TypeSpecState,
-        is_signed: bool,
-        decl: Option<DeclKey>,
-    ) -> TypeBuilderKind {
-        use TypeSpecState::*;
-        // 根据最后状态判断类型
-        let builder = match state {
-            Void => TypeBuilderKind::Void,
-            Char => TypeBuilderKind::Integer {
-                is_signed,
-                size: IntegerSize::Char,
-            },
-            Short => TypeBuilderKind::Integer {
-                is_signed,
-                size: IntegerSize::Short,
-            },
-            Int => TypeBuilderKind::Integer {
-                is_signed,
-                size: IntegerSize::Int,
-            },
-            Long => TypeBuilderKind::Integer {
-                is_signed,
-                size: IntegerSize::Long,
-            },
-            LongLong => TypeBuilderKind::Integer {
-                is_signed,
-                size: IntegerSize::LongLong,
-            },
-            Float => TypeBuilderKind::Floating {
-                size: FloatSize::Float,
-            },
-            Double => TypeBuilderKind::Floating {
-                size: FloatSize::Double,
-            },
-            LongDouble => TypeBuilderKind::Floating {
-                size: FloatSize::LongDouble,
-            },
-            Record => {
-                let decl = decl.expect("record decl should not be none");
-                let decl = ctx.get_decl(decl);
-                let record_kind = match &decl.kind {
-                    DeclKind::RecordDecl { kind, .. } => kind.kind,
-                    DeclKind::RecordDef { kind, .. } => kind.kind,
-                    _ => unreachable!(""),
-                };
-                TypeBuilderKind::new_record(ctx, record_kind)
-            }
-            Enum => TypeBuilderKind::new_enum(ctx),
-            TypeName => {
-                let decl = decl.expect("record decl should not be none");
-                let decl = ctx.get_decl(decl);
-                let ty = ctx.type_ctx.get_type(decl.ty);
-
-                TypeBuilderKind::from_type_kind(&ty.kind)
-            }
-            Init => unreachable!("should not be init"),
-        };
-        builder
-    }
 }
 
 // impl Sema {
