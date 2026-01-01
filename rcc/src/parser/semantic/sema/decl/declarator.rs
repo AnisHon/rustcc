@@ -112,7 +112,7 @@ fn is_definition(ctx: &mut CompCtx, decl_info: &DeclInfo, has_init: bool) -> boo
 
 // 处理 typedef
 fn act_on_typedef(ctx: &mut CompCtx, decl_info: DeclInfo, has_init: bool) -> ParserResult<DeclKey> {
-    assert!(is_typedef(decl_info.storage.as_ref())); // 必须是 typedef
+    debug_assert!(is_typedef(decl_info.storage.as_ref())); // 必须是 typedef
 
     // typedef 不能初始化
     if has_init {
@@ -273,7 +273,7 @@ impl DeclSpecBuilder {
 
     fn act_on_type_specs(ctx: &mut CompCtx, specs: Vec<TypeSpec>) -> ParserResult<TypeBuilderKind> {
         use TypeSpecKind::*;
-        assert!(!specs.is_empty());
+        debug_assert!(!specs.is_empty());
         let mut state = TypeSpecState::Init;
         let mut decl: Option<DeclKey> = None;
         let mut is_signed: Option<TypeSpec> = None;

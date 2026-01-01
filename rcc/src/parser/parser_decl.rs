@@ -145,7 +145,7 @@ pub(crate) fn parse_decl_spec(ctx: &mut CompCtx) -> ParserResult<Rc<DeclSpec>> {
     let span = Span::span(lo, hi);
 
     // 肯定不能为空
-    assert!(!type_specs.is_empty());
+    debug_assert!(!type_specs.is_empty());
 
     // 构建 decl_spec
     let builder = DeclSpecBuilder {

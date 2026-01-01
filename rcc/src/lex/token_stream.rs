@@ -71,7 +71,7 @@ impl TokenStream {
 
     /// 上一个token的span，如果当前位置是0会出错
     pub fn prev_span(&mut self) -> Span {
-        assert!(self.pos > 0);
+        debug_assert!(self.pos > 0);
         self.tokens[self.pos - 1].span
         
     }

@@ -32,7 +32,7 @@
 //     offset: u64,
 // ) -> ParserResult<RecordField> {
 //     let field = ctx.get_decl(decl);
-//     assert!(field.kind.is_record_field());
+//     debug_assert!(field.kind.is_record_field());
 
 //     let bit_field = field
 //         .kind

@@ -96,7 +96,7 @@ fn parse_labeled_stmt(ctx: &mut CompCtx) -> ParserResult<StmtKind> {
 
         let colon = expect(ctx, TokenKind::Colon)?.span.to_pos();
         let stmt = parse_stmt(ctx, false)?;
-        StmtKind::Label { ident, colon, stmt }
+        StmtKind::Label { ident, stmt }
     } else if let Some(kw_case) = consume_keyword(ctx, Keyword::Case) {
         // case 1 :
         let case_span = kw_case.span;
@@ -134,9 +134,7 @@ pub(crate) fn parse_compound_stmt(
     only_stmt: bool,
     new_context: bool,
 ) -> ParserResult<StmtKind> {
-    if new_context {
-        sema.enter_decl(DeclContextKind::Block);
-    }
+    // todo 符号表
 
     let l = expect(ctx, TokenKind::LBrace)?.span.to_pos();
     let mut stmts = Vec::new();
@@ -158,13 +156,11 @@ pub(crate) fn parse_compound_stmt(
     }
     let r = expect(ctx, TokenKind::RBrace)?.span.to_pos();
 
-    let context = sema.exit_decl();
-
+    // 符号表退出
     let kind = StmtKind::Compound {
         l,
         stmts,
         r,
-        context,
     };
     Ok(kind)
 }
@@ -297,17 +293,14 @@ fn parse_iteration_stmt(ctx: &mut CompCtx) -> ParserResult<StmtKind> {
 fn parse_jump_stmt(ctx: &mut CompCtx) -> ParserResult<StmtKind> {
     let kind = if let Some(goto_token) = consume_keyword(ctx, Keyword::Goto) {
         // goto label;
-        let goto_span = goto_token.span;
         let ident = expect_ident(ctx)?;
         let span = ident.span;
         let symbol = ident.kind.into_ident().unwrap();
         let ident = Ident { span, symbol };
-        let semi = expect(ctx, TokenKind::Semi)?.span.to_pos();
+        let _ = expect(ctx, TokenKind::Semi)?;
 
         StmtKind::Goto {
-            goto_span,
             ident,
-            semi,
         }
     } else if let Some(continue_token) = consume_keyword(ctx, Keyword::Continue) {
         // continue;

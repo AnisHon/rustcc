@@ -74,8 +74,8 @@ pub fn lookup_or_insert_decl(
     scope_kind: ScopeSource,
 ) -> Option<DeclKey>  {
     let decl = ctx.get_decl(decl_key);
-    assert!(decl.is_decl()); // 必须是 decl
-    assert!(decl.name.is_some()); // 声明的 name 应该是一定存在的 
+    debug_assert!(decl.is_decl()); // 必须是 decl
+    debug_assert!(decl.name.is_some()); // 声明的 name 应该是一定存在的 
     let ident = decl.name.clone().expect("impossible");
 
     let symbol = lookup_or_insert(ctx, &ident, ty, scope_kind);
@@ -100,8 +100,8 @@ pub fn lookup_or_insert_def(
     scope_source: ScopeSource,
 ) -> Result<Vec<DeclKey>, ScopeError> {
     let decl = ctx.get_decl(decl_key);
-    assert!(decl.is_def()); // 必须是 decl
-    assert!(decl.name.is_some()); // 声明的 name 必须存在的 
+    debug_assert!(decl.is_def()); // 必须是 decl
+    debug_assert!(decl.name.is_some()); // 声明的 name 必须存在的 
     let ident = decl.name.clone().expect("impossible");
 
     let symbol = lookup_or_insert(ctx, &ident, ty, scope_source);
@@ -144,7 +144,7 @@ fn label_lookup_or_insert(ctx: &mut CompCtx, symbol: Symbol) -> &mut LabelSymbol
 /// `Vec<StmtKey>`: gotos 用于回填
 pub fn lookup_or_insert_label(ctx: &mut CompCtx, stmt_key: StmtKey) -> ScopeResult<Vec<StmtKey>> {
     let stmt = ctx.get_stmt(stmt_key);
-    assert!(stmt.kind.is_label());
+    debug_assert!(stmt.kind.is_label());
     let (ident, _) = stmt.kind.as_label().expect("impossible");
     let ident = ident.clone();
 
@@ -174,7 +174,7 @@ pub fn lookup_or_insert_label(ctx: &mut CompCtx, stmt_key: StmtKey) -> ScopeResu
 ///
 pub fn lookup_or_insert_goto(ctx: &mut CompCtx, stmt_key: StmtKey) -> Option<StmtKey> {
     let stmt = ctx.get_stmt(stmt_key);
-    assert!(stmt.kind.is_goto());
+    debug_assert!(stmt.kind.is_goto());
     let ident = stmt.kind.as_goto().expect("impossible").clone();
 
     let symbol = label_lookup_or_insert(ctx, ident.symbol);

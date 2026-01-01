@@ -2,6 +2,7 @@ use crate::err::parser_error;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::types::token::Token;
 use crate::lex::types::token_kind::{Keyword, TokenKind};
+use crate::parser::common::Ident;
 use crate::parser::semantic::comp_ctx::CompCtx;
 
 /// 根据条件决定是否next
@@ -166,13 +167,16 @@ pub(crate) fn error_here(ctx: &CompCtx, kind: parser_error::ErrorKind) -> Parser
 }
 
 pub(crate) fn is_type_name(ctx: &CompCtx, token: &Token) -> bool {
-    match token.kind {
-        TokenKind::Ident(symbol) => ctx
-            .scope_mgr
-            .lookup_ident(symbol)
-            .is_some_and(|x| ctx.get_decl(x).kind.is_type_def()),
-        _ => false,
-    }
+    let ident = match token.kind {
+        TokenKind::Ident(symbol) => Ident {
+            symbol,
+            span: token.span,
+        },
+        _ => return false,
+    };
+    ctx.scope_mgr
+        .lookup_ident(&ident)
+        .is_some_and(|x| ctx.get_decl(x.get_decl()).kind.is_type_def())
 }
 
 /// (type-specifier | type-qualifier)*

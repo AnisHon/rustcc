@@ -16,7 +16,7 @@ use std::collections::hash_map::Entry;
 //         }
 
 //         pub fn $pop(&mut self) -> Scope {
-//             assert!(!self.$field.is_empty());
+//             debug_assert!(!self.$field.is_empty());
 //             match self.$field.pop() {
 //                 Some(x) => x,
 //                 None => unreachable!("`{}` can't be empty", stringify!($field)),
@@ -83,11 +83,11 @@ macro_rules! scope_enter_leave {
         }
 
         pub fn $leave(&mut self) {
-            assert!(!self.kinds.is_empty());
-            assert_eq!(*self.kinds.last().unwrap(), ScopeKind::$kind);
+            debug_assert!(!self.kinds.is_empty());
+            debug_assert_eq!(*self.kinds.last().unwrap(), ScopeKind::$kind);
             self.kinds.pop();
             $(
-                assert!(!self.$field.is_empty());
+                debug_assert!(!self.$field.is_empty());
                 self.$field.pop();
             )*
         }
@@ -120,7 +120,7 @@ impl ScopeMgr {
     }
 
     pub fn pop_tag(&mut self) -> Scope {
-        assert!(!self.tags.is_empty());
+        debug_assert!(!self.tags.is_empty());
         match self.tags.pop() {
             Some(x) => x,
             None => unreachable!("`{}` can't be empty", stringify!(tags)),
@@ -195,7 +195,7 @@ impl ScopeMgr {
     scope_enter_leave!(enter_record, leave_record, Record, members);
 
     pub fn get_kind(&self) -> ScopeKind {
-        assert!(!self.kinds.is_empty());
+        debug_assert!(!self.kinds.is_empty());
         self.kinds.last().expect("impossible").clone()
     }
 

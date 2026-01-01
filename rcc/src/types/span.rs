@@ -10,14 +10,14 @@ pub struct Span {
 }
 impl Span {
     pub fn new(start: usize, end: usize) -> Self {
-        assert!(start <= end);
+        debug_assert!(start <= end);
         Span { start, end }
     }
     
     pub fn span(lo: Span, hi: Span) -> Self {
         let start = lo.start;
         let end = hi.end;
-        assert!(start <= end);
+        debug_assert!(start <= end);
         Span { start, end }
     }
     
@@ -37,7 +37,7 @@ impl Span {
     }
 
     pub fn to_pos(&self) -> Pos {
-        assert_eq!(self.end - self.start, 1);
+        debug_assert_eq!(self.end - self.start, 1);
         Pos { pos: self.start }
     }
 }

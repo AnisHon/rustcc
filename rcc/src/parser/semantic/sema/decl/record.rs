@@ -142,7 +142,7 @@ pub fn insert_record_decl(
 pub fn fill_record_fwd_ref(ctx: &mut CompCtx, definition: DeclKey, decls: Vec<DeclKey>) {
     for decl in decls.into_iter() {
         let decl = ctx.get_decl_mut(decl);
-        assert!(decl.kind.is_record_decl());
+        debug_assert!(decl.kind.is_record_decl());
         match &mut decl.kind {
             DeclKind::RecordDecl { def, .. } => {
                 *def = Some(definition);
@@ -159,7 +159,7 @@ pub fn insert_record_def(
     name: Ident,
     span: Span,
 ) -> ParserResult<DeclKey> {
-    assert!(kind.is_record_def());
+    debug_assert!(kind.is_record_def());
     let record_kind = match &kind {
         DeclKind::RecordDef { kind, .. } => kind.kind.clone(),
         _ => unreachable!(),

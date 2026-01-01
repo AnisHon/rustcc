@@ -272,8 +272,8 @@ fn arith_promote(
 
     let a = ctx.type_ctx.get_type(a_key);
     let b = ctx.type_ctx.get_type(b_key);
-    assert!(a.kind.is_integer() || a.kind.is_floating(), "expact integer, floating");
-    assert!(b.kind.is_integer() || b.kind.is_floating(), "expact interger, floating");
+    debug_assert!(a.kind.is_integer() || a.kind.is_floating(), "expact integer, floating");
+    debug_assert!(b.kind.is_integer() || b.kind.is_floating(), "expact interger, floating");
 
     // 1. 两者都是浮点，返回较宽浮点
     if let (Floating { size: sa }, Floating { size: sb }) = (&a.kind, &b.kind) {

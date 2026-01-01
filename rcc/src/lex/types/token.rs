@@ -12,7 +12,7 @@ pub struct Token {
 impl Token {
 
     pub fn new(beg: usize, end: usize, kind: TokenKind) -> Self {
-        assert!(beg <= end);
+        debug_assert!(beg <= end);
         
         Self {
             span: Span::new(beg, end),

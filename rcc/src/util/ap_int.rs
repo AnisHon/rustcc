@@ -23,7 +23,7 @@ impl APInt {
     }
 
     pub fn from_bool(b: bool) -> Self {
-        Self::new(true, INT_BITWIDTH, value)
+        Self::new(true, INT_BITWIDTH, b)
     }
 
     /// 截断到 bit_width
@@ -43,8 +43,8 @@ impl APInt {
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        assert_eq!(self.is_signed, other.is_signed, "signedness mismatch");
-        assert_eq!(self.bit_width, other.bit_width, "bit_width mismatch");
+        debug_assert_eq!(self.is_signed, other.is_signed, "signedness mismatch");
+        debug_assert_eq!(self.bit_width, other.bit_width, "bit_width mismatch");
 
         let mut res = Self {
             is_signed: self.is_signed,
@@ -56,8 +56,8 @@ impl APInt {
     }
 
     pub fn sub(&self, other: &Self) -> Self {
-        assert_eq!(self.is_signed, other.is_signed, "signedness mismatch");
-        assert_eq!(self.bit_width, other.bit_width, "bit_width mismatch");
+        debug_assert_eq!(self.is_signed, other.is_signed, "signedness mismatch");
+        debug_assert_eq!(self.bit_width, other.bit_width, "bit_width mismatch");
 
         let mut res = Self {
             is_signed: self.is_signed,
@@ -70,19 +70,19 @@ impl APInt {
 
     // 按位与
     pub fn bitand(&self, other: &Self) -> Self {
-        assert_eq!(self.bit_width, other.bit_width);
+        debug_assert_eq!(self.bit_width, other.bit_width);
         Self::new(self.is_signed, self.bit_width, &self.value & &other.value)
     }
 
     // 按位或
     pub fn bitor(&self, other: &Self) -> Self {
-        assert_eq!(self.bit_width, other.bit_width);
+        debug_assert_eq!(self.bit_width, other.bit_width);
         Self::new(self.is_signed, self.bit_width, &self.value | &other.value)
     }
 
     // 按位异或
     pub fn bitxor(&self, other: &Self) -> Self {
-        assert_eq!(self.bit_width, other.bit_width);
+        debug_assert_eq!(self.bit_width, other.bit_width);
         Self::new(self.is_signed, self.bit_width, &self.value ^ &other.value)
     }
 
