@@ -1,5 +1,5 @@
-use crate::lex::types::token_kind::TokenKind::*;
-use crate::lex::types::token_kind::TokenKind;
+use crate::types::lex::token_kind::TokenKind::*;
+use crate::types::lex::token_kind::TokenKind;
 pub const INIT_STATE: usize = 47;
 
 static BASE: [Option<usize>; 48] = [

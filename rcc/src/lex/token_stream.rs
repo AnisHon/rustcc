@@ -1,4 +1,4 @@
-use crate::lex::types::token::Token;
+use crate::types::lex::token::Token;
 use crate::types::span::Span;
 
 ///

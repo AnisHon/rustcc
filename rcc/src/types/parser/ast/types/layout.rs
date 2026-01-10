@@ -1,0 +1,50 @@
+use crate::constant::typ::{DEFAULT_ALIGN, DEFAULT_SIZE};
+use crate::parser::comp_ctx::CompCtx;
+use crate::types::parser::ast::types::Type;
+
+#[derive(Debug, Clone)]
+pub struct TypeLayout {
+    pub size: usize,
+    pub align: usize,
+}
+
+impl TypeLayout {
+    pub fn new(ctx: &CompCtx, ty: &Type) -> Self {
+        let size = Self::sizeof(ty);
+        let align = Self::alignof(ctx, ty).unwrap_or(DEFAULT_ALIGN);
+
+        Self { size, align }
+    }
+
+
+    // todo: type is immutable, that should store in typestruct 
+    pub fn alignof(ctx: &CompCtx, ty: &Type) -> Option<usize> {
+        use crate::types::parser::ast::types::type_struct::TypeKind::*;
+        match &ty.kind {
+            Void | Unknown  => None,
+            Integer{ .. } => Some(4),
+            Floating{ .. } => Some(4),
+            Pointer{ .. } => Some(8),
+            Array{ size, elem_ty } =>
+                todo!(),
+            Function{ .. } => Some(8),
+            Record {..} => todo!(),
+            Enum{ .. } => Some(8),
+        }
+    }
+
+    pub fn sizeof(ty: &Type) -> usize {
+        use super::TypeKind::*;
+        match &ty.kind {
+            Void => 1,
+            Integer { size, .. } => size.sizeof(),
+            Floating { size, .. } => size.sizeof(),
+            Pointer { .. } => 8,
+            Array { size, elem_ty } => todo!(),
+            Function { .. } => 1,
+            Record { .. } => todo!(), 
+            Enum { .. } => 4,
+            Unknown => return DEFAULT_SIZE,
+        }
+    }
+}

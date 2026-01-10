@@ -1,5 +1,5 @@
 use phf::phf_map;
-use crate::lex::types::token_kind::Keyword;
+use crate::types::lex::token_kind::Keyword;
 use Keyword::*;
 
 pub static KEYWORDS: phf::Map<&'static str, Keyword> = phf_map! {

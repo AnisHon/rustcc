@@ -1,8 +1,8 @@
 use crate::content_manager::ContentManager;
 use crate::err::global_err::GlobalError;
 use crate::err::lex_error::{LexError, LexResult};
-use crate::lex::types::token::Token;
-use crate::lex::types::token_kind::{FloatSuffix, IntSuffix, LiteralKind, Symbol, TokenKind};
+use crate::types::lex::token::Token;
+use crate::types::lex::token_kind::{FloatSuffix, IntSuffix, LiteralKind, Symbol, TokenKind};
 use crate::lex::{keyword, operator};
 use std::sync::{mpsc, Arc};
 use unicode_ident::{is_xid_continue, is_xid_start};

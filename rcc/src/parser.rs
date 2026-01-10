@@ -13,6 +13,8 @@ mod parser_decl;
 mod parser_expr;
 mod parser_extern;
 mod parser_stmt;
-mod semantic;
+pub mod comp_ctx;
+pub(crate) mod sema;
 
-pub use crate::parser::semantic::{ast, common, comp_ctx};
+pub use crate::types::parser::ast;
+pub use crate::types::parser::common;

@@ -1,9 +1,7 @@
 use thiserror::Error;
 
-use crate::{
-    parser::ast::{DeclKey, StmtKey},
-    types::span::Span,
-};
+use crate::types::span::Span;
+use crate::types::parser::ast::{DeclKey, StmtKey};
 
 pub type ScopeResult<T> = Result<T, ScopeError>;
 

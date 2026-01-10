@@ -1,8 +1,8 @@
 use crate::err::scope_error::{ScopeError, ScopeErrorKind, ScopeSource};
 use crate::err::type_error::TypeError;
-use crate::lex::types::token_kind::Symbol;
-use crate::parser::ast::{DeclKey, StmtKey, TypeKey};
-use crate::parser::common::Ident;
+use crate::types::lex::token_kind::Symbol;
+use crate::types::parser::ast::{DeclKey, StmtKey, TypeKey};
+use crate::types::parser::common::Ident;
 use crate::types::span::Span;
 use std::backtrace::Backtrace;
 use std::fmt::{Display, Formatter};
