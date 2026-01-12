@@ -109,10 +109,10 @@ impl Parser<'_> {
         use TokenKind::*;
         let lo = self.stream.span();
         loop {
-            let kind = if let Some(lparen) = self.consume(LBracket) {
+            let kind = if let Some(_lparen) = self.consume(LBracket) {
                 // 数组访问[]
                 let index = self.parse_expr()?;
-                let rparen = self.expect(RBracket)?;
+                let _rparen = self.expect(RBracket)?;
                 ExprKind::make_index(lhs, index)
             } else if let Some(lparen) = self.consume(LParen) {
                 // 函数调用()

@@ -1,7 +1,7 @@
 use crate::err::parser_error::ParserResult;
+use crate::parser::parser_core::*;
 use crate::types::lex::token_kind::{Keyword, TokenKind};
 use crate::types::parser::ast::stmt::StmtKey;
-use crate::parser::parser_core::*;
 use crate::types::parser::ast::stmt::{Stmt, StmtKind};
 use crate::types::parser::common::Ident;
 use crate::types::span::Span;
@@ -60,7 +60,7 @@ impl Parser<'_> {
             self.parse_labeled_stmt()?
         } else if self.check(TokenKind::LBrace) {
             // compound
-            self.parse_compound_stmt(only_stmt, true)?
+            self.parse_compound_stmt(only_stmt)?
         } else if self.check_selection_stmt() {
             //
             self.parse_selection_stmt()?
@@ -92,7 +92,7 @@ impl Parser<'_> {
             let symbol = ident.kind.into_ident().unwrap();
             let ident = Ident { symbol, span };
 
-            let colon = self.expect(TokenKind::Colon)?.span.to_pos();
+            let _colon = self.expect(TokenKind::Colon)?.span;
             let stmt = self.parse_stmt(false)?;
             StmtKind::Label { ident, stmt }
         } else if let Some(kw_case) = self.consume_keyword(Keyword::Case) {
@@ -127,11 +127,7 @@ impl Parser<'_> {
     /// # Arguments
     /// - `only_stmt`: 是否只应该解析statement
     /// - `new_context`: 是否开上下文
-    pub(crate) fn parse_compound_stmt(
-        &mut self,
-        only_stmt: bool,
-        new_context: bool,
-    ) -> ParserResult<StmtKind> {
+    pub(crate) fn parse_compound_stmt(&mut self, only_stmt: bool) -> ParserResult<StmtKind> {
         // todo 符号表
 
         let l = self.expect(TokenKind::LBrace)?.span.to_pos();
@@ -155,11 +151,7 @@ impl Parser<'_> {
         let r = self.expect(TokenKind::RBrace)?.span.to_pos();
 
         // 符号表退出
-        let kind = StmtKind::Compound {
-            l,
-            stmts,
-            r,
-        };
+        let kind = StmtKind::Compound { l, stmts, r };
         Ok(kind)
     }
 
@@ -297,9 +289,7 @@ impl Parser<'_> {
             let ident = Ident { span, symbol };
             let _ = self.expect(TokenKind::Semi)?;
 
-            StmtKind::Goto {
-                ident,
-            }
+            StmtKind::Goto { ident }
         } else if let Some(continue_token) = self.consume_keyword(Keyword::Continue) {
             // continue;
             let continue_span = continue_token.span;
