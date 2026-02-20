@@ -1,11 +1,11 @@
 use crate::err::parser_error;
 use crate::err::parser_error::ParserResult;
-use crate::types::lex::token::Token;
-use crate::types::lex::token_kind::{Keyword, LiteralKind, TokenKind};
-use crate::types::parser::ast::exprs::{ExprKind, Parameter};
-use crate::types::parser::ast::ExprKey;
 use crate::parser::parser_core::*;
 use crate::parser::sema::expr::sema_expr::make_expr;
+use crate::types::lex::token::Token;
+use crate::types::lex::token_kind::{Keyword, LiteralKind, TokenKind};
+use crate::types::parser::ast::exprs::{ExprKind, ParamsExpr};
+use crate::types::parser::ast::ExprKey;
 use crate::types::span::Span;
 
 impl Parser<'_> {
@@ -149,8 +149,8 @@ impl Parser<'_> {
     }
 
     /// 解析 expression 列表
-    fn parse_expr_list(&mut self) -> ParserResult<Parameter> {
-        let mut param = Parameter::new();
+    fn parse_expr_list(&mut self) -> ParserResult<ParamsExpr> {
+        let mut param = ParamsExpr::default();
         if self.check(TokenKind::RParen) {
             return Ok(param);
         }
@@ -159,7 +159,8 @@ impl Parser<'_> {
             let expr = self.parse_assign_expr()?;
             param.exprs.push(expr);
 
-            if let Some(_) = self.consume(TokenKind::Comma) {} else if self.check(TokenKind::RParen) {
+            if let Some(_) = self.consume(TokenKind::Comma) {
+            } else if self.check(TokenKind::RParen) {
                 break;
             } else {
                 let kind = parser_error::ErrorKind::Expect {
@@ -225,11 +226,7 @@ impl Parser<'_> {
     }
 
     /// 处理multiplicative-expression的{ ("*" | "/" | "%") cast-expression }*部分
-    fn parse_multiplicative_expr_rhs(
-        &mut self,
-        lhs: ExprKey,
-        lo: Span,
-    ) -> ParserResult<ExprKey> {
+    fn parse_multiplicative_expr_rhs(&mut self, lhs: ExprKey, lo: Span) -> ParserResult<ExprKey> {
         use TokenKind::*;
         if let Some(op) = self.consumes(&[Star, Slash, Percent]) {
             let rhs = self.parse_cast_expr()?;
@@ -482,7 +479,7 @@ impl Parser<'_> {
         if assign_op.is_none() {
             return Ok(lhs_key); // 不是赋值表达式
         }
-        
+
         let assign_op = assign_op.unwrap();
         let rhs = self.parse_assign_expr()?;
         let hi = self.stream.prev_span();
@@ -511,7 +508,7 @@ impl Parser<'_> {
     pub(crate) fn parse_expr(&mut self) -> ParserResult<ExprKey> {
         let lo = self.stream.span();
         let lhs = self.parse_assign_expr()?;
-        let expr = self.parse_expr_rhs( lhs, lo)?;
+        let expr = self.parse_expr_rhs(lhs, lo)?;
         Ok(expr)
     }
 }

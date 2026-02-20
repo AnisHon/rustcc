@@ -1,111 +1,92 @@
 /// 构造Type的最小单位
-use crate::{
-    err::type_error::TypeError,
+use crate::parser::ast::types::{
+    ArraySize, ArrayType, BuildInType, FuncType, ParamsType, PtrType, QualType, Signedness, TagType,
 };
 /// 构造Type的最小单位
 use crate::types::parser::ast::{
     common::RecordKind,
-    types::{
-        ArraySize, EnumID, FloatSize, IntegerSize, Qualifier, RecordID, Type, TypeKind,
-    },
-    TypeKey,
+    types::{EnumID, FloatType, IntegerType, RecordID, Type, TypeKind},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TypeBuilder {
-    pub qual: Qualifier,
-    pub kind: TypeBuilderKind,
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum TypeBuilder {
+    BuildIn(BuildInType),
+    Ptr(PtrType),
+    Array(ArrayType),
+    Func(FuncType),
+    Tag(TagTypeBuilder),
+    #[default]
+    Error,
 }
 
 impl TypeBuilder {
-    pub fn new(kind: TypeBuilderKind) -> Self {
-        Self {
-            qual: Qualifier::default(),
-            kind,
-        }
+    /// 创建PTR
+    pub fn new_ptr(elem_ty: QualType) -> Self {
+        let ptr = PtrType::new(elem_ty);
+        Self::Ptr(ptr)
     }
 
-    pub fn new_with_qual(qual: Qualifier, kind: TypeBuilderKind) -> Self {
-        Self { qual, kind }
+    pub fn new_array(elem_ty: QualType, size: ArraySize) -> Self {
+        let array = ArrayType::new(elem_ty, size);
+        Self::Array(array)
     }
 
+    pub fn new_func(params: ParamsType, ret_ty: QualType) -> Self {
+        let func = FuncType::new(params, ret_ty);
+        Self::Func(func)
+    }
     /// 创建 integer 类型
-    pub fn new_int(is_signed: bool, size: IntegerSize) -> Self {
-        let kind = TypeBuilderKind::Integer { is_signed, size };
-        Self::new(kind)
+    pub fn new_int(is_signed: bool, size: IntegerType) -> Self {
+        let build_in = BuildInType::Integer { is_signed, size };
+        Self::BuildIn(build_in)
     }
 
     /// 创建 float 类型
-    pub fn new_float(size: FloatSize) -> Self {
-        let kind = TypeBuilderKind::Floating { size };
-        Self::new(kind)
+    pub fn new_float(size: FloatType) -> Self {
+        let build_in_type = BuildInType::Floating { size };
+        Self::BuildIn(build_in_type)
     }
 
-    pub fn build(self) -> Result<Type, TypeError> {
-        use TypeBuilderKind::*;
-        let qual = self.qual;
-        let kind = match self.kind {
-            Void => TypeKind::Void,
-            Unknown => TypeKind::Unknown,
-            Integer { is_signed, size } => TypeKind::Integer { is_signed, size },
-            Floating { size } => TypeKind::Floating { size },
-            Pointer { elem_ty } => TypeKind::Pointer { elem_ty },
-            Array { elem_ty, size } => TypeKind::Array { elem_ty, size },
-            Function {
-                ret_ty,
-                params,
-                is_variadic,
-            } => TypeKind::Function {
-                ret_ty,
-                params,
-                is_variadic,
+    pub fn new_char(signedness: Signedness) -> Self {
+        let build_in_type = BuildInType::Char { signedness };
+        Self::BuildIn(build_in_type)
+    }
+
+    pub fn build(self) -> Type {
+        let kind = match self {
+            TypeBuilder::BuildIn(x) => TypeKind::BuildIn(x),
+            TypeBuilder::Ptr(x) => TypeKind::Ptr(x),
+            TypeBuilder::Array(x) => TypeKind::Array(x),
+            TypeBuilder::Func(x) => TypeKind::Func(x),
+            TypeBuilder::Tag(x) => match x {
+                TagTypeBuilder::Record { kind, id } => TypeKind::new_record(kind, id, None),
+                TagTypeBuilder::Enum { id } => TypeKind::new_enum(id, None),
             },
-            Record { kind, id } => TypeKind::Record {
-                kind,
-                id,
-                def: None,
-            },
-            Enum { id } => TypeKind::Enum { id, def: None },
+            TypeBuilder::Error => TypeKind::Error,
         };
-        let ty = Type::new_qual(qual, kind);
-        Self::check_restrict(&ty)?;
-
-        Ok(ty)
+        Type::new(kind)
     }
+}
 
-    // 检查是否正确
-    fn check_restrict(ty: &Type) -> Result<(), TypeError> {
-        // 如果没用restrict直接忽略
-        if !ty.qual.is_restrict {
-            return Ok(());
+impl From<&TypeKind> for TypeBuilder {
+    fn from(value: &TypeKind) -> Self {
+        match value {
+            TypeKind::BuildIn(x) => TypeBuilder::BuildIn(x.clone()),
+            TypeKind::Ptr(x) => TypeBuilder::Ptr(x.clone()),
+            TypeKind::Array(x) => TypeBuilder::Array(x.clone()),
+            TypeKind::Func(x) => TypeBuilder::Func(x.clone()),
+            TypeKind::Tag(x) => {
+                let tag = TagTypeBuilder::from(x);
+                TypeBuilder::Tag(tag)
+            }
+            TypeKind::Error => TypeBuilder::Error,
         }
-
-        todo!("实现restrict检查机制，只能用指针，指针指向的内容也要检查")
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TypeBuilderKind {
-    Void,
-    Integer {
-        is_signed: bool,
-        size: IntegerSize,
-    },
-    Floating {
-        size: FloatSize,
-    },
-    Pointer {
-        elem_ty: TypeKey,
-    },
-    Array {
-        elem_ty: TypeKey,
-        size: ArraySize,
-    },
-    Function {
-        ret_ty: TypeKey,
-        params: Vec<TypeKey>,
-        is_variadic: bool,
-    },
+pub enum TagTypeBuilder {
     Record {
         kind: RecordKind,
         id: RecordID, // C 的结构体用于区分 type identity, DeclKey 可以当作唯一标识符
@@ -113,39 +94,16 @@ pub enum TypeBuilderKind {
     Enum {
         id: EnumID, // C 的结构体用于区分 type identity, DeclKey 可以当作唯一标识符
     },
-    Unknown, // 未知类型，用于出错后和初始化之类的
 }
 
-impl TypeBuilderKind {
-
-    pub fn from_type_kind(kind: &TypeKind) -> Self {
-        match kind {
-            TypeKind::Void => TypeBuilderKind::Void,
-            TypeKind::Integer { is_signed, size } => TypeBuilderKind::Integer {
-                is_signed: *is_signed,
-                size: *size,
+impl From<&TagType> for TagTypeBuilder {
+    fn from(value: &TagType) -> Self {
+        match value {
+            TagType::Record(x) => TagTypeBuilder::Record {
+                kind: x.kind,
+                id: x.id,
             },
-            TypeKind::Floating { size } => TypeBuilderKind::Floating { size: *size },
-            TypeKind::Pointer { elem_ty } => TypeBuilderKind::Pointer { elem_ty: *elem_ty },
-            TypeKind::Array { elem_ty, size } => TypeBuilderKind::Array {
-                elem_ty: *elem_ty,
-                size: *size,
-            },
-            TypeKind::Function {
-                ret_ty,
-                params,
-                is_variadic,
-            } => TypeBuilderKind::Function {
-                ret_ty: *ret_ty,
-                params: params.clone(),
-                is_variadic: *is_variadic,
-            },
-            TypeKind::Record { id, kind, .. } => TypeBuilderKind::Record {
-                kind: *kind,
-                id: *id,
-            },
-            TypeKind::Enum { id, .. } => TypeBuilderKind::Enum { id: *id },
-            TypeKind::Unknown => TypeBuilderKind::Unknown,
+            TagType::Enum(x) => TagTypeBuilder::Enum { id: x.id },
         }
     }
 }

@@ -2,19 +2,23 @@ use enum_as_inner::EnumAsInner;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
-pub enum IntegerSize {
-    Char,
+pub enum Signedness {
+    Signed,
+    Unsigned,
+    Plain,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
+pub enum IntegerType {
     Short,
     Int,
     Long,
     LongLong,
 }
 
-impl Display for IntegerSize {
+impl Display for IntegerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use IntegerSize::*;
+        use IntegerType::*;
         let str = match self {
-            Char => "char",
             Short => "short",
             Int => "int",
             Long => "long",
@@ -24,66 +28,59 @@ impl Display for IntegerSize {
     }
 }
 
-impl IntegerSize {
+impl IntegerType {
     pub fn rank(self) -> usize {
-        use IntegerSize::*;
         match self {
-            Char => 0x1,
-            Short => 0x2,
-            Int => 0x3,
-            Long => 0x4,
-            LongLong => 0x5,
+            IntegerType::Short => 0x2,
+            IntegerType::Int => 0x3,
+            IntegerType::Long => 0x4,
+            IntegerType::LongLong => 0x5,
         }
     }
 
     pub fn sizeof(self) -> usize {
-        use IntegerSize::*;
         match self {
-            Char => 1,
-            Short => 2,
-            Int => 4,
-            Long => 8,
-            LongLong => 8,
+            IntegerType::Short => 2,
+            IntegerType::Int => 4,
+            IntegerType::Long => 8,
+            IntegerType::LongLong => 8,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
-pub enum FloatSize {
+pub enum FloatType {
     Float,
     Double,
     LongDouble,
 }
 
-impl Display for FloatSize {
+impl Display for FloatType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use FloatSize::*;
         let str = match self {
-            Float => "float",
-            Double => "double",
-            LongDouble => "long double",
+            FloatType::Float => "float",
+            FloatType::Double => "double",
+            FloatType::LongDouble => "long double",
         };
         write!(f, "{}", str)
     }
 }
 
-impl FloatSize {
+impl FloatType {
     /// a > b?
     pub fn rank(&self) -> usize {
-        use FloatSize::*;
         match self {
-            Float => 0x1,
-            Double => 0x10,
-            LongDouble => 0x100,
+            FloatType::Float => 0x1,
+            FloatType::Double => 0x10,
+            FloatType::LongDouble => 0x100,
         }
     }
 
     pub fn sizeof(self) -> usize {
-        use FloatSize::*;
         match self {
-            Float => 4,
-            Double => 8,
-            LongDouble => 8,
+            FloatType::Float => 4,
+            FloatType::Double => 8,
+            FloatType::LongDouble => 8,
         }
     }
 }
@@ -97,11 +94,10 @@ pub enum ArraySize {
 
 impl Display for ArraySize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ArraySize::*;
         match self {
-            Static(x) => write!(f, "[{}]", x),
-            VLA => write!(f, "[...]"),
-            Incomplete => write!(f, "[?]"),
+            ArraySize::Static(x) => write!(f, "[{}]", x),
+            ArraySize::VLA => write!(f, "[...]"),
+            ArraySize::Incomplete => write!(f, "[?]"),
         }
     }
 }

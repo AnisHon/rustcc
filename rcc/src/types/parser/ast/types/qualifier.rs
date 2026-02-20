@@ -7,8 +7,8 @@ pub struct Qualifier {
     pub is_restrict: bool,
 }
 
-impl Qualifier {
-    pub fn new(type_quals: &TypeQuals) -> Self {
+impl From<&TypeQuals> for Qualifier {
+    fn from(type_quals: &TypeQuals) -> Self {
         Self {
             is_const: type_quals.is_const.is_some(),
             is_volatile: type_quals.is_volatile.is_some(),

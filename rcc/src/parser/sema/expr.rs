@@ -1,5 +1,6 @@
-pub mod sema_expr;
-pub mod value_type;
 pub(crate) mod decay;
-pub(crate) mod ty;
+pub mod eval;
 pub(crate) mod fold;
+pub mod sema_expr;
+pub(crate) mod ty;
+pub mod value_type;

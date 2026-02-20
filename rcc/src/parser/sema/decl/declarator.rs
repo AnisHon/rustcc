@@ -1,8 +1,9 @@
 use crate::constant::str::TYPEDEF_REQUIRE_NAME;
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::parser::comp_ctx::CompCtx;
+use crate::parser::sema::scope::scope_mgr::ScopeMgr;
 use crate::parser::sema::scope::scope_struct::{ScopeKind, ScopeSymbol};
-use crate::parser::sema::type_ctx::declarator::{DeclInfo};
+use crate::parser::sema::type_ctx::declarator::DeclInfo;
 use crate::parser::sema::Sema;
 use crate::types::parser::ast::decls::decl::{Decl, DeclKind};
 use crate::types::parser::ast::decls::initializer::Initializer;
@@ -12,24 +13,23 @@ use crate::types::parser::decl_spec::{StorageSpec, StorageSpecKind};
 use crate::types::parser::declarator::InitDeclarator;
 use std::collections::hash_map::Entry;
 
-
-impl Sema<'_> {
+impl Sema {
     /// 将 typedef 插入符号表，负责处理名字问题，类型不匹配问题
     /// todo: 可能放到 scope 模块更合适
-    fn insert_typedef(&mut self, decl_key: DeclKey) -> ParserResult<()> {
-        let decl = self.ctx.get_decl(decl_key);
+    fn insert_typedef(ctx: &mut CompCtx, decl_key: DeclKey) -> ParserResult<()> {
+        let decl = ctx.get_decl(decl_key);
         let ty = decl.ty;
         let name = match &decl.name {
             Some(x) => x.clone(),
             None => {
                 // typedef 但是没有名字给一个 warning
                 let warning = ParserError::warning(TYPEDEF_REQUIRE_NAME.to_owned(), decl.span);
-                self.ctx.send_error(warning)?;
+                ctx.send_error(warning)?;
                 return Ok(()); // 名字都没有不用了
             }
         };
 
-        match self.ctx.scope_mgr.entry_local_ident(name.symbol) {
+        match ctx.scope_mgr.entry_local_ident(name.symbol) {
             Entry::Occupied(mut x) => {
                 let symbol = x.get_mut();
                 // 声明的 type 不同错误
@@ -73,7 +73,7 @@ impl Sema<'_> {
     }
 
     // 是否是定义 todo 使用 DefinitionKind 表示 Tentative 定义
-    fn is_definition(&self, decl_info: &DeclInfo, has_init: bool) -> bool {
+    fn is_definition(scope_mgr: &ScopeMgr, decl_info: &DeclInfo, has_init: bool) -> bool {
         // 表示显式定义了 extern，不是隐式的
         let extern_kw = decl_info
             .storage
@@ -82,7 +82,7 @@ impl Sema<'_> {
             .unwrap_or(false);
 
         // 判断是否是声明
-        match self.ctx.scope_mgr.get_kind() {
+        match scope_mgr.get_kind() {
             ScopeKind::File => has_init || !extern_kw, // 如果有init一定是定义，如果没有，且没有声明 extern 默认是临时定义
             ScopeKind::Function | ScopeKind::Block => !extern_kw, // 这种作用域下，只 extern 才是声明，而且 extern 不允许有初始化
             ScopeKind::ParamList | ScopeKind::Record => {
@@ -92,7 +92,11 @@ impl Sema<'_> {
     }
 
     // 处理 typedef
-    fn act_on_typedef(&mut self, decl_info: DeclInfo, has_init: bool) -> ParserResult<DeclKey> {
+    fn act_on_typedef(
+        ctx: &mut CompCtx,
+        decl_info: DeclInfo,
+        has_init: bool,
+    ) -> ParserResult<DeclKey> {
         debug_assert!(Self::is_typedef(decl_info.storage.as_ref())); // 必须是 typedef
 
         // typedef 不能初始化
@@ -111,10 +115,10 @@ impl Sema<'_> {
             ty: decl_info.ty,
             span: decl_info.span,
         };
-        let decl_key = self.ctx.insert_decl(decl);
+        let decl_key = ctx.insert_decl(decl);
 
         // 插入符号表，自动处理名字和类型不匹配问题
-        self.insert_typedef(decl_key)?;
+        Self::insert_typedef(ctx, decl_key)?;
 
         Ok(decl_key)
     }
@@ -163,8 +167,8 @@ impl Sema<'_> {
         use crate::types::parser::ast::types::TypeKind::*;
         let ty = ctx.type_ctx.get_type(ty_key);
         match &ty.kind {
-            Unknown | Function { .. } | Void => unreachable!(),
-            Integer { .. } | Floating { .. } | Pointer { .. } | Enum { .. } => {}
+            Unknown | Func { .. } | Void => unreachable!(),
+            Integer { .. } | Floating { .. } | Ptr { .. } | Enum { .. } => {}
             Array { .. } => Self::act_on_array_initializer(ctx, ty_key, init)?,
             Record { .. } => {}
         }
@@ -182,24 +186,24 @@ impl Sema<'_> {
     }
 
     pub fn act_on_init_declarator(
-        &mut self,
+        ctx: &mut CompCtx,
         init_declarator: InitDeclarator,
     ) -> ParserResult<DeclKey> {
         // let declarator = init_declarator.declarator;
         // let name = declarator.name.clone();
 
         // 构建类型
-        let decl_info = self.resolve_declarator(init_declarator.declarator)?;
+        let decl_info = Self::resolve_declarator(ctx, init_declarator.declarator)?;
 
         let has_init = init_declarator.init.is_some();
 
         // typedef 需要特殊处理
         if Self::is_typedef(decl_info.storage.as_ref()) {
-            return self.act_on_typedef(decl_info, has_init);
+            return Self::act_on_typedef(ctx, decl_info, has_init);
         }
 
         // 是否是定义
-        let is_def = self.is_definition(&decl_info, has_init);
+        let is_def = Self::is_definition(&ctx.scope_mgr, &decl_info, has_init);
 
         // 检查 init
         todo!();
@@ -215,7 +219,7 @@ impl Sema<'_> {
 //
 //     /// 解析record的成员，插入decl
 //     pub fn act_on_record_field(
-//         &mut self,
+//         ctx: &mut CompCtx,
 //         ctx: &mut CompCtx,
 //         struct_declarator: StructDeclarator,
 //     ) -> ParserResult<DeclKey> {
@@ -242,7 +246,7 @@ impl Sema<'_> {
 //
 //     /// 解析枚举成员，插入符号表
 //     pub fn act_on_enumerator(
-//         &mut self,
+//         ctx: &mut CompCtx,
 //         ctx: &mut CompCtx,
 //         enumerator: Enumerator,
 //     ) -> ParserResult<DeclKey> {
@@ -265,7 +269,7 @@ impl Sema<'_> {
 //
 //     /// 类型参数
 //     pub fn act_on_param_var(
-//         &mut self,
+//         ctx: &mut CompCtx,
 //         ctx: &mut CompCtx,
 //         declarator: Declarator,
 //     ) -> ParserResult<DeclKey> {
@@ -289,7 +293,7 @@ impl Sema<'_> {
 //
 //     /// 函数声明，添加函数声明和参数列表进入符号表
 //     pub fn act_on_func_decl(
-//         &mut self,
+//         ctx: &mut CompCtx,
 //         ctx: &mut CompCtx,
 //         func_decl: FuncDecl,
 //     ) -> ParserResult<DeclKey> {
@@ -402,7 +406,7 @@ impl Sema<'_> {
 //
 //     /// 将声明插入符号表
 //     pub fn act_on_record_ref(
-//         &mut self,
+//         ctx: &mut CompCtx,
 //         ctx: &mut CompCtx,
 //         record_kind: Record,
 //         name: Ident,
@@ -423,7 +427,7 @@ impl Sema<'_> {
 //
 //     /// 完成record声明或定义，会调用exit退出作用域 ,插入符号表
 //     pub fn act_on_finish_record(
-//         &mut self,
+//         ctx: &mut CompCtx,
 //         ctx: &mut CompCtx,
 //         spec: StructSpec,
 //     ) -> ParserResult<DeclKey> {
@@ -456,7 +460,7 @@ impl Sema<'_> {
 //
 //     /// 完成enum声明/定义，会调用exit退出作用域 enum插入符号表
 //     pub fn act_on_finish_enum(
-//         &mut self,
+//         ctx: &mut CompCtx,
 //         ctx: &mut CompCtx,
 //         spec: EnumSpec,
 //     ) -> ParserResult<DeclKey> {
@@ -488,7 +492,7 @@ impl Sema<'_> {
 //     }
 //
 //     /// 解析declarator
-//     pub fn act_on_declarator(&mut self, declarator: Declarator) -> ParserResult<PartialDecl> {
+//     pub fn act_on_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<PartialDecl> {
 //         let kind = self.curr_decl.borrow().get_kind();
 //         let decl = match kind {
 //             DeclContextKind::File => self.act_on_file_declarator(declarator)?,
@@ -500,7 +504,7 @@ impl Sema<'_> {
 //         Ok(decl)
 //     }
 //
-//     fn act_on_file_declarator(&mut self, declarator: Declarator) -> ParserResult<PartialDecl> {
+//     fn act_on_file_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<PartialDecl> {
 //         // 默认extern
 //         let storage = declarator
 //             .decl_spec
@@ -526,7 +530,7 @@ impl Sema<'_> {
 //         Ok(result)
 //     }
 //
-//     fn act_on_block_declarator(&mut self, declarator: Declarator) -> ParserResult<PartialDecl> {
+//     fn act_on_block_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<PartialDecl> {
 //         // 默认auto
 //         let storage = declarator
 //             .decl_spec
@@ -544,7 +548,7 @@ impl Sema<'_> {
 //         Ok(result)
 //     }
 //
-//     fn act_on_struct_declarator(&mut self, declarator: Declarator) -> ParserResult<PartialDecl> {
+//     fn act_on_struct_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<PartialDecl> {
 //         // 不允许任何storage声明
 //         if declarator.decl_spec.storage.is_some() {
 //             todo!()
@@ -561,7 +565,7 @@ impl Sema<'_> {
 //         Ok(result)
 //     }
 //
-//     fn act_on_param_declarator(&mut self, declarator: Declarator) -> ParserResult<PartialDecl> {
+//     fn act_on_param_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<PartialDecl> {
 //         let storage = declarator.decl_spec.storage.clone(); // 没有默认storage
 //         let name = declarator.name.clone();
 //         let ty = self.type_context.resolve_declarator(&declarator)?;

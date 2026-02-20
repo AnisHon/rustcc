@@ -1,3 +1,3 @@
-pub mod scope_struct;
-pub mod scope_manager;
 pub mod lookup;
+pub mod scope_mgr;
+pub mod scope_struct;

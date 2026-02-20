@@ -1,4 +1,4 @@
-use crate::types::parser::ast::exprs::{Expr, ExprKind, UnaryOpKind};
+use crate::types::parser::ast::exprs::Expr;
 
 /// 值上下文
 /// - `Value`: 发生取值，意味着成为 R-Value ，发生 Decay
@@ -27,9 +27,9 @@ impl ValueType {
                 Deref => LValue,
                 _ => RValue,
             },
-            | Literal(_)
+            Literal(_)
             | Call { .. }
-            | SizeofExpr { .. }
+            | Sizeof { .. }
             | SizeofType { .. }
             | Binary { .. }
             | Cast { .. }

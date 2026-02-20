@@ -2,6 +2,7 @@ use crate::err::parser_error::ParserResult;
 use crate::types::lex::token_kind::TokenKind;
 use crate::types::parser::ast::decls::decl::DeclGroup;
 use crate::parser::parser_core::Parser;
+use crate::parser::sema::Sema;
 use crate::types::parser::ast::func::{ExternalDecl, FuncDecl, FuncDef, TranslationUnit};
 use crate::types::parser::ast::stmt::Stmt;
 use crate::types::parser::declarator::DeclPrefix;
@@ -78,10 +79,10 @@ impl Parser<'_> {
         };
 
         // 函数声明
-        let decl = sema.act_on_func_decl(func_decl)?;
+        let decl = Sema::act_on_func_decl(self.ctx, func_decl)?;
 
         // compound stmt会调用exit_decl
-        let kind = self.parse_compound_stmt(false, false)?;
+        let kind = self.parse_compound_stmt(false)?;
 
         let hi = self.stream.prev_span();
         let span = Span::span(prefix.lo, hi);

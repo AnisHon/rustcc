@@ -1,10 +1,10 @@
-use crate::err::parser_error::{ParserResult};
-use crate::types::parser::ast::ExprKey;
-use crate::types::parser::ast::exprs::{Expr, ExprKind, UnaryOpKind};
+use crate::err::parser_error::ParserResult;
 use crate::parser::comp_ctx::CompCtx;
-use crate::parser::sema::expr::decay::{decay_expr};
+use crate::parser::sema::expr::decay::decay_expr;
 use crate::parser::sema::expr::fold::fold_expr;
 use crate::parser::sema::expr::ty::expr_type;
+use crate::types::parser::ast::exprs::{Expr, ExprKind, UnaryOpKind};
+use crate::types::parser::ast::ExprKey;
 use crate::types::span::Span;
 
 /// 构建expression 折叠表达式
@@ -17,11 +17,15 @@ pub fn make_expr(ctx: &mut CompCtx, kind: ExprKind, span: Span) -> ParserResult<
     // 3. 尝试表达式折叠
     let value = fold_expr(ctx, &kind)?;
 
-    let expr = Expr { kind, ty, span, value};
+    let expr = Expr {
+        kind,
+        ty,
+        span,
+        value,
+    };
 
     Ok(expr)
 }
-
 
 // 衰变左右值变换
 pub fn default_conversions(ctx: &mut CompCtx, kind: &mut ExprKind) {
@@ -34,11 +38,11 @@ pub fn default_conversions(ctx: &mut CompCtx, kind: &mut ExprKind) {
             *base = decay_expr(ctx, *base, NoValue);
             *index = decay_expr(ctx, *index, Value);
         }
-        MemberAccess { base , ..} => {
-            *base = decay_expr(ctx, *base, Value); 
+        MemberAccess { base, .. } => {
+            *base = decay_expr(ctx, *base, Value);
         }
         SizeofType { ty } => {}
-        SizeofExpr { expr } => {}
+        Sizeof { expr } => {}
         Call { params, base } => {
             params.exprs.iter_mut().for_each(|x| {
                 *x = decay_expr(ctx, *x, Value);
@@ -52,7 +56,7 @@ pub fn default_conversions(ctx: &mut CompCtx, kind: &mut ExprKind) {
             };
             *rhs = decay_expr(ctx, *rhs, value);
         }
-        Binary { lhs, rhs , .. } => {
+        Binary { lhs, rhs, .. } => {
             *lhs = decay_expr(ctx, *lhs, Value);
             *rhs = decay_expr(ctx, *rhs, Value);
         }
@@ -60,7 +64,12 @@ pub fn default_conversions(ctx: &mut CompCtx, kind: &mut ExprKind) {
             *rhs = decay_expr(ctx, *rhs, Value);
         }
         Cast { expr, .. } => {}
-        Ternary { cond, then_expr, else_expr, .. } => {
+        Ternary {
+            cond,
+            then_expr,
+            else_expr,
+            ..
+        } => {
             *cond = decay_expr(ctx, *cond, Value);
             *then_expr = decay_expr(ctx, *then_expr, Value);
             *else_expr = decay_expr(ctx, *else_expr, Value);

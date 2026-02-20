@@ -7,7 +7,7 @@ use crate::parser::sema::expr::value_type::ValueType;
 /// 表达式类型推导
 use crate::types::lex::token_kind::{LiteralKind, Symbol};
 /// 表达式类型推导
-use crate::types::parser::ast::{exprs::{AssignOpKind, BinOpKind, ExprKind, MemberAccessKind, UnaryOpKind}, types::{IntegerSize, Qualifier, Type, TypeKind}, ExprKey, TypeKey};
+use crate::types::parser::ast::{exprs::{AssignOpKind, BinOpKind, ExprKind, MemberAccessKind, UnaryOpKind}, types::{IntegerType, Qualifier, Type, TypeKind}, ExprKey, TypeKey};
 /// 表达式类型推导
 use crate::types::parser::common::Ident;
 
@@ -28,8 +28,8 @@ pub(crate) fn expr_type(ctx: &mut CompCtx, kind: &ExprKind, span: Span) -> Parse
             let base = ctx.get_expr(*base);
             member_access_expr_type(ctx, base.ty, kind.clone(), *field, span)?
         }
-        SizeofType { .. } | ExprKind::SizeofExpr { .. } => {
-            type_context.get_int_type(IntegerSize::Long, false)
+        SizeofType { .. } | ExprKind::Sizeof { .. } => {
+            type_context.get_int_type(IntegerType::Long, false)
         }
         Unary { op, rhs } => {
             let rhs = ctx.get_expr(*rhs);  
@@ -67,12 +67,12 @@ fn literal_expr_type(ctx: &mut CompCtx, literal: &LiteralKind) -> TypeKey {
     use LiteralKind::*;
     match literal {
         Integer { suffix, .. } => 
-            ctx.type_ctx.get_by_int_sfx(suffix.clone()),
+            ctx.type_ctx.new_by_int_sfx(suffix.clone()),
         Float { suffix, ..} => 
-            ctx.type_ctx.get_by_float_sfx(suffix.clone()),
-        Char { .. } => ctx.type_ctx.get_char(),
+            ctx.type_ctx.new_by_float_sfx(suffix.clone()),
+        Char { .. } => ctx.type_ctx.new_char(),
         String { value } => // 假定已经处理转义
-            ctx.type_ctx.get_string_type(value.get().len() as u64),
+            ctx.type_ctx.new_string(value.get().len() as u64),
     }
 }
 
@@ -101,7 +101,7 @@ fn array_subscript_type(ctx: &CompCtx, base: ExprKey, index: ExprKey) -> ParserR
     }
 
     let ty = match &base_ty.kind {
-        TypeKind::Pointer { elem_ty }
+        TypeKind::Ptr { elem_ty }
         | TypeKind::Array { elem_ty, .. } => *elem_ty,
         // 不是可索引的类型
         _ => return Err(ParserError::non_subscripted(base.span))
@@ -114,10 +114,10 @@ fn array_subscript_type(ctx: &CompCtx, base: ExprKey, index: ExprKey) -> ParserR
 fn call_expr_type(ctx: &CompCtx, ty: TypeKey, call_params: &[ExprKey], span: Span) -> ParserResult<TypeKey> {
     let ty = ctx.type_ctx.get_type(ty);
     let ty = match &ty.kind {
-        TypeKind::Pointer { elem_ty } => {
+        TypeKind::Ptr { elem_ty } => {
             call_expr_type(ctx, *elem_ty, call_params, span)?
         }
-        TypeKind::Function { ret_ty, params, .. } => {
+        TypeKind::Func { ret_ty, params, .. } => {
             let call = call_params.iter().copied()
                 .map(|x| ctx.get_expr(x))
                 .map(|x| x.ty);
@@ -204,8 +204,8 @@ fn ternary_expr_type(
 
     // cond 必须是可转换为 bool/整数的类型
     match &cond.kind {
-        Integer { .. } | Floating { .. } | Pointer { .. } => {}
-        Array { .. } | Function { .. } => {
+        Integer { .. } | Floating { .. } | Ptr { .. } => {}
+        Array { .. } | Func { .. } => {
             todo!("无意义的代码，这些地址永远为true，所以发一个warning")
         }
         Void => unreachable!("got void expression, weird"), // 这个理论上不会出现
@@ -226,7 +226,7 @@ fn ternary_expr_type(
     match (&a.kind, &b.kind) {
         (Record { id: id1, .. }, Record { id: id2, .. }) if id1 == id2 =>  // record id必须一致
             return Ok(a_key), 
-        (Pointer { elem_ty: ae, .. }, Pointer { elem_ty: be, .. }) => { // 指针特殊处理
+        (Ptr { elem_ty: ae, .. }, Ptr { elem_ty: be, .. }) => { // 指针特殊处理
             if ae != be {
                 todo!("指针不一致，报错，gcc/clang都只是警告") 
             }
@@ -316,8 +316,8 @@ fn arith_promote(
             // (2) 比较 rank
             if ra.rank() != rb.rank() {
                 let ty = match ra.rank() > rb.rank() {
-                    true => ctx.type_ctx.get_int_type(sza, *sa),
-                    false => ctx.type_ctx.get_int_type(szb, *sb)
+                    true => ctx.type_ctx.new_int_type(sza, *sa),
+                    false => ctx.type_ctx.new_int_type(szb, *sb)
                 };
                 return Ok(ty)
             }
@@ -326,11 +326,11 @@ fn arith_promote(
             match (sa, sb) {
                 // 都是无符号
                 (false, false) => {
-                    return Ok(ctx.type_ctx.get_int_type(sza, *sa))
+                    return Ok(ctx.type_ctx.new_int_type(sza, *sa))
                 }
                 // 都是有符号
                 (true, true) => {
-                    return Ok(ctx.type_ctx.get_int_type(sza, *sa))
+                    return Ok(ctx.type_ctx.new_int_type(sza, *sa))
                 }
                 // 一个 signed 一个 unsigned
                 (true, false) | (false, true) => {
@@ -352,10 +352,10 @@ fn arith_promote(
 
                     // rank 比较
                     if unsigned_side.1.rank() >= signed_side.1.rank() {
-                        return Ok(ctx.type_ctx.get_int_type(*unsigned_side.1, false))
+                        return Ok(ctx.type_ctx.new_int_type(*unsigned_side.1, false))
                     } else {
                         // 构造 signed
-                        return Ok(ctx.type_ctx.get_int_type(*signed_side.1, true))
+                        return Ok(ctx.type_ctx.new_int_type(*signed_side.1, true))
                     }
                 }
             }
@@ -473,7 +473,7 @@ fn binary_type(
             } else if a.is_pointer() && b.is_pointer() {
                 // pointer - pointer → ptrdiff_t
                 // ptrdiff_t 定义为 long long
-                Ok(type_context.get_int_type(IntegerSize::LongLong, true))
+                Ok(type_context.get_int_type(IntegerType::LongLong, true))
             } else {
                 todo!("Minus 类型错误")
             }
@@ -512,10 +512,10 @@ fn binary_type(
         // 返回 int（或 bool）
         Lt | Gt | Le | Ge | Eq | Ne => {
             if a.is_arithmetic() && b.is_arithmetic() {
-                return Ok(type_context.get_int_type(IntegerSize::Int, true));
+                return Ok(type_context.get_int_type(IntegerType::Int, true));
             }
             if a.is_pointer() && b.is_pointer() {
-                return Ok(type_context.get_int_type(IntegerSize::Int, true));
+                return Ok(type_context.get_int_type(IntegerType::Int, true));
             }
             todo!("比较运算类型错误")
         }
@@ -524,7 +524,7 @@ fn binary_type(
         // 返回 int
         And | Or => {
             if a.is_scalar() && b.is_scalar() {
-                return Ok(type_context.get_int_type(IntegerSize::Int, true));
+                return Ok(type_context.get_int_type(IntegerType::Int, true));
             }
             todo!("逻辑运算类型错误")
         }
@@ -541,7 +541,7 @@ fn binary_type(
 
         Xor => {
             if a.is_scalar() && b.is_scalar() {
-                return Ok(type_context.get_int_type(IntegerSize::Int, true));
+                return Ok(type_context.get_int_type(IntegerType::Int, true));
             }
             todo!("Xor 类型错误")
         }
@@ -623,13 +623,13 @@ fn unary_type(
                 todo!()
             }
 
-            let kind = TypeKind::Pointer { elem_ty: a_key };
-            let ty = Type::new_qual(Qualifier::default(), kind);
+            let kind = TypeKind::Ptr { elem_ty: a_key };
+            let ty = Type::new_qual(kind);
             type_context.get_or_set(ty)
         }
         UnaryOpKind::Deref => {
             match &a.kind {
-                TypeKind::Pointer { elem_ty } => *elem_ty,
+                TypeKind::Ptr { elem_ty } => *elem_ty,
                 TypeKind::Array { elem_ty, .. } => *elem_ty,
                 _ => {
                     todo!()
@@ -644,7 +644,7 @@ fn unary_type(
         | UnaryOpKind::PreDec => match &a.kind {
             TypeKind::Integer{ .. }
             | TypeKind::Floating{ .. }
-            | TypeKind::Pointer{ .. } => a,
+            | TypeKind::Ptr { .. } => a,
             _ => todo!()
         }
 
@@ -686,26 +686,26 @@ fn cast_compatible(a: &Type, b: &Type) -> bool {
         (Floating { .. }, Integer { .. }) => true,
 
         // 指针 <-> 指针
-        (Pointer { .. }, Pointer { .. }) => true,
+        (Ptr { .. }, Ptr { .. }) => true,
 
         // 整数 <-> 指针
-        (Pointer { .. }, Integer { .. }) |
-        (Integer { .. }, Pointer { .. }) => true,
+        (Ptr { .. }, Integer { .. }) |
+        (Integer { .. }, Ptr { .. }) => true,
 
         // 数组衰变到指针
-        (Array { elem_ty: aelem, .. }, Pointer { elem_ty: belem })
-        | (Pointer { elem_ty: aelem }, Array { elem_ty: belem, .. }) // 指针 <-> 数组
+        (Array { elem_ty: aelem, .. }, Ptr { elem_ty: belem })
+        | (Ptr { elem_ty: aelem }, Array { elem_ty: belem, .. }) // 指针 <-> 数组
         | (Array { elem_ty: aelem, .. }, Array { elem_ty: belem, .. }) // 数组 <-> 数组：要求元素类型一致
         => aelem == belem,
 
         // 函数类型
         (
-            Function {
+            Func {
                 ret_ty: ar,
                 params: ap,
                 is_variadic: av,
             },
-            Function {
+            Func {
                 ret_ty: br,
                 params: bp,
                 is_variadic: bv,
@@ -731,12 +731,12 @@ fn cast_compatible(a: &Type, b: &Type) -> bool {
 
 
 
-pub fn int_promote(sz: IntegerSize) -> IntegerSize {
+pub fn int_promote(sz: IntegerType) -> IntegerType {
     match sz {
-        IntegerSize::Char => IntegerSize::Int,
-        IntegerSize::Short => IntegerSize::Int,
-        IntegerSize::Int => IntegerSize::Int,
-        IntegerSize::Long => sz,
-        IntegerSize::LongLong => sz,
+        IntegerType::Char => IntegerType::Int,
+        IntegerType::Short => IntegerType::Int,
+        IntegerType::Int => IntegerType::Int,
+        IntegerType::Long => sz,
+        IntegerType::LongLong => sz,
     }
 }

@@ -8,12 +8,12 @@ use crate::{
     err::parser_error::{self, ParserError, ParserResult},
     types::span::Span,
 };
-use crate::types::parser::ast::decls::decl::{DeclGroup, InitializerList};
+use crate::parser::ast::decls::initializer::InitializerList;
+use crate::types::parser::ast::decls::decl::{DeclGroup};
 use crate::types::parser::ast::decls::initializer::Initializer;
 use crate::parser::parser_core::Parser;
-use crate::parser::sema::decl::record::insert_record_decl;
 use crate::parser::sema::decl::decl_spec::DeclSpecBuilder;
-use crate::parser::sema::decl::record::insert_enum_decl;
+use crate::parser::sema::{expr, Sema};
 use crate::types::lex::token_kind::{Keyword, TokenKind};
 use crate::types::parser::ast::{
     common::StructOrUnion, DeclKey,
@@ -459,9 +459,8 @@ impl Parser<'_> {
             span,
         };
 
-        let mut sema = self.sema();
         // 类型检查
-        let decl = sema.act_on_init_declarator(init_declarator)?;
+        let decl = Sema::act_on_init_declarator(self.ctx, init_declarator)?;
         Ok(decl)
     }
 
@@ -518,7 +517,8 @@ impl Parser<'_> {
     fn parse_record_spec(&mut self) -> ParserResult<DeclKey> {
         // 解析前缀
         let suffix = self.parse_record_suffix()?;
-
+        
+        
         // 前向声明，如果没有名字则不做前向声明
         let fwd_decl = match suffix.name {
             Some(x) => Some(insert_record_decl(
@@ -532,14 +532,14 @@ impl Parser<'_> {
 
         // 尝试解析定义
         let mut def_decl: Option<DeclKey> = None;
-        if self.consume( TokenKind::LBrace).is_some() {
-            let group = self.parse_struct_decl_list()?;
-            let _ = self.expect( TokenKind::RBrace)?;
+        if self.consume(TokenKind::LBrace).is_some() {
+            let fields = self.parse_struct_decl_list()?;
+            let _ = self.expect(TokenKind::RBrace)?;
 
             let hi = self.stream.prev_span();
             let span = Span::span(suffix.span, hi);
 
-            def_decl = todo!("act_on_record_def")
+            def_decl = 
         };
 
         // fwd, def 必须存在一个，否则出错
@@ -635,9 +635,8 @@ impl Parser<'_> {
             span,
         };
 
-        let sema = self.sema();
         // 语义分析，获取类型
-        let decl = sema.act_on_record_field(struct_declarator)?;
+        let decl = Sema::act_on_record_field(self.ctx, struct_declarator)?;
         Ok(decl)
     }
 
@@ -672,7 +671,7 @@ impl Parser<'_> {
 
         // 前向声明，虽然 enum 定义不需要前向声明
         let fwd_decl = match suffix.name.clone() {
-            Some(x) => Some(insert_enum_decl(self.ctx, x, suffix.span)?),
+            Some(x) => Some(Sema::insert_enum_decl(self.ctx, x, suffix.span)?),
             None => None,
         };
 
@@ -790,9 +789,8 @@ impl Parser<'_> {
 
         declarator.span = span;
 
-        let mut sema = self.sema();
         // 这个函数要进行必要的检测，不负责管理符号表
-        let decl = sema.act_on_param_var(declarator)?;
+        let decl = Sema::act_on_param_var(self.ctx, declarator)?;
 
         Ok(decl)
     }
@@ -820,8 +818,7 @@ impl Parser<'_> {
             self.parse_declarator( &mut declarator)?;
         };
 
-        let mut sema = self.sema();
-        let info = sema.resolve_declarator(declarator)?;
+        let info = Sema::resolve_declarator(self.ctx, declarator)?;
         Ok(info.ty)
     }
 }

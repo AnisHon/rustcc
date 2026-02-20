@@ -1,70 +1,61 @@
-use crate::err::parser_error::{ParserError, ParserResult};
+use crate::ap::ap_float::APFloat;
+use crate::ap::ap_int::APInt;
+use crate::ap::ap_value::APValue;
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::{LiteralKind, Symbol, TokenKind};
 use crate::types::parser::ast::exprs::{AssignOp, BinOp, UnaryOp, UnaryOpKind};
 use crate::types::parser::ast::{ExprKey, TypeKey};
 use crate::types::parser::common::Ident;
 use crate::types::span::Span;
-use crate::util::ap_float::APFloat;
-use crate::util::ap_int::APInt;
 use enum_as_inner::EnumAsInner;
+
+#[derive(Debug, Clone, EnumAsInner, Default)]
+pub enum CompEval {
+    #[default]
+    NotConst,
+    ConstExpr {
+        value: APValue,
+    },
+    ICE {
+        value: APValue,
+    }, // integer const expression
+    AddressConst {
+        // symbol: SymbolID,
+        offset: i64,
+    },
+}
+pub enum Constant {
+    Integer { value: APInt },
+    Float { value: APFloat },
+    String { value: Vec<u8> }, // 0 结尾 u8 数组，长度一定 >= 1
+}
 
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub ty: TypeKey,
     pub span: Span,
-    pub value: Option<Constant>,
 }
 
+impl Expr {
+    pub fn new(kind: ExprKind, ty: TypeKey, span: Span) -> Self {
+        Self { kind, ty, span }
+    }
+}
 #[derive(Clone, Debug, EnumAsInner)]
 pub enum ExprKind {
     DeclRef(Ident),
     Literal(LiteralKind), // 字符串
     // Paren { l: Pos, expr: ExprKey, r: Pos }, no need to wrap
-    ArraySubscript {
-        base: ExprKey,
-        index: ExprKey,
-    }, // a[]
-    Call {
-        base: ExprKey,
-        params: Parameter,
-    }, // a()
-    MemberAccess {
-        kind: MemberAccessKind,
-        base: ExprKey,
-        field: Symbol,
-    }, // a.b a->b
-    SizeofExpr {
-        expr: ExprKey,
-    }, // sizeof exprs
-    SizeofType {
-        ty: TypeKey,
-    }, // sizeof()
-    Unary {
-        op: UnaryOp,
-        rhs: ExprKey,
-    },
-    Binary {
-        lhs: ExprKey,
-        op: BinOp,
-        rhs: ExprKey,
-    },
-    Assign {
-        lhs: ExprKey,
-        op: AssignOp,
-        rhs: ExprKey,
-    },
-    Cast {
-        ty: TypeKey,
-        expr: ExprKey,
-    }, // (type)
-    Ternary {
-        // cond ? a : b
-        cond: ExprKey,
-        then_expr: ExprKey,
-        else_expr: ExprKey,
-    },
+    ArraySubscript(ArraySubscriptExpr), // a[]
+    Call(CallExpr),                     // a()
+    MemberAccess(MemberAccessExpr),     // a.b a->b
+    Sizeof(SizeofExpr),
+    Unary(UnaryExpr),
+    Binary(BinaryExpr),
+    Assign(AssignExpr),
+    Cast(CastExpr),
+    Ternary(TernaryExpr),
 }
 
 impl ExprKind {
@@ -94,13 +85,13 @@ impl ExprKind {
     }
 
     pub fn make_index(base: ExprKey, index: ExprKey) -> Self {
-        Self::ArraySubscript { base, index }
+        Self::ArraySubscript(ArraySubscriptExpr { base, index })
     }
 
-    pub fn make_call(base: ExprKey, l: Token, params: Parameter, r: Token) -> Self {
+    pub fn make_call(base: ExprKey, l: Token, params: ParamsExpr, r: Token) -> Self {
         let l = l.span.to_pos();
         let r = r.span.to_pos();
-        Self::Call { base, params }
+        Self::Call(CallExpr { base, params })
     }
 
     pub fn make_dot(base: ExprKey, op: Token, field: Symbol) -> Self {
@@ -109,15 +100,15 @@ impl ExprKind {
             TokenKind::Dot => MemberAccessKind::Dot,
             _ => unreachable!("op not Arrow, Dot, {:?}", op),
         };
-        Self::MemberAccess { kind, base, field }
+        Self::MemberAccess(MemberAccessExpr { kind, base, field })
     }
 
     pub fn make_size_of_type(sizeof: Token, l: Token, ty: TypeKey, r: Token) -> Self {
-        Self::SizeofType { ty }
+        Self::Sizeof(SizeofExpr::OfType(ty))
     }
 
     pub fn make_size_of_expr(sizeof: Token, expr: ExprKey) -> Self {
-        Self::SizeofExpr { expr }
+        Self::Sizeof(SizeofExpr::OfExpr(expr))
     }
 
     pub fn make_post(lhs: ExprKey, op: Token) -> Self {
@@ -130,7 +121,7 @@ impl ExprKind {
             kind,
             span: op.span,
         };
-        Self::Unary { op, rhs: lhs }
+        Self::Unary(UnaryExpr { op, rhs: lhs })
     }
 
     pub fn make_pre(op: Token, rhs: ExprKey) -> Self {
@@ -143,26 +134,26 @@ impl ExprKind {
             kind,
             span: op.span,
         };
-        Self::Unary { op, rhs }
+        Self::Unary(UnaryExpr { op, rhs })
     }
 
     pub fn make_unary(op: Token, rhs: ExprKey) -> Self {
         let op = UnaryOp::new(op);
-        Self::Unary { op, rhs }
+        Self::Unary(UnaryExpr { op, rhs })
     }
 
     pub fn make_binary(lhs: ExprKey, op: Token, rhs: ExprKey) -> Self {
         let op = BinOp::new(op);
-        Self::Binary { lhs, op, rhs }
+        Self::Binary(BinaryExpr { lhs, op, rhs })
     }
 
     pub fn make_cast(l: Token, ty: TypeKey, r: Token, expr: ExprKey) -> Self {
-        Self::Cast { ty, expr }
+        Self::Cast(CastExpr { ty, expr })
     }
 
     pub fn make_assign(lhs: ExprKey, op: Token, rhs: ExprKey) -> Self {
         let op = AssignOp::new(op);
-        Self::Assign { lhs, op, rhs }
+        Self::Assign(AssignExpr { lhs, op, rhs })
     }
 
     pub fn make_ternary(
@@ -172,41 +163,34 @@ impl ExprKind {
         colon: Token,
         else_expr: ExprKey,
     ) -> Self {
-        Self::Ternary {
+        Self::Ternary(TernaryExpr {
             cond,
             then_expr,
             else_expr,
-        }
+        })
     }
 }
 
-impl Expr {
-    pub fn new(kind: ExprKind, ty: TypeKey, span: Span) -> Self {
-        Self {
-            kind,
-            ty,
-            span,
-            value: None,
-        }
-    }
-
-    pub fn should_int_constant(&self) -> ParserResult<APInt> {
-        // 不是 constant 出错
-        let num = self
-            .value
-            .clone()
-            .ok_or(ParserError::not_int_constant(self.span))?
-            .into_integer()
-            .map_err(|_| ParserError::not_int_constant(self.span))?;
-        Ok(num)
-    }
+/// 数组访问表达式
+#[derive(Clone, Debug)]
+pub struct ArraySubscriptExpr {
+    pub base: ExprKey,
+    pub index: ExprKey,
 }
 
-#[derive(Debug, Clone, EnumAsInner)]
-pub enum Constant {
-    Integer { value: APInt, },
-    Float{ value: APFloat, },
-    String{ value: Vec<u8>, }, // 0 结尾 u8 数组，长度一定 >= 1  
+/// 函数调用表达式
+#[derive(Clone, Debug)]
+pub struct CallExpr {
+    pub base: ExprKey,
+    pub params: ParamsExpr,
+}
+
+/// 成员访问表达式
+#[derive(Clone, Debug)]
+pub struct MemberAccessExpr {
+    pub kind: MemberAccessKind,
+    pub base: ExprKey,
+    pub field: Symbol,
 }
 
 #[derive(Debug, Clone)]
@@ -214,16 +198,53 @@ pub enum MemberAccessKind {
     Arrow,
     Dot,
 }
-
-#[derive(Debug, Clone)]
-pub struct Parameter {
-    pub exprs: Vec<ExprKey>,
+/// sizeof 表达式 包括 sizeof type 和 sizeof expression
+#[derive(Clone, Debug)]
+pub enum SizeofExpr {
+    OfExpr(ExprKey),
+    OfType(TypeKey),
 }
 
-impl Parameter {
-    pub fn new() -> Self {
-        Self {
-            exprs: Vec::new(),
-        }
-    }
+/// 一元运算表达式
+#[derive(Clone, Debug)]
+pub struct UnaryExpr {
+    pub op: UnaryOp,
+    pub rhs: ExprKey,
+}
+
+/// 二元运算表达式
+#[derive(Clone, Debug)]
+pub struct BinaryExpr {
+    pub lhs: ExprKey,
+    pub op: BinOp,
+    pub rhs: ExprKey,
+}
+
+/// 赋值表达式
+#[derive(Clone, Debug)]
+pub struct AssignExpr {
+    pub lhs: ExprKey,
+    pub op: AssignOp,
+    pub rhs: ExprKey,
+}
+
+/// 类型转换表达式
+#[derive(Clone, Debug)]
+pub struct CastExpr {
+    pub ty: TypeKey,
+    pub expr: ExprKey,
+}
+
+/// 三元运算表达式
+#[derive(Clone, Debug)]
+pub struct TernaryExpr {
+    pub cond: ExprKey,
+    pub then_expr: ExprKey,
+    pub else_expr: ExprKey,
+}
+
+/// 表达式调用参数
+#[derive(Debug, Clone, Default)]
+pub struct ParamsExpr {
+    pub exprs: Vec<ExprKey>,
 }

@@ -1,3 +1,4 @@
+use crate::parser::ast::types::type_builder::TypeBuilder;
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::Keyword;
 use crate::types::lex::token_kind::TokenKind;
@@ -9,7 +10,6 @@ use crate::types::parser::declarator::*;
 use crate::types::span::{Pos, Span};
 use enum_as_inner::EnumAsInner;
 use std::fmt::{Display, Formatter};
-use crate::parser::ast::types::type_builder::TypeBuilderKind;
 
 ///
 /// # Members
@@ -23,7 +23,7 @@ use crate::parser::ast::types::type_builder::TypeBuilderKind;
 #[derive(Debug, Clone)]
 pub struct DeclSpec {
     pub storage: Option<StorageSpec>, // 全局上下文的时候默认extern
-    pub kind: TypeBuilderKind,
+    pub ty_builder: TypeBuilder,
     pub type_quals: TypeQuals,
     pub func_spec: Option<FuncSpec>,
     pub span: Span,

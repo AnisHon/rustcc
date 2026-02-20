@@ -1,16 +1,16 @@
 use crate::constant::str::DECL_SPEC;
 use crate::err::parser_error::{ParserError, ParserResult};
-use crate::types::parser::ast::DeclKey;
-use crate::types::parser::ast::types::{FloatSize, IntegerSize};
-use crate::types::parser::common::TypeSpecState;
 use crate::parser::comp_ctx::CompCtx;
+use crate::types::parser::ast::decls::decl::DeclKind;
+use crate::types::parser::ast::types::type_builder::TypeBuilderKind;
+use crate::types::parser::ast::types::{FloatType, IntegerType};
+use crate::types::parser::ast::DeclKey;
+use crate::types::parser::common::TypeSpecState;
 use crate::types::parser::decl_spec::{
     DeclSpec, FuncSpec, StorageSpec, TypeQual, TypeQuals, TypeSpec,
 };
-use crate::types::parser::ast::types::type_builder::TypeBuilderKind;
 use crate::types::span::Span;
 use std::rc::Rc;
-use crate::types::parser::ast::decls::decl::DeclKind;
 
 pub struct DeclSpecBuilder {
     pub storages: Vec<StorageSpec>,
@@ -30,7 +30,7 @@ impl DeclSpecBuilder {
             storage,
             type_quals,
             func_spec,
-            kind,
+            ty_builder: kind,
             span: self.span,
         });
 
@@ -191,32 +191,32 @@ impl DeclSpecBuilder {
             Void => TypeBuilderKind::Void,
             Char => TypeBuilderKind::Integer {
                 is_signed,
-                size: IntegerSize::Char,
+                size: IntegerType::Char,
             },
             Short => TypeBuilderKind::Integer {
                 is_signed,
-                size: IntegerSize::Short,
+                size: IntegerType::Short,
             },
             Int => TypeBuilderKind::Integer {
                 is_signed,
-                size: IntegerSize::Int,
+                size: IntegerType::Int,
             },
             Long => TypeBuilderKind::Integer {
                 is_signed,
-                size: IntegerSize::Long,
+                size: IntegerType::Long,
             },
             LongLong => TypeBuilderKind::Integer {
                 is_signed,
-                size: IntegerSize::LongLong,
+                size: IntegerType::LongLong,
             },
             Float => TypeBuilderKind::Floating {
-                size: FloatSize::Float,
+                size: FloatType::Float,
             },
             Double => TypeBuilderKind::Floating {
-                size: FloatSize::Double,
+                size: FloatType::Double,
             },
             LongDouble => TypeBuilderKind::Floating {
-                size: FloatSize::LongDouble,
+                size: FloatType::LongDouble,
             },
             Record => {
                 let decl = decl.expect("record decl should not be none");
@@ -226,9 +226,9 @@ impl DeclSpecBuilder {
                     DeclKind::RecordDef { kind, .. } => kind.kind,
                     _ => unreachable!(""),
                 };
-                ctx.type_ctx.new_record(record_kind)
+                ctx.type_ctx.new_record_builder(record_kind)
             }
-            Enum => ctx.type_ctx.new_enum(),
+            Enum => ctx.type_ctx.new_enum_builder(),
             TypeName => {
                 let decl = decl.expect("record decl should not be none");
                 let decl = ctx.get_decl(decl);

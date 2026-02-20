@@ -237,7 +237,4 @@ impl Parser<'_> {
         }
     }
 
-    pub fn sema(&mut self) -> Sema {
-        Sema::new(self.ctx)
-    }
 }

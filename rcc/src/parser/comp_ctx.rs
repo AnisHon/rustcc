@@ -1,11 +1,11 @@
 use crate::err::parser_error::{ParserError, ParserResult};
 use crate::lex::token_stream::TokenStream;
+use crate::parser::sema::scope::scope_mgr::ScopeMgr;
+use crate::parser::sema::type_ctx::type_ctx::TypeCtx;
 use crate::types::parser::ast::decls::decl::Decl;
 use crate::types::parser::ast::exprs::Expr;
 use crate::types::parser::ast::stmt::Stmt;
 use crate::types::parser::ast::{DeclKey, ExprKey, StmtKey};
-use crate::parser::sema::scope::scope_manager::ScopeMgr;
-use crate::parser::sema::type_ctx::type_ctx::TypeCtx;
 use slotmap::SlotMap;
 
 macro_rules! make_get {
