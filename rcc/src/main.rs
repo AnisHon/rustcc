@@ -1,7 +1,21 @@
-use rcc::compiler::c_compiler::CCompiler;
+use rcc::compile_file;
+use std::{env, process::ExitCode};
 
-fn main() {
-    let code = include_str!("../resources/example/test1.c");
-    let compiler = CCompiler::new(code.to_string());
-    compiler.compile();
+fn main() -> ExitCode {
+    let Some(path) = env::args().nth(1) else {
+        eprintln!("usage: rcc <source.c>");
+        return ExitCode::from(2);
+    };
+    match compile_file(&path) {
+        Ok(ast) => {
+            println!("{ast:#?}");
+            ExitCode::SUCCESS
+        }
+        Err(diagnostics) => {
+            for diagnostic in diagnostics {
+                eprintln!("{path}:{diagnostic}");
+            }
+            ExitCode::FAILURE
+        }
+    }
 }

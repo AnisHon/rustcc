@@ -4,13 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-slotmap.workspace = true
-petgraph.workspace = true
-enum-as-inner = "0.6.1"
-strum = "0.27.2"
-thiserror.workspace = true
-phf = { version = "0.13.1", features = ["macros"] }
 unicode-ident = "1.0.19"
-rustc-hash = "2.1.1"
-lazy_static = "1.5.0"
-ibig = "0.3.6"

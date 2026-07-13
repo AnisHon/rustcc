@@ -1,13 +1,9 @@
-pub mod compiler;
-pub mod constant;
-pub mod content_manager;
-pub mod err;
-pub mod lex;
-pub mod parser;
-pub mod types;
-pub mod util;
-pub mod writer;
+//! A self-contained C11 front end.
+//!
+//! The old prototype modules are intentionally no longer part of the crate's
+//! compilation graph.  They mixed several incompatible AST generations.  The
+//! public API below has one source of truth for tokens, types and semantic AST.
 
-pub mod ap;
-#[cfg(test)]
-mod tests;
+pub mod frontend;
+
+pub use frontend::*;
