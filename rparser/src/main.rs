@@ -1,12 +1,10 @@
 use rparser::file_parser::first_set_writer::FirstSetWriter;
 use rparser::file_parser::table_builder::{LRTableBuilder, TableType};
-use rparser::file_parser::table_writer::TableWriter;
 
 pub fn get_path(path: &str) -> String {
     format!("{}{}", env!("CARGO_MANIFEST_DIR"), path)
 }
 fn main() {
-
     let input = include_str!("../../src/parser.y");
 
     let builder = LRTableBuilder::new(TableType::LALR1, input.to_string());
@@ -19,8 +17,5 @@ fn main() {
     // );
     writer.write();
 
-
-
     // println!("{}", get_path("/../src/gen/parser.rs"))
-
 }

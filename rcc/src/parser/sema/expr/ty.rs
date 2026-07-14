@@ -1,5 +1,5 @@
 /// 表达式类型推导
-use crate::{err::parser_error::{self, ParserError, ParserResult}, types::span::Span};
+use crate::{errors::parser::{self, ParserError, ParserResult}, types::span::Span};
 /// 表达式类型推导
 use crate::parser::comp_ctx::CompCtx;
 /// 表达式类型推导
@@ -128,7 +128,7 @@ fn call_expr_type(ctx: &CompCtx, ty: TypeKey, call_params: &[ExprKey], span: Spa
             }
             *ret_ty
         },
-        _ => return Err(ParserError::new(parser_error::ErrorKind::UnCallable, span))
+        _ => return Err(ParserError::new(parser::ErrorKind::UnCallable, span))
     };
     Ok(ty)
 }
@@ -150,7 +150,7 @@ fn member_access_expr_type(ctx: &CompCtx, ty_key: TypeKey, op: MemberAccessKind,
                     (name, fields)
                 }
                 _ => {
-                    let kind = parser_error::ErrorKind::NotStructOrUnion { ty: ty_key };
+                    let kind = parser::ErrorKind::NotStructOrUnion { ty: ty_key };
                     let error = ParserError::new(kind, span);
                     return Err(error)
                 },
@@ -161,7 +161,7 @@ fn member_access_expr_type(ctx: &CompCtx, ty_key: TypeKey, op: MemberAccessKind,
                 .ok_or_else(|| { // 找不到出错
                     let field = field.get().to_string();
                     let ty = name.as_ref().map(|x| x.symbol.get().to_string()).unwrap_or_default();
-                    let kind = parser_error::ErrorKind::NoMember { field, ty };
+                    let kind = parser::ErrorKind::NoMember { field, ty };
                     ParserError::new(kind, span)
                 })
 

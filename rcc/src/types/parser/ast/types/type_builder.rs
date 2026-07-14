@@ -1,11 +1,12 @@
 /// 构造Type的最小单位
 use crate::parser::ast::types::{
-    ArraySize, ArrayType, BuildInType, FuncType, ParamsType, PtrType, QualType, Signedness, TagType,
+    ArraySize, ArrayType, BuildInType, CharSign, FuncType, IntegerSign, ParamsType, PtrType,
+    QualType, TagType,
 };
 /// 构造Type的最小单位
 use crate::types::parser::ast::{
     common::RecordKind,
-    types::{EnumID, FloatType, IntegerType, RecordID, Type, TypeKind},
+    types::{EnumID, FloatingType, IntegerType, RecordID, Type, TypeKind},
 };
 
 
@@ -37,19 +38,19 @@ impl TypeBuilder {
         Self::Func(func)
     }
     /// 创建 integer 类型
-    pub fn new_int(is_signed: bool, size: IntegerType) -> Self {
-        let build_in = BuildInType::Integer { is_signed, size };
+    pub fn new_int(sign: IntegerSign, size: IntegerType) -> Self {
+        let build_in = BuildInType::Integer { sign, size };
         Self::BuildIn(build_in)
     }
 
     /// 创建 float 类型
-    pub fn new_float(size: FloatType) -> Self {
+    pub fn new_float(size: FloatingType) -> Self {
         let build_in_type = BuildInType::Floating { size };
         Self::BuildIn(build_in_type)
     }
 
-    pub fn new_char(signedness: Signedness) -> Self {
-        let build_in_type = BuildInType::Char { signedness };
+    pub fn new_char(signedness: CharSign) -> Self {
+        let build_in_type = BuildInType::Char { sign: signedness };
         Self::BuildIn(build_in_type)
     }
 

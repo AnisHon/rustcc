@@ -1,11 +1,9 @@
-use crate::err::parser_error;
-use crate::err::parser_error::{ParserError, ParserResult};
+use crate::errors::parser::common::ExpectError;
 use crate::lex::token_stream::TokenStream;
+use crate::parser::comp_ctx::CompCtx;
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::{Keyword, TokenKind};
 use crate::types::parser::common::Ident;
-use crate::parser::comp_ctx::CompCtx;
-use crate::parser::sema::Sema;
 
 pub struct Parser<'a> {
     pub(crate) ctx: &'a mut CompCtx,
@@ -41,67 +39,60 @@ impl Parser<'_> {
         kind == TokenKind::Keyword(keyword)
     }
 
+    fn make_expect_err(&mut self, expect: String) -> ExpectError {
+        let found = self.stream.peek().kind.to_string();
+        let span = self.stream.peek().span;
+        ExpectError::expect_but_found(expect, found, span)
+    }
+
     /// 同上，不建议用此函数预期TokenKind下的子类型
-    pub(crate) fn expects(&mut self, kinds: &[TokenKind]) -> ParserResult<Token> {
-        let expected = self.checks( kinds);
+    pub(crate) fn expects(&mut self, kinds: &[TokenKind]) -> Result<Token, ExpectError> {
+        let expected = self.checks(kinds);
 
         if expected {
             Ok(self.stream.next())
         } else {
             let expect: Vec<_> = kinds.iter().map(|x| x.to_string()).collect();
             let expect = expect.join(", ");
-            let found = self.stream.peek().kind.to_string();
-
-            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
-            let error = self.error_here( error_kind);
-            Err(error)
+            let expect_error = self.make_expect_err(expect);
+            Err(expect_error)
         }
     }
 
     /// 同上，不建议用此函数预期TokenKind下的子类型
-    pub(crate) fn expect(&mut self, kind: TokenKind) -> ParserResult<Token> {
+    pub(crate) fn expect(&mut self, kind: TokenKind) -> Result<Token, ExpectError> {
         let expected = self.stream.peek().kind == kind;
 
         if expected {
             Ok(self.stream.next())
         } else {
             let expect = kind.to_string();
-            let found = self.stream.peek().kind.to_string();
-
-            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
-            let error = self.error_here(error_kind);
-            Err(error)
+            let expect_error = self.make_expect_err(expect);
+            Err(expect_error)
         }
     }
 
-    pub(crate) fn expect_ident(&mut self) -> ParserResult<Token> {
+    pub(crate) fn expect_ident(&mut self) -> Result<Token, ExpectError> {
         let expected = self.check_ident();
 
         if expected {
             Ok(self.stream.next())
         } else {
             let expect = "identifier".to_owned();
-            let found: &Token = self.stream.peek();
-
-            let kind = parser_error::ErrorKind::ExpectButFound {
-                expect,
-                found: found.kind.to_string(),
-            };
-            let error: ParserError = self.error_here( kind);
-            Err(error)
+            let expect_error = self.make_expect_err(expect);
+            Err(expect_error)
         }
     }
 
-    pub(crate) fn expect_keyword(&mut self, keyword: Keyword) -> ParserResult<Token> {
-        let expected = self.check_keyword( keyword);
+    pub(crate) fn expect_keyword(&mut self, keyword: Keyword) -> Result<Token, ExpectError> {
+        let expected = self.check_keyword(keyword);
 
         if expected {
             Ok(self.stream.next())
         } else {
             let expect = keyword.to_string();
-            let error_kind = parser_error::ErrorKind::Expect { expect };
-            let error = self.error_here( error_kind);
-            Err(error)
+            let expect_error = self.make_expect_err(expect);
+            Err(expect_error)
         }
     }
 
@@ -109,7 +100,7 @@ impl Parser<'_> {
         &mut self,
         kw1: Keyword,
         kw2: Keyword,
-    ) -> ParserResult<Token> {
+    ) -> Result<Token, ExpectError> {
         let kind = self.stream.peek().kind;
         let expected = match kind {
             TokenKind::Keyword(k) => k == kw1 || k == kw2,
@@ -119,39 +110,32 @@ impl Parser<'_> {
             Ok(self.stream.next())
         } else {
             let expect = format!("{}, {}", kw1.to_string(), kw2.to_string());
-            let error_kind = parser_error::ErrorKind::Expect { expect };
-            let error = self.error_here( error_kind);
-            Err(error)
+            let expect_error = self.make_expect_err(expect);
+            Err(expect_error)
         }
     }
 
     /// 同上，不建议用此函数消费TokenKind下的子类型
     pub(crate) fn consumes(&mut self, kind: &[TokenKind]) -> Option<Token> {
-        let is_kind = self.checks( kind);
-        self.next_conditional( is_kind)
+        let is_kind = self.checks(kind);
+        self.next_conditional(is_kind)
     }
 
     pub(crate) fn consume_pair(&mut self, kind1: TokenKind, kind2: TokenKind) -> Option<Token> {
         let kind = self.stream.peek().kind;
         let is_kind = kind == kind1 || kind == kind2;
-        self.next_conditional( is_kind)
+        self.next_conditional(is_kind)
     }
-
-    // pub(crate) fn consume_triple(&mut self, kind1: TokenKind, kind2: TokenKind, kind3: TokenKind) -> Option<Token> {
-    //     let kind = self.stream.peek().kind;
-    //     let is_kind = kind == kind1 || kind == kind2 || kind == kind3;
-    //     next_conditional(is_kind)
-    // }
 
     /// 同上，不建议用此函数消费TokenKind下的子类型
     pub(crate) fn consume(&mut self, kind: TokenKind) -> Option<Token> {
-        let is_kind = self.check( kind);
+        let is_kind = self.check(kind);
         self.next_conditional(is_kind)
     }
 
     pub(crate) fn consume_keyword(&mut self, keyword: Keyword) -> Option<Token> {
-        let is_keyword = self.check_keyword( keyword);
-        self.next_conditional( is_keyword)
+        let is_keyword = self.check_keyword(keyword);
+        self.next_conditional(is_keyword)
     }
 
     pub(crate) fn consume_keyword_pair(&mut self, kw1: Keyword, kw2: Keyword) -> Option<Token> {
@@ -160,17 +144,12 @@ impl Parser<'_> {
             TokenKind::Keyword(k) => k == kw1 || k == kw2,
             _ => false,
         };
-        self.next_conditional( is_kw)
+        self.next_conditional(is_kw)
     }
 
     pub(crate) fn consume_ident(&mut self) -> Option<Token> {
         let is_ident = self.check_ident();
-        self.next_conditional( is_ident)
-    }
-
-    pub(crate) fn error_here(&self, kind: parser_error::ErrorKind) -> ParserError {
-        let span = self.stream.peek().span;
-        ParserError::new(kind, span)
+        self.next_conditional(is_ident)
     }
 
     pub(crate) fn is_type_name(&self, token: &Token) -> bool {
@@ -181,20 +160,21 @@ impl Parser<'_> {
             },
             _ => return false,
         };
-        self.ctx.scope_mgr
+        self.ctx
+            .scope_mgr
             .lookup_ident(&ident)
             .is_some_and(|x| self.ctx.get_decl(x.get_decl()).kind.is_type_def())
     }
 
     /// (type-specifier | type-qualifier)*
     pub fn is_spec_qual(&self, token: &Token) -> bool {
-        self.is_type_spec( token) || Self::is_type_qual(token)
+        self.is_type_spec(token) || Self::is_type_qual(token)
     }
 
     pub fn is_type_spec(&self, token: &Token) -> bool {
         use Keyword::*;
         match token.kind {
-            TokenKind::Ident(_) => self.is_type_name( token),
+            TokenKind::Ident(_) => self.is_type_name(token),
             TokenKind::Keyword(x) => matches!(
                 x,
                 Char | Short
@@ -231,10 +211,9 @@ impl Parser<'_> {
 
     pub fn is_func_spec(&self, token: &Token) -> bool {
         match token.kind {
-            TokenKind::Ident(_) => self.is_type_name( token),
+            TokenKind::Ident(_) => self.is_type_name(token),
             TokenKind::Keyword(x) => matches!(x, Keyword::Inline),
             _ => false,
         }
     }
-
 }

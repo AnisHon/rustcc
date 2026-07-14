@@ -1,9 +1,9 @@
 use crate::content_manager::ContentManager;
-use crate::err::global_err::GlobalError;
-use crate::err::lex_error::{LexError, LexResult};
+use crate::errors::global_err::GlobalError;
+use crate::errors::lex_error::{LexError, LexResult};
+use crate::lex::{keyword, operator};
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::{FloatSuffix, IntSuffix, LiteralKind, Symbol, TokenKind};
-use crate::lex::{keyword, operator};
 use std::sync::{mpsc, Arc};
 use unicode_ident::{is_xid_continue, is_xid_start};
 
@@ -49,9 +49,9 @@ impl Lex {
     fn expect_patten(&mut self, patten: &str) -> bool {
         let mut chars = self.content_manager.chars(self.curr_pos);
         for chr in patten.chars() {
-               if Some(chr) != chars.next() {
-                   return false;
-               }
+            if Some(chr) != chars.next() {
+                return false;
+            }
         }
         true
     }
@@ -100,7 +100,7 @@ impl Lex {
         while let Some(chr) = self.peek() {
             let token = if chr.is_whitespace() {
                 self.skip_whitespace();
-                continue
+                continue;
             } else if chr.is_ascii_digit() || (chr == '.' && self.peek_next_is_digit()) {
                 self.maybe_number_constant()?
             } else if is_xid_start(chr) {
@@ -109,15 +109,15 @@ impl Lex {
                 self.maybe_string_or_char()?
             } else if self.expect_patten("//") {
                 self.skip_line_comment();
-                continue
+                continue;
             } else if self.expect_patten("/*") {
                 self.skip_block_comment()?;
-                continue
+                continue;
             } else {
                 self.maybe_operator()?
             };
 
-            return Ok(Some(token))
+            return Ok(Some(token));
         }
         Ok(None)
     }
@@ -125,7 +125,7 @@ impl Lex {
     fn skip_whitespace(&mut self) {
         while let Some(chr) = self.peek() {
             if !chr.is_whitespace() {
-                break
+                break;
             }
             self.next();
         }
@@ -139,7 +139,7 @@ impl Lex {
 
         while let Some(chr) = self.peek() {
             match chr {
-                '0'..='9' => {},
+                '0'..='9' => {}
                 'E' | 'e' => {
                     if exp {
                         break;
@@ -164,7 +164,7 @@ impl Lex {
                     }
                     dot = true;
                 }
-                _ => break
+                _ => break,
             }
             self.next();
         }
@@ -207,22 +207,23 @@ impl Lex {
             let chr = match chr {
                 'U' | 'u' => U,
                 'L' | 'l' => L,
-                chr if is_xid_continue(chr) => {  // 这个字符肯定有错
+                chr if is_xid_continue(chr) => {
+                    // 这个字符肯定有错
                     valid = false;
-                    break
+                    break;
                 }
-                _ => break // 这些字符可以当做结束
+                _ => break, // 这些字符可以当做结束
             };
 
             suffix = match (suffix, chr) {
                 (None, U) => Some(U),
-                (None, L) =>  Some(L),
+                (None, L) => Some(L),
                 (Some(L), L) => Some(LL),
                 (Some(U), L) | (Some(L), U) => Some(UL),
                 (Some(LL), U) | (Some(U), LL) | (Some(UL), L) => Some(ULL),
                 _ => {
                     valid = false;
-                    break
+                    break;
                 }
             };
             self.skip_bytes(1);
@@ -233,7 +234,13 @@ impl Lex {
             self.skip_word();
             let end = self.curr_pos;
             let content = self.content_manager.str(beg..end).to_owned();
-            Err(LexError::Invalid { beg, end, invalid: "suffix", content, typ: "integer" })
+            Err(LexError::Invalid {
+                beg,
+                end,
+                invalid: "suffix",
+                content,
+                typ: "integer",
+            })
         }
     }
 
@@ -242,23 +249,29 @@ impl Lex {
         let beg = self.curr_pos;
         let chr = match self.peek() {
             Some(x) if x.is_ascii_digit() => x, // 是后缀字符
-            Some(_) | None => return Ok(None), // 不是后缀字符
+            Some(_) | None => return Ok(None),  // 不是后缀字符
         };
 
         let float = match chr {
             'f' | 'F' => {
                 self.skip_bytes(1);
                 F
-            },
+            }
             'l' | 'L' => {
                 self.skip_bytes(1);
                 L
-            },
+            }
             _ => {
                 self.skip_word();
                 let end = self.curr_pos;
                 let content = self.content_manager.str(beg..end).to_owned();
-                return Err(LexError::Invalid { beg, end, invalid: "suffix", content, typ: "floating" })
+                return Err(LexError::Invalid {
+                    beg,
+                    end,
+                    invalid: "suffix",
+                    content,
+                    typ: "floating",
+                });
             }
         };
 
@@ -267,7 +280,13 @@ impl Lex {
             self.skip_word();
             let end = self.curr_pos;
             let content = self.content_manager.str(beg..end).to_owned();
-            Err(LexError::Invalid { beg, end, invalid: "suffix", content, typ: "floating" })
+            Err(LexError::Invalid {
+                beg,
+                end,
+                invalid: "suffix",
+                content,
+                typ: "floating",
+            })
         } else {
             Ok(Some(float))
         }
@@ -284,15 +303,15 @@ impl Lex {
                     'x' | 'X' => {
                         self.skip_bytes(1); // 跳过 x
                         base = 16
-                    },
+                    }
                     'b' | 'B' => {
                         self.skip_bytes(1); // 跳过 b
                         base = 2
-                    },
+                    }
                     '0'..='9' => {
                         // 不用跳
                         base = 8
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -325,9 +344,8 @@ impl Lex {
             }
             self.next();
         }
-        
-        let patten = self.get_patten();
 
+        let patten = self.get_patten();
 
         let kind = match keyword::KEYWORDS.get(patten) {
             None => make_ident(patten),
@@ -338,7 +356,6 @@ impl Lex {
         Ok(token)
     }
 
-
     /// 尝试解析为string 或 char
     fn maybe_string_or_char(&mut self) -> LexResult<Token> {
         let quote = self.peek().unwrap();
@@ -348,35 +365,35 @@ impl Lex {
         let mut closed = false; // 是否闭合
         while let Some(chr) = self.peek() {
             match chr {
-                '\\' => esc = true, // 进入转译
+                '\\' => esc = true,   // 进入转译
                 '\n' | '\r' => break, // 闭合
                 chr if chr == quote && !esc => {
                     closed = true;
                     self.skip_bytes(1); // 跳过   ' 或 “
                     break;
                 }
-                _ => esc = false
+                _ => esc = false,
             }
             self.next();
         }
 
-
         // 未闭合出错
         if !closed {
-            return Err(LexError::MissingTerminating {pos: self.last_pos, chr: quote })
+            return Err(LexError::MissingTerminating {
+                pos: self.last_pos,
+                chr: quote,
+            });
         }
-
 
         let patten = self.get_patten();
         let kind = match quote {
             '"' => make_string(patten),
             '\'' => make_char(patten),
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         let token = self.make_token(kind);
         Ok(token)
     }
-    
 
     /// 尝试解析operator
     fn maybe_operator(&mut self) -> LexResult<Token> {
@@ -388,7 +405,7 @@ impl Lex {
 
         while let Some(&chr) = iter.peek() {
             if !chr.is_ascii() {
-                break
+                break;
             }
             state = match operator::find_next(state, chr) {
                 Some(x) => x,
@@ -407,7 +424,12 @@ impl Lex {
         self.curr_pos = pos;
 
         let kind = match operator::STATES[last_state].clone() {
-            None => return Err(LexError::UnknownSymbol {pos: self.curr_pos, symbol: self.peek().unwrap()}),
+            None => {
+                return Err(LexError::UnknownSymbol {
+                    pos: self.curr_pos,
+                    symbol: self.peek().unwrap(),
+                });
+            }
             Some(x) => x,
         };
 
@@ -427,7 +449,8 @@ impl Lex {
                     self.skip_bytes(1); // 指向最新位置
                     break;
                 }
-                ('\r', _) | ('\n', _)=> { // 当前位置就是最新位置
+                ('\r', _) | ('\n', _) => {
+                    // 当前位置就是最新位置
                     break;
                 }
                 (_, _) => {
@@ -462,9 +485,7 @@ impl Lex {
             Err(LexError::UnterminatedComment { pos: self.last_pos })
         }
     }
-
 }
-
 
 pub fn make_ident(patten: &str) -> TokenKind {
     let symbol = Symbol::new(patten);
@@ -492,8 +513,6 @@ pub fn make_char(patten: &str) -> TokenKind {
 //     u64::from_str_radix(patten, base).unwrap()
 // }
 
-
-
 /// 执行lex
 ///
 /// # Arguments
@@ -502,7 +521,7 @@ pub fn make_char(patten: &str) -> TokenKind {
 ///
 /// # Returns
 /// 解析后的Token
-/// 
+///
 pub fn run_lexer<'a>(mut lex: Lex, error_rx: mpsc::Sender<GlobalError>) -> Vec<Token> {
     let mut tokens = Vec::new();
     loop {
@@ -511,11 +530,13 @@ pub fn run_lexer<'a>(mut lex: Lex, error_rx: mpsc::Sender<GlobalError>) -> Vec<T
             Err(err) => {
                 // 出错恢复重试
                 lex.recover();
-                error_rx.send(GlobalError::LexError(err)).unwrap_or_else(|_| panic!("Global Error Handler Crashed"));
+                error_rx
+                    .send(GlobalError::LexError(err))
+                    .unwrap_or_else(|_| panic!("Global Error Handler Crashed"));
                 continue;
             }
         };
-        
+
         if let Some(tok) = tok {
             tokens.push(tok);
         } else {
@@ -523,11 +544,9 @@ pub fn run_lexer<'a>(mut lex: Lex, error_rx: mpsc::Sender<GlobalError>) -> Vec<T
             let pos = lex.curr_pos;
             let token = Token::new(pos, pos, TokenKind::Eof);
             tokens.push(token);
-            break
+            break;
         }
     }
-    
+
     tokens
 }
-
-

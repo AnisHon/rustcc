@@ -1,4 +1,5 @@
-use crate::err::scope_error::ScopeError;
+use crate::errors::parser::scope_error::ScopeError;
+use crate::parser::ast::types::QualType;
 use crate::types::lex::token_kind::Symbol;
 use crate::types::parser::ast::{DeclKey, StmtKey, TypeKey};
 use rustc_hash::FxHashMap;
@@ -32,11 +33,20 @@ pub struct ScopeSymbol {
     pub name: Symbol,
     pub decls: Vec<DeclKey>, // 大多数情况下声明不会超过一个，所以用 Vec 可能有些重
     pub def: Option<DeclKey>,
-    pub ty: TypeKey,
+    pub ty: QualType,
 }
 
 // 优先取 def，然后是 decls
 impl ScopeSymbol {
+    pub fn new(name: Symbol, ty: QualType) -> Self {
+        Self {
+            name,
+            decls: Vec::default(),
+            def: None,
+            ty,
+        }
+    }
+
     pub fn get_decl(&self) -> DeclKey {
         // 都已经放到表里了，两个同时是 none 是逻辑错误，大概率是 lookup or insert 导致的
         self.def
@@ -100,7 +110,7 @@ impl Scope {
     /// - `symbol`:
     /// - `curr`:
     /// - `ty`:
-    pub(crate) fn lookup_or_insert(&mut self, symbol: Symbol, ty: TypeKey) -> &mut ScopeSymbol {
+    pub(crate) fn lookup_or_insert(&mut self, symbol: Symbol, ty: QualType) -> &mut ScopeSymbol {
         let symbol = self
             .sym_ht
             .entry(symbol)

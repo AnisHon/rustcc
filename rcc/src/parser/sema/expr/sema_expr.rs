@@ -1,4 +1,4 @@
-use crate::err::parser_error::ParserResult;
+use crate::errors::parser::ParserResult;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::sema::expr::decay::decay_expr;
 use crate::parser::sema::expr::fold::fold_expr;

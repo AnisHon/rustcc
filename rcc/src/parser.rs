@@ -1,3 +1,4 @@
+pub mod comp_ctx;
 /// parser模块设计较为冗杂，总体是按照 C 的文法进行递归下降解析的，sema 与 parser 交织进行
 /// parser_* 模块纯按照文法递归下降，与文法一一对应。
 /// 该模块最终将输出一个 Semantic AST（已经进行 表达式折叠 符号分析 类型推导 ...）
@@ -13,7 +14,6 @@ mod parser_decl;
 mod parser_expr;
 mod parser_extern;
 mod parser_stmt;
-pub mod comp_ctx;
 pub(crate) mod sema;
 
 pub use crate::types::parser::ast;

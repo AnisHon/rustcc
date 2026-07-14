@@ -1,9 +1,9 @@
-use ibig::{IBig, ibig};
+use ibig::{ibig, IBig};
 
 use crate::constant::typ::INT_BITWIDTH;
 
 /// 目前先用大数类型表示
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct APInt {
     is_signed: bool,
     bit_width: usize,

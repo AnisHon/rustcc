@@ -1,12 +1,22 @@
+use crate::parser::ast::ExprKey;
 use enum_as_inner::EnumAsInner;
 use std::fmt::Display;
 
+/// char 默认有三种形式，signed unsigned plain
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
-pub enum Signedness {
+pub enum CharSign {
     Signed,
     Unsigned,
     Plain,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
+pub enum IntegerSign {
+    Signed,
+    Unsigned,
+}
+
+/// char 被独立出去了
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
 pub enum IntegerType {
     Short,
@@ -49,46 +59,46 @@ impl IntegerType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Hash)]
-pub enum FloatType {
+pub enum FloatingType {
     Float,
     Double,
     LongDouble,
 }
 
-impl Display for FloatType {
+impl Display for FloatingType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
-            FloatType::Float => "float",
-            FloatType::Double => "double",
-            FloatType::LongDouble => "long double",
+            FloatingType::Float => "float",
+            FloatingType::Double => "double",
+            FloatingType::LongDouble => "long double",
         };
         write!(f, "{}", str)
     }
 }
 
-impl FloatType {
+impl FloatingType {
     /// a > b?
     pub fn rank(&self) -> usize {
         match self {
-            FloatType::Float => 0x1,
-            FloatType::Double => 0x10,
-            FloatType::LongDouble => 0x100,
+            FloatingType::Float => 0x1,
+            FloatingType::Double => 0x10,
+            FloatingType::LongDouble => 0x100,
         }
     }
 
     pub fn sizeof(self) -> usize {
         match self {
-            FloatType::Float => 4,
-            FloatType::Double => 8,
-            FloatType::LongDouble => 8,
+            FloatingType::Float => 4,
+            FloatingType::Double => 8,
+            FloatingType::LongDouble => 8,
         }
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy, EnumAsInner)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, EnumAsInner)]
 pub enum ArraySize {
     Static(usize), // int a[10]
-    VLA,           // int a[var]
+    VLA(ExprKey),  // int a[var]
     Incomplete,    // int a[]
 }
 
@@ -96,7 +106,7 @@ impl Display for ArraySize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ArraySize::Static(x) => write!(f, "[{}]", x),
-            ArraySize::VLA => write!(f, "[...]"),
+            ArraySize::VLA(_) => write!(f, "[...]"),
             ArraySize::Incomplete => write!(f, "[?]"),
         }
     }

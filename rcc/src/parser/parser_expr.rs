@@ -1,5 +1,5 @@
-use crate::err::parser_error;
-use crate::err::parser_error::ParserResult;
+use crate::errors::parser;
+use crate::errors::parser::ParserResult;
 use crate::parser::parser_core::*;
 use crate::parser::sema::expr::sema_expr::make_expr;
 use crate::types::lex::token::Token;
@@ -92,7 +92,7 @@ impl Parser<'_> {
         } else {
             // 匹配失败，无法恢复，报错
             // println!("error: {:?}", self.stream.peek());
-            let kind = parser_error::ErrorKind::Expect {
+            let kind = parser::ErrorKind::Expect {
                 expect: "identifier, integer, float, char, string, '('".to_owned(),
             };
             let error = self.error_here(kind);
@@ -118,7 +118,7 @@ impl Parser<'_> {
                 // 函数调用()
                 let param = self.parse_expr_list()?;
                 let rparen = self.expect(RParen)?;
-                ExprKind::make_call(lhs, lparen, param, rparen)
+                ExprKind::make_call(lhs, param)
             } else if let Some(dot) = self.consume(Dot) {
                 // 成员访问 a.b
                 let ident = self.expect_ident()?;
@@ -163,7 +163,7 @@ impl Parser<'_> {
             } else if self.check(TokenKind::RParen) {
                 break;
             } else {
-                let kind = parser_error::ErrorKind::Expect {
+                let kind = parser::ErrorKind::Expect {
                     expect: "expression".to_owned(),
                 };
                 return Err(self.error_here(kind));
@@ -191,10 +191,10 @@ impl Parser<'_> {
                 // sizeof typename
                 let type_name = self.parse_type_name()?;
                 let rparen = self.expect(TokenKind::RParen)?;
-                ExprKind::make_size_of_type(sizeof, lparen, type_name, rparen)
+                ExprKind::make_size_of_type(type_name)
             } else {
                 let expr = self.parse_unary_expr()?;
-                ExprKind::make_size_of_expr(sizeof, expr)
+                ExprKind::make_size_of_expr(expr)
             }
         } else {
             // 什么都不是
@@ -214,7 +214,7 @@ impl Parser<'_> {
             let type_name = self.parse_type_name()?;
             let rparen = self.expect(TokenKind::RParen)?;
             let expr = self.parse_cast_expr()?;
-            ExprKind::make_cast(lparen, type_name, rparen, expr)
+            ExprKind::make_cast(type_name, expr)
         } else {
             return self.parse_unary_expr();
         };
@@ -466,7 +466,7 @@ impl Parser<'_> {
         let hi = self.stream.prev_span();
         let span = Span::span(lo, hi);
 
-        let kind = ExprKind::make_ternary(cond, question, then_expr, colon, else_expr);
+        let kind = ExprKind::make_ternary(cond, then_expr, else_expr);
         let expr = make_expr(self.ctx, kind, span)?;
 
         Ok(expr)

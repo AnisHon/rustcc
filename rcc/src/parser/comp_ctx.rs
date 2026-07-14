@@ -1,4 +1,5 @@
-use crate::err::parser_error::{ParserError, ParserResult};
+use crate::errors::parser::common::ParserWarning;
+use crate::errors::parser::{ParserError, ParserResult};
 use crate::lex::token_stream::TokenStream;
 use crate::parser::sema::scope::scope_mgr::ScopeMgr;
 use crate::parser::sema::type_ctx::type_ctx::TypeCtx;
@@ -58,6 +59,9 @@ impl CompCtx {
         self.exprs.remove(key).expect("exprssion not exist")
     }
 
+    pub fn send_warning(&mut self, _warning: ParserWarning) {
+        todo!()
+    }
     pub fn send_error(&mut self, _error: ParserError) -> ParserResult<()> {
         todo!()
     }

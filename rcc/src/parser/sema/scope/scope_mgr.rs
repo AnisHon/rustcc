@@ -1,14 +1,13 @@
-use crate::err::scope_error::ScopeError;
-use crate::err::scope_error::ScopeErrorKind;
-use crate::err::scope_error::ScopeResult;
-use crate::err::scope_error::ScopeSource;
-use crate::types::lex::token_kind::Symbol;
-use crate::types::parser::common::Ident;
+use crate::errors::parser::decl_error::{DeclError, DeclResult};
+use crate::errors::parser::scope_error::ScopeError;
+use crate::errors::parser::scope_error::ScopeResult;
+use crate::errors::parser::scope_error::ScopeSource;
 use crate::parser::sema::scope::scope_struct::{
     LabelScope, LabelSymbol, MemberScope, MemberSymbol, Scope, ScopeKind, ScopeSymbol,
 };
+use crate::types::lex::token_kind::Symbol;
+use crate::types::parser::common::Ident;
 use std::collections::hash_map::Entry;
-
 // macro_rules! scope_enter_pop {
 //     ($enter:ident, $pop:ident, $field:ident) => {
 //         pub fn $enter(&mut self) {
@@ -40,14 +39,9 @@ macro_rules! scope_lookup {
             None
         }
 
-        pub fn $must_lookup(&mut self, ident: Ident) -> ScopeResult<&$return> {
-            let kind = ScopeErrorKind::Undefined;
-            self.$lookup(&ident).ok_or(ScopeError {
-                kind,
-                name: ident.symbol.get(),
-                scope: ScopeSource::$scope_source,
-                span: ident.span,
-            })
+        pub fn $must_lookup(&mut self, ident: Ident) -> DeclResult<&$return> {
+            self.$lookup(&ident)
+                .ok_or(DeclError::UndeclaredIdent(ident))
         }
 
         pub fn $lookup_local(&self, sym: Symbol) -> Option<&$return> {

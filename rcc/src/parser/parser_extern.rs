@@ -1,8 +1,7 @@
-use crate::err::parser_error::ParserResult;
+use crate::errors::parser::ParserResult;
+use crate::parser::parser_core::Parser;
 use crate::types::lex::token_kind::TokenKind;
 use crate::types::parser::ast::decls::decl::DeclGroup;
-use crate::parser::parser_core::Parser;
-use crate::parser::sema::Sema;
 use crate::types::parser::ast::func::{ExternalDecl, FuncDecl, FuncDef, TranslationUnit};
 use crate::types::parser::ast::stmt::Stmt;
 use crate::types::parser::declarator::DeclPrefix;
@@ -33,16 +32,13 @@ impl Parser<'_> {
         Ok(translation_unit)
     }
 
-    fn parse_external_decl(
-        &mut self,
-        translation_unit: &mut TranslationUnit,
-    ) -> ParserResult<()> {
+    fn parse_external_decl(&mut self, translation_unit: &mut TranslationUnit) -> ParserResult<()> {
         // 解析前缀
         let prefix = self.parse_decl_prefix()?;
 
         // 函数声明后 可能接 `decl_spec`(K&R) `{` 而且 declarator 一定不为空
-        let is_func =
-            (self.check_decl_spec() || self.check(TokenKind::LBrace)) && prefix.declarator.is_some();
+        let is_func = (self.check_decl_spec() || self.check(TokenKind::LBrace))
+            && prefix.declarator.is_some();
         // todo 这里可能要复杂一些，检查 declaration 还是 function def, 可以搭配declarator
         let external_decl = if is_func {
             let def = self.parse_function_def(prefix)?;

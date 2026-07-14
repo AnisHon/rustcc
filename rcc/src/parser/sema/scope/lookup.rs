@@ -1,9 +1,44 @@
-use crate::err::scope_error::{ScopeError, ScopeErrorKind, ScopeResult, ScopeSource};
+use crate::errors::parser::scope_error::{ScopeError, ScopeResult, ScopeSource};
+use crate::parser::ast::decls::decl::DeclStatus;
+use crate::parser::ast::types::QualType;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::sema::scope::scope_struct::{LabelSymbol, ScopeSymbol};
 use crate::types::lex::token_kind::Symbol;
 use crate::types::parser::ast::{DeclKey, StmtKey, TypeKey};
 use crate::types::parser::common::Ident;
+
+fn get_tag_symbol(ctx: &mut CompCtx, decl_key: DeclKey) -> Option<&mut ScopeSymbol> {
+    let decl = ctx.get_decl(decl_key);
+    let ty = decl.ty;
+    let sym = match decl.name {
+        None => return None,
+        Some(x) => x.symbol,
+    };
+    let symbol = ctx
+        .scope_mgr
+        .entry_local_tag(sym)
+        .or_insert_with(|| ScopeSymbol::new(sym, ty));
+    Some(symbol)
+}
+
+/// 自动忽略匿名声明，不会检查类型
+pub fn insert_tag_decl_unchecked(ctx: &mut CompCtx, decl_key: DeclKey) {
+    let symbol = match get_tag_symbol(ctx, decl_key) {
+        None => return,
+        Some(x) => x,
+    };
+    symbol.decls.push(decl_key);
+}
+
+/// 自动忽略匿名声明，不会检查类型，必须保证不会出现重定义
+pub fn insert_tag_def_unchecked(ctx: &mut CompCtx, decl_key: DeclKey) {
+    let symbol = match get_tag_symbol(ctx, decl_key) {
+        None => return,
+        Some(x) => x,
+    };
+    debug_assert!(symbol.def.is_none());
+    symbol.def = Some(decl_key);
+}
 
 // 检查 Type 是否一致
 pub fn conflict_error_if(
@@ -37,7 +72,7 @@ fn check_conflict(ctx: &mut CompCtx, decl_key: DeclKey, ty: TypeKey) {
 fn lookup_or_insert<'a>(
     ctx: &'a mut CompCtx,
     ident: &Ident,
-    ty: TypeKey,
+    ty: QualType,
     scope_kind: ScopeSource,
 ) -> &'a mut ScopeSymbol {
     // 选择类型
@@ -66,17 +101,24 @@ fn lookup_or_insert<'a>(
 pub fn lookup_or_insert_decl(
     ctx: &mut CompCtx,
     decl_key: DeclKey,
-    ty: TypeKey,
+    ty: QualType,
     scope_kind: ScopeSource,
-) -> Option<DeclKey>  {
+) -> ScopeResult<()> {
     let decl = ctx.get_decl(decl_key);
-    debug_assert!(decl.is_decl()); // 必须是 decl
+    debug_assert_eq!(decl.get_status(), DeclStatus::Declaration); // 必须是 不完全声明，也就是 decl
     debug_assert!(decl.name.is_some()); // 声明的 name 应该是一定存在的 
     let ident = decl.name.clone().expect("impossible");
 
     let symbol = lookup_or_insert(ctx, &ident, ty, scope_kind);
-    symbol.decls.push(decl_key);
-    symbol.def
+
+    // 判断是否是相同类型
+    if symbol.ty != ty {
+        // 不是出错
+    } else {
+        symbol.decls.push(decl_key);
+    }
+
+    Ok(())
 }
 
 /// 插入声明，不要使用这个函数插入声明，不负责回填
@@ -92,11 +134,11 @@ pub fn lookup_or_insert_decl(
 pub fn lookup_or_insert_def(
     ctx: &mut CompCtx,
     decl_key: DeclKey,
-    ty: TypeKey,
+    ty: QualType,
     scope_source: ScopeSource,
-) -> Result<Vec<DeclKey>, ScopeError> {
+) -> Result<(), ScopeError> {
     let decl = ctx.get_decl(decl_key);
-    debug_assert!(decl.is_def()); // 必须是 decl
+    debug_assert_eq!(decl.get_status(), DeclStatus::Definition); // 必须是 定义
     debug_assert!(decl.name.is_some()); // 声明的 name 必须存在的 
     let ident = decl.name.clone().expect("impossible");
 
@@ -117,8 +159,9 @@ pub fn lookup_or_insert_def(
     // 没有重定义
     symbol.def = Some(decl_key);
 
-    // 返回所有前向声明，用于回填
-    return Ok(symbol.decls.clone());
+    // // 返回所有前向声明，用于回填
+    // Ok(symbol.decls.clone())
+    Ok(())
 }
 
 fn label_lookup_or_insert(ctx: &mut CompCtx, symbol: Symbol) -> &mut LabelSymbol {

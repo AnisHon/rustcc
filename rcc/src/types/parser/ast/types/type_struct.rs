@@ -1,8 +1,8 @@
-use crate::parser::ast::types::Signedness;
+use crate::parser::ast::types::{CharSign, IntegerSign};
 use crate::parser::comp_ctx::CompCtx;
 use crate::types::parser::ast::common::RecordKind;
 use crate::types::parser::ast::types::layout::TypeLayout;
-use crate::types::parser::ast::types::primitives::{ArraySize, FloatType, IntegerType};
+use crate::types::parser::ast::types::primitives::{ArraySize, FloatingType, IntegerType};
 use crate::types::parser::ast::types::qualifier::Qualifier;
 use crate::types::parser::ast::{DeclKey, TypeKey};
 use enum_as_inner::EnumAsInner;
@@ -123,11 +123,25 @@ impl TypeKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BuildInType {
     Void,
-    Char { signedness: Signedness },
-    Integer { is_signed: bool, size: IntegerType },
-    Floating { size: FloatType },
-    PtrdiffT,
-    SizeT,
+    Bool, // 保留
+    Char {
+        sign: CharSign,
+    },
+    Integer {
+        sign: IntegerSign,
+        size: IntegerType,
+    },
+    Floating {
+        size: FloatingType,
+    },
+    Complex {
+        size: FloatingType,
+    }, // 保留 负数
+    Imaginary {
+        size: FloatingType,
+    }, // 保留 纯虚数
+       // PtrdiffT, // 先去掉
+       // SizeT,
 }
 
 /// 指针类型
@@ -156,8 +170,8 @@ impl ArrayType {
 
     pub fn get_status(&self) -> TypeStatus {
         match self.size {
-            ArraySize::Static(_) => TypeStatus::Complete,
-            ArraySize::VLA | ArraySize::Incomplete => TypeStatus::Incomplete,
+            ArraySize::VLA(_) | ArraySize::Static(_) => TypeStatus::Complete,
+            ArraySize::Incomplete => TypeStatus::Incomplete,
         }
     }
 }
@@ -190,7 +204,7 @@ pub enum ParamsType {
 }
 
 /// tag 类型
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumAsInner)]
 pub enum TagType {
     Record(RecordType),
     Enum(EnumType),

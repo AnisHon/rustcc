@@ -1,4 +1,4 @@
-use crate::err::parser_error::ParserResult;
+use crate::errors::parser::ParserResult;
 use crate::parser::parser_core::*;
 use crate::types::lex::token_kind::{Keyword, TokenKind};
 use crate::types::parser::ast::stmt::StmtKey;

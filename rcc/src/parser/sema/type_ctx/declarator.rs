@@ -1,7 +1,6 @@
-use crate::err::parser_error::{self, ParserError, ParserResult};
+use crate::errors::parser::decl_error::DeclResult;
 use crate::parser::ast::types::{ArrayType, ParamsType, QualType};
 use crate::parser::comp_ctx::CompCtx;
-use crate::parser::sema::expr;
 use crate::types::parser::ast::types::type_builder::TypeBuilder;
 use crate::types::parser::ast::types::Qualifier;
 use crate::types::parser::ast::{types::ArraySize, ExprKey, TypeKey};
@@ -19,7 +18,7 @@ pub struct DeclInfo {
 }
 
 /// 解析 decl_spec, 不消耗decl_spec
-fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> ParserResult<QualType> {
+fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> DeclResult<QualType> {
     let ty = ctx.type_ctx.build_type(decl_spec.ty_builder.clone());
     let qual = Qualifier::from(&decl_spec.type_quals);
     let qual_ty = QualType::new(ty, qual);
@@ -27,7 +26,7 @@ fn resolve_decl_spec(ctx: &mut CompCtx, decl_spec: &DeclSpec) -> ParserResult<Qu
 }
 
 /// 解析 declarator, 不负责解析 decl_spec 的 storage 与 func_spec
-pub fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserResult<DeclInfo> {
+pub fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> DeclResult<DeclInfo> {
     let decl_spec = declarator.decl_spec;
 
     // 先解析 declaration specifier
@@ -43,12 +42,12 @@ pub fn resolve_declarator(ctx: &mut CompCtx, declarator: Declarator) -> ParserRe
             DeclaratorChunkKind::Pointer { type_quals } => {
                 resolve_pointer(ctx, qual_ty, type_quals)
             }
-            DeclaratorChunkKind::Function { param } => resolve_function(ctx, qual_ty, param)?,
+            DeclaratorChunkKind::Function { param } => {
+                let ty = resolve_function(ctx, qual_ty, param)?;
+                QualType::from(ty) // 数组本身不能接任何qual所以只能，所以提供默认的初始化？
+            }
         };
     }
-
-    let qual = Qualifier::from(&decl_spec.type_quals);
-    let qual_ty = QualType::new(ty, qual);
 
     // 构建 decl_info
     let decl_info = DeclInfo {
@@ -70,12 +69,8 @@ fn resolve_array(
     ctx: &mut CompCtx,
     elem_ty: QualType,
     expr: Option<ExprKey>,
-) -> ParserResult<TypeKey> {
-    // 设置大小类型
-    let size = match expr {
-        None => ArraySize::Incomplete,
-        Some(x) => resolve_array_size(ctx, x)?,
-    };
+) -> DeclResult<TypeKey> {
+    let size = resolve_array_size(ctx, expr)?;
 
     let array = ArrayType { elem_ty, size };
     // 数组类型
@@ -86,34 +81,44 @@ fn resolve_array(
 
 /// 解析数组大小
 /// todo 重构
-fn resolve_array_size(ctx: &mut CompCtx, expr: ExprKey) -> ParserResult<ArraySize> {
-    expr::eval::try_as_integer(expr);
-
-    let expr_ty = ctx.type_ctx.get_type(expr.ty);
-
-    // 不是 int 直接出错
-    let array_size = expr.value.map(|x| x.as_integer().cloned()).flatten();
-    let array_size = match array_size {
+fn resolve_array_size(ctx: &CompCtx, expr: Option<ExprKey>) -> DeclResult<ArraySize> {
+    // 设置大小类型
+    let expr = match expr {
+        None => return Ok(ArraySize::Incomplete), // 直接回填
         Some(x) => x,
-        None => {
-            let kind = parser_error::ErrorKind::NotIntConstant;
-            let error = ParserError::new(kind, expr.span);
-            return Err(error);
-        }
     };
 
-    // 转换为 int constant
-    let array_size = array_size.as_usize();
+    // 检查 计算
+    let result = check_array_size_expr(ctx, expr)?;
 
-    Ok(ArraySize::Static(array_size))
+    let size = match result {
+        None => ArraySize::VLA(expr),    // 非常量表达式
+        Some(x) => ArraySize::Static(x), // ICE
+    };
+
+    Ok(size)
+}
+
+/// 解析并计算表达式
+/// # return
+/// - `Err`: 检查失败，数值无效
+/// - `Ok`:
+///     - `Some`: 得到ICE
+///     - `None`: 非编译时常量，但是通过合法性检查
+fn check_array_size_expr(ctx: &CompCtx, expr_key: ExprKey) -> DeclResult<Option<usize>> {
+    // 1. 检查表达式各种类型
+    let expr = ctx.get_expr(expr_key);
+    let ty = ctx.type_ctx.get_type(expr.ty);
+    if ty.kind.is_build_in() {}
+
+    // 2. 检查是否是常量表达式，尝试Eval
+    // 2.1 尝试将常量表达式解析为usize
+    // 3. 检查是否是可用的非常量表达式, VLA
+    todo!("检查表达式的各种类型,")
 }
 
 /// 解析函数类型
-fn resolve_function(
-    ctx: &mut CompCtx,
-    ret_ty: QualType,
-    params: ParamDecl,
-) -> ParserResult<TypeKey> {
+fn resolve_function(ctx: &mut CompCtx, ret_ty: QualType, params: ParamDecl) -> DeclResult<TypeKey> {
     // 获取参数列表，可能是KR类型，这个类型理论上是不能用于声明函数类型的
     let params = resolve_params(ctx, params)?;
 
@@ -126,7 +131,7 @@ fn resolve_function(
 }
 
 /// 解析参数列表
-fn resolve_params(ctx: &mut CompCtx, params: ParamDecl) -> ParserResult<ParamsType> {
+fn resolve_params(ctx: &mut CompCtx, params: ParamDecl) -> DeclResult<ParamsType> {
     // todo 做参数检查？
 
     let list = match params {

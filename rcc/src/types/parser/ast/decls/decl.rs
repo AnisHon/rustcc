@@ -8,13 +8,15 @@ use crate::types::parser::decl_spec::{FuncSpec, StorageSpec};
 use crate::types::span::Span;
 use enum_as_inner::EnumAsInner;
 
-/// 声明状态，大致上表示 声明 和 定义，具体情况具体分析, typedef 永远认为是 Incomplete
+/// 声明状态，上表示 声明 和 定义， typedef 永远认为是 Declaration
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeclStatus {
-    Complete,   // Complete definition
-    Incomplete, // Forward/incomplete declaration
+    Definition,
+    Declaration,
 }
 
 /// 声明类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeclType {
     Typedef, // typedef
     Object,  // variable function
@@ -65,12 +67,12 @@ impl Decl {
     /// 声明状态
     pub fn get_status(&self) -> DeclStatus {
         match &self.kind {
-            DeclKind::TypeDef => DeclStatus::Complete,
+            DeclKind::TypeDef => DeclStatus::Definition,
             DeclKind::Var(x) => x.get_status(),
             DeclKind::Func(x) => x.get_status(),
             DeclKind::Record(x) => x.get_status(),
             DeclKind::Enum(x) => x.get_status(),
-            DeclKind::EnumField(_) => DeclStatus::Complete,
+            DeclKind::EnumField(_) => DeclStatus::Definition,
             DeclKind::RecordField(_) => unreachable!("对 record 成员 取声明状态没有意义"),
         }
     }
@@ -107,9 +109,9 @@ impl VarDecl {
 
     pub fn get_status(&self) -> DeclStatus {
         if self.is_def {
-            DeclStatus::Incomplete
+            DeclStatus::Declaration
         } else {
-            DeclStatus::Complete
+            DeclStatus::Definition
         }
     }
 }
@@ -132,8 +134,8 @@ impl FuncDecl {
 
     pub fn get_status(&self) -> DeclStatus {
         match self.body.as_ref() {
-            None => DeclStatus::Incomplete,
-            Some(_) => DeclStatus::Complete,
+            None => DeclStatus::Declaration,
+            Some(_) => DeclStatus::Definition,
         }
     }
 }
@@ -152,8 +154,8 @@ impl RecordDecl {
 
     pub fn get_status(&self) -> DeclStatus {
         match self.fields.as_ref() {
-            None => DeclStatus::Incomplete,
-            Some(_) => DeclStatus::Complete,
+            None => DeclStatus::Declaration,
+            Some(_) => DeclStatus::Definition,
         }
     }
 }
@@ -178,14 +180,17 @@ pub struct EnumDecl {
 }
 
 impl EnumDecl {
+    pub fn new_decl() -> Self {
+        Self { enums: None }
+    }
     pub fn new(enums: Option<Vec<DeclKey>>) -> Self {
         Self { enums }
     }
 
     pub fn get_status(&self) -> DeclStatus {
         match self.enums.as_ref() {
-            None => DeclStatus::Incomplete,
-            Some(_) => DeclStatus::Complete,
+            None => DeclStatus::Declaration,
+            Some(_) => DeclStatus::Definition,
         }
     }
 }

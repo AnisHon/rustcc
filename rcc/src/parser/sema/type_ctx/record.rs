@@ -2,7 +2,7 @@
 
 // use crate::{
 //     constant::typ::{DEFAULT_ALIGN, DEFAULT_SIZE},
-//     err::parser_error::ParserResult,
+//     errors::parser::ParserResult,
 //     parser::{
 //         ast::{
 //             DeclKey, TypeKey,

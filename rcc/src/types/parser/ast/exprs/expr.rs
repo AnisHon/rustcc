@@ -1,6 +1,6 @@
 use crate::ap::ap_float::APFloat;
 use crate::ap::ap_int::APInt;
-use crate::ap::ap_value::APValue;
+use crate::parser::ast::types::QualType;
 use crate::types::lex::token::Token;
 use crate::types::lex::token_kind::{LiteralKind, Symbol, TokenKind};
 use crate::types::parser::ast::exprs::{AssignOp, BinOp, UnaryOp, UnaryOpKind};
@@ -9,21 +9,6 @@ use crate::types::parser::common::Ident;
 use crate::types::span::Span;
 use enum_as_inner::EnumAsInner;
 
-#[derive(Debug, Clone, EnumAsInner, Default)]
-pub enum CompEval {
-    #[default]
-    NotConst,
-    ConstExpr {
-        value: APValue,
-    },
-    ICE {
-        value: APValue,
-    }, // integer const expression
-    AddressConst {
-        // symbol: SymbolID,
-        offset: i64,
-    },
-}
 pub enum Constant {
     Integer { value: APInt },
     Float { value: APFloat },
@@ -88,9 +73,7 @@ impl ExprKind {
         Self::ArraySubscript(ArraySubscriptExpr { base, index })
     }
 
-    pub fn make_call(base: ExprKey, l: Token, params: ParamsExpr, r: Token) -> Self {
-        let l = l.span.to_pos();
-        let r = r.span.to_pos();
+    pub fn make_call(base: ExprKey, params: ParamsExpr) -> Self {
         Self::Call(CallExpr { base, params })
     }
 
@@ -103,11 +86,11 @@ impl ExprKind {
         Self::MemberAccess(MemberAccessExpr { kind, base, field })
     }
 
-    pub fn make_size_of_type(sizeof: Token, l: Token, ty: TypeKey, r: Token) -> Self {
+    pub fn make_size_of_type(ty: QualType) -> Self {
         Self::Sizeof(SizeofExpr::OfType(ty))
     }
 
-    pub fn make_size_of_expr(sizeof: Token, expr: ExprKey) -> Self {
+    pub fn make_size_of_expr(expr: ExprKey) -> Self {
         Self::Sizeof(SizeofExpr::OfExpr(expr))
     }
 
@@ -147,7 +130,7 @@ impl ExprKind {
         Self::Binary(BinaryExpr { lhs, op, rhs })
     }
 
-    pub fn make_cast(l: Token, ty: TypeKey, r: Token, expr: ExprKey) -> Self {
+    pub fn make_cast(ty: QualType, expr: ExprKey) -> Self {
         Self::Cast(CastExpr { ty, expr })
     }
 
@@ -156,13 +139,7 @@ impl ExprKind {
         Self::Assign(AssignExpr { lhs, op, rhs })
     }
 
-    pub fn make_ternary(
-        cond: ExprKey,
-        question: Token,
-        then_expr: ExprKey,
-        colon: Token,
-        else_expr: ExprKey,
-    ) -> Self {
+    pub fn make_ternary(cond: ExprKey, then_expr: ExprKey, else_expr: ExprKey) -> Self {
         Self::Ternary(TernaryExpr {
             cond,
             then_expr,
@@ -202,7 +179,7 @@ pub enum MemberAccessKind {
 #[derive(Clone, Debug)]
 pub enum SizeofExpr {
     OfExpr(ExprKey),
-    OfType(TypeKey),
+    OfType(QualType),
 }
 
 /// 一元运算表达式
@@ -231,7 +208,7 @@ pub struct AssignExpr {
 /// 类型转换表达式
 #[derive(Clone, Debug)]
 pub struct CastExpr {
-    pub ty: TypeKey,
+    pub ty: QualType,
     pub expr: ExprKey,
 }
 

@@ -1,219 +1,219 @@
-use crate::constant::str::TYPEDEF_REQUIRE_NAME;
-use crate::err::parser_error::{ParserError, ParserResult};
+use crate::errors::parser::decl_error::{
+    DeclIllegalInitializerError, DeclRedefinitionError, DeclResult,
+};
+use crate::errors::parser::decl_warning::DeclWarning;
+use crate::errors::parser::ParserResult;
 use crate::parser::comp_ctx::CompCtx;
 use crate::parser::sema::scope::scope_mgr::ScopeMgr;
 use crate::parser::sema::scope::scope_struct::{ScopeKind, ScopeSymbol};
+use crate::parser::sema::type_ctx;
 use crate::parser::sema::type_ctx::declarator::DeclInfo;
-use crate::parser::sema::Sema;
 use crate::types::parser::ast::decls::decl::{Decl, DeclKind};
 use crate::types::parser::ast::decls::initializer::Initializer;
-use crate::types::parser::ast::types::ArraySize;
-use crate::types::parser::ast::{DeclKey, TypeKey};
+use crate::types::parser::ast::DeclKey;
 use crate::types::parser::decl_spec::{StorageSpec, StorageSpecKind};
 use crate::types::parser::declarator::InitDeclarator;
 use std::collections::hash_map::Entry;
 
-impl Sema {
-    /// 将 typedef 插入符号表，负责处理名字问题，类型不匹配问题
-    /// todo: 可能放到 scope 模块更合适
-    fn insert_typedef(ctx: &mut CompCtx, decl_key: DeclKey) -> ParserResult<()> {
-        let decl = ctx.get_decl(decl_key);
-        let ty = decl.ty;
-        let name = match &decl.name {
-            Some(x) => x.clone(),
-            None => {
-                // typedef 但是没有名字给一个 warning
-                let warning = ParserError::warning(TYPEDEF_REQUIRE_NAME.to_owned(), decl.span);
-                ctx.send_error(warning)?;
-                return Ok(()); // 名字都没有不用了
-            }
-        };
-
-        match ctx.scope_mgr.entry_local_ident(name.symbol) {
-            Entry::Occupied(mut x) => {
-                let symbol = x.get_mut();
-                // 声明的 type 不同错误
-                if symbol.ty != ty {
-                    let error = ParserError::redefinition(symbol.get_decl(), name);
-                    return Err(error);
-                }
-                symbol.def = Some(decl_key); // todo: 目前打算先覆盖
-            }
-            Entry::Vacant(x) => {
-                // 不存在，构造符号表
-                let name = *x.key();
-                x.insert(ScopeSymbol {
-                    name,
-                    decls: Vec::new(),
-                    def: Some(decl_key),
-                    ty,
-                });
-            }
+/// 将 typedef 插入符号表，负责处理名字问题，类型不匹配问题
+/// typedef 全部当作 declaration，typedef应该不出现 definition
+fn insert_typedef(ctx: &mut CompCtx, decl_key: DeclKey) -> DeclResult<()> {
+    let decl = ctx.get_decl(decl_key);
+    let ty = decl.ty;
+    let name = match &decl.name {
+        Some(x) => x.clone(),
+        None => {
+            let warning = DeclWarning::TypedefNoName(decl.span);
+            // typedef 但是没有名字给一个 warning
+            ctx.send_warning(warning.into());
+            return Ok(()); // 名字都没有不用了
         }
+    };
 
-        Ok(())
-    }
-
-    fn default_storage_kind(ctx: &CompCtx) -> StorageSpecKind {
-        match ctx.scope_mgr.get_kind() {
-            ScopeKind::File => StorageSpecKind::Extern,
-            ScopeKind::Function => StorageSpecKind::Auto,
-            ScopeKind::Block => StorageSpecKind::Auto,
-            ScopeKind::ParamList => StorageSpecKind::Auto,
-            ScopeKind::Record => unreachable!("record should not have storage class"),
+    match ctx.scope_mgr.entry_local_ident(name.symbol) {
+        Entry::Occupied(mut x) => {
+            let symbol = x.get_mut();
+            // 声明的 type 不同错误
+            if symbol.ty != ty {
+                let error = DeclRedefinitionError::new(symbol.get_decl(), name);
+                return Err(error.into());
+            }
+            symbol.decls.push(decl_key);
+        }
+        Entry::Vacant(x) => {
+            // 不存在，构造符号表
+            let name = *x.key();
+            x.insert(ScopeSymbol {
+                name,
+                decls: vec![decl_key],
+                def: None,
+                ty,
+            });
         }
     }
 
-    /// 是否为 typedef 声明
-    fn is_typedef(storage: Option<&StorageSpec>) -> bool {
-        storage
-            .as_ref()
-            .map(|x| x.kind.is_typedef())
-            .unwrap_or(false)
+    Ok(())
+}
+
+fn default_storage_kind(ctx: &CompCtx) -> StorageSpecKind {
+    match ctx.scope_mgr.get_kind() {
+        ScopeKind::File => StorageSpecKind::Extern,
+        ScopeKind::Function => StorageSpecKind::Auto,
+        ScopeKind::Block => StorageSpecKind::Auto,
+        ScopeKind::ParamList => StorageSpecKind::Auto,
+        ScopeKind::Record => unreachable!("record should not have storage class"),
     }
+}
 
-    // 是否是定义 todo 使用 DefinitionKind 表示 Tentative 定义
-    fn is_definition(scope_mgr: &ScopeMgr, decl_info: &DeclInfo, has_init: bool) -> bool {
-        // 表示显式定义了 extern，不是隐式的
-        let extern_kw = decl_info
-            .storage
-            .as_ref()
-            .map(|x| x.kind.is_extern())
-            .unwrap_or(false);
+/// 是否为 typedef 声明
+fn is_typedef(storage: Option<&StorageSpec>) -> bool {
+    storage
+        .as_ref()
+        .map(|x| x.kind.is_typedef())
+        .unwrap_or(false)
+}
 
-        // 判断是否是声明
-        match scope_mgr.get_kind() {
-            ScopeKind::File => has_init || !extern_kw, // 如果有init一定是定义，如果没有，且没有声明 extern 默认是临时定义
-            ScopeKind::Function | ScopeKind::Block => !extern_kw, // 这种作用域下，只 extern 才是声明，而且 extern 不允许有初始化
-            ScopeKind::ParamList | ScopeKind::Record => {
-                unreachable!("param_list and record are not supported")
-            }
+// 是否是定义 todo 使用 DefinitionKind 表示 Tentative 定义
+fn is_definition(scope_mgr: &ScopeMgr, decl_info: &DeclInfo, has_init: bool) -> bool {
+    // 表示显式定义了 extern，不是隐式的
+    let extern_kw = decl_info
+        .storage
+        .as_ref()
+        .map(|x| x.kind.is_extern())
+        .unwrap_or(false);
+
+    // 判断是否是声明
+    match scope_mgr.get_kind() {
+        ScopeKind::File => has_init || !extern_kw, // 如果有init一定是定义，如果没有，且没有声明 extern 默认是临时定义
+        ScopeKind::Function | ScopeKind::Block => !extern_kw, // 这种作用域下，只 extern 才是声明，而且 extern 不允许有初始化
+        ScopeKind::ParamList | ScopeKind::Record => {
+            unreachable!("param_list and record are not supported")
         }
     }
+}
 
-    // 处理 typedef
-    fn act_on_typedef(
-        ctx: &mut CompCtx,
-        decl_info: DeclInfo,
-        has_init: bool,
-    ) -> ParserResult<DeclKey> {
-        debug_assert!(Self::is_typedef(decl_info.storage.as_ref())); // 必须是 typedef
+// 处理 typedef
+fn act_on_typedef(
+    ctx: &mut CompCtx,
+    decl_info: DeclInfo,
+    init: Option<&Initializer>,
+) -> DeclResult<DeclKey> {
+    debug_assert!(is_typedef(decl_info.storage.as_ref())); // 必须是 typedef
 
-        // typedef 不能初始化
-        if has_init {
-            let storage = decl_info.storage.expect("impossible");
-            let ident = decl_info.name.expect("with init, but no name?");
-            let error = ParserError::illegal_init(storage.to_string(), ident.symbol, storage.span);
-            return Err(error);
-        }
-
-        // 构造 decl
-        let decl = Decl {
-            storage: decl_info.storage,
-            name: decl_info.name,
-            kind: DeclKind::TypeDef,
-            ty: decl_info.ty,
-            span: decl_info.span,
-        };
-        let decl_key = ctx.insert_decl(decl);
-
-        // 插入符号表，自动处理名字和类型不匹配问题
-        Self::insert_typedef(ctx, decl_key)?;
-
-        Ok(decl_key)
+    // typedef 不能初始化
+    if let Some(init) = init {
+        debug_assert!(decl_info.name.is_some(), "有初始化语句，没有名字，非法语句");
+        let name = decl_info.name.unwrap();
+        let illegal_initializer_error = DeclIllegalInitializerError::new(name, init.get_span(ctx));
+        return Err(illegal_initializer_error.into());
     }
 
-    fn act_on_array_initializer(
-        ctx: &mut CompCtx,
-        arr_ty: TypeKey,
-        init: &Initializer,
-    ) -> ParserResult<()> {
-        let ty = ctx.type_ctx.get_type_mut(arr_ty);
-        assert!(ty.kind.is_array());
-        let (elem_ty, size) = ty.kind.as_array_mut().expect("impossible");
-        let inits = match init {
-            Initializer::Expr(x) => {
-                // 报错，数组不能用一个普通expression初始化
-                todo!()
-            }
-            Initializer::InitList { inits } => inits,
-        };
+    // 构造 decl
+    let decl = Decl {
+        storage: decl_info.storage,
+        name: decl_info.name,
+        kind: DeclKind::TypeDef,
+        ty: decl_info.ty,
+        span: decl_info.span,
+    };
+    let decl_key = ctx.insert_decl(decl);
 
-        match size {
-            ArraySize::Static(x) => match init {
-                Initializer::Expr(x) => {
-                    // 数组没有初始化
-                    todo!("")
-                }
-                Initializer::InitList { inits } => {}
-            },
-            ArraySize::Incomplete => {
-                // Incomplete推导
-                *size = ArraySize::Static(inits.inits.len());
-            }
-            ArraySize::VLA => {
-                todo!("VLA 不能初始化 报错")
-            }
-        }
+    // 插入符号表，自动处理名字和类型不匹配问题
+    insert_typedef(ctx, decl_key)?;
 
-        Ok(())
+    Ok(decl_key)
+}
+
+// fn act_on_array_initializer(
+//     ctx: &mut CompCtx,
+//     arr_ty: TypeKey,
+//     init: &Initializer,
+// ) -> ParserResult<()> {
+//     let ty = ctx.type_ctx.get_type_mut(arr_ty);
+//     assert!(ty.kind.is_array());
+//     let (elem_ty, size) = ty.kind.as_array_mut().expect("impossible");
+//     let inits = match init {
+//         Initializer::Expr(x) => {
+//             // 报错，数组不能用一个普通expression初始化
+//             todo!()
+//         }
+//         Initializer::InitList { inits } => inits,
+//     };
+//
+//     match size {
+//         ArraySize::Static(x) => match init {
+//             Initializer::Expr(x) => {
+//                 // 数组没有初始化
+//                 todo!("")
+//             }
+//             Initializer::InitList { inits } => {}
+//         },
+//         ArraySize::Incomplete => {
+//             // Incomplete推导
+//             *size = ArraySize::Static(inits.inits.len());
+//         }
+//         ArraySize::VLA(_) => {
+//             todo!("VLA 不能初始化 报错")
+//         }
+//     }
+//
+//     Ok(())
+// }
+
+// fn check_initializer_type(
+//     ctx: &mut CompCtx,
+//     ty_key: TypeKey,
+//     init: &Initializer,
+// ) -> ParserResult<()> {
+//     use crate::types::parser::ast::types::TypeKind::*;
+//     let ty = ctx.type_ctx.get_type(ty_key);
+//     match &ty.kind {
+//         Unknown | Func { .. } | Void => unreachable!(),
+//         Integer { .. } | Floating { .. } | Ptr { .. } | Enum { .. } => {}
+//         Array { .. } => act_on_array_initializer(ctx, ty_key, init)?,
+//         Record { .. } => {}
+//     }
+//     Ok(())
+// }
+
+fn act_on_initializer(
+    ctx: &CompCtx,
+    decl: DeclKey,
+    is_def: bool,
+    init: Option<Initializer>,
+) -> ParserResult<Initializer> {
+    let decl = ctx.get_decl(decl);
+    todo!()
+}
+
+pub fn act_on_init_declarator(
+    ctx: &mut CompCtx,
+    init_declarator: InitDeclarator,
+) -> DeclResult<DeclKey> {
+    // let declarator = init_declarator.declarator;
+    // let name = declarator.name.clone();
+
+    // 构建类型
+    let decl_info = type_ctx::resolve_declarator(ctx, init_declarator.declarator)?;
+
+    let has_init = init_declarator.init.is_some();
+
+    // typedef 需要特殊处理
+    if is_typedef(decl_info.storage.as_ref()) {
+        return act_on_typedef(ctx, decl_info, init_declarator.init.as_ref());
     }
 
-    fn check_initializer_type(
-        ctx: &mut CompCtx,
-        ty_key: TypeKey,
-        init: &Initializer,
-    ) -> ParserResult<()> {
-        use crate::types::parser::ast::types::TypeKind::*;
-        let ty = ctx.type_ctx.get_type(ty_key);
-        match &ty.kind {
-            Unknown | Func { .. } | Void => unreachable!(),
-            Integer { .. } | Floating { .. } | Ptr { .. } | Enum { .. } => {}
-            Array { .. } => Self::act_on_array_initializer(ctx, ty_key, init)?,
-            Record { .. } => {}
-        }
-        Ok(())
-    }
+    // 是否是定义
+    let is_def = is_definition(&ctx.scope_mgr, &decl_info, has_init);
 
-    fn act_on_initializer(
-        ctx: &CompCtx,
-        decl: DeclKey,
-        is_def: bool,
-        init: Option<Initializer>,
-    ) -> ParserResult<Initializer> {
-        let decl = ctx.get_decl(decl);
-        todo!()
-    }
+    // 检查 init
+    todo!();
 
-    pub fn act_on_init_declarator(
-        ctx: &mut CompCtx,
-        init_declarator: InitDeclarator,
-    ) -> ParserResult<DeclKey> {
-        // let declarator = init_declarator.declarator;
-        // let name = declarator.name.clone();
+    // 构建decl
+    todo!();
 
-        // 构建类型
-        let decl_info = Self::resolve_declarator(ctx, init_declarator.declarator)?;
-
-        let has_init = init_declarator.init.is_some();
-
-        // typedef 需要特殊处理
-        if Self::is_typedef(decl_info.storage.as_ref()) {
-            return Self::act_on_typedef(ctx, decl_info, has_init);
-        }
-
-        // 是否是定义
-        let is_def = Self::is_definition(&ctx.scope_mgr, &decl_info, has_init);
-
-        // 检查 init
-        todo!();
-
-        // 构建decl
-        todo!();
-
-        // todo: 插入符号表
-        todo!()
-    }
+    // todo: 插入符号表
+    todo!()
 }
 // impl Sema {
 //

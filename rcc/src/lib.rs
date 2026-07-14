@@ -1,7 +1,7 @@
 pub mod compiler;
 pub mod constant;
 pub mod content_manager;
-pub mod err;
+pub mod errors;
 pub mod lex;
 pub mod parser;
 pub mod types;

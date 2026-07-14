@@ -1,9 +1,9 @@
 use crate::constant::str::DECL_SPEC;
-use crate::err::parser_error::{ParserError, ParserResult};
+use crate::errors::parser::{ParserError, ParserResult};
 use crate::parser::comp_ctx::CompCtx;
 use crate::types::parser::ast::decls::decl::DeclKind;
 use crate::types::parser::ast::types::type_builder::TypeBuilderKind;
-use crate::types::parser::ast::types::{FloatType, IntegerType};
+use crate::types::parser::ast::types::{FloatingType, IntegerType};
 use crate::types::parser::ast::DeclKey;
 use crate::types::parser::common::TypeSpecState;
 use crate::types::parser::decl_spec::{
@@ -210,13 +210,13 @@ impl DeclSpecBuilder {
                 size: IntegerType::LongLong,
             },
             Float => TypeBuilderKind::Floating {
-                size: FloatType::Float,
+                size: FloatingType::Float,
             },
             Double => TypeBuilderKind::Floating {
-                size: FloatType::Double,
+                size: FloatingType::Double,
             },
             LongDouble => TypeBuilderKind::Floating {
-                size: FloatType::LongDouble,
+                size: FloatingType::LongDouble,
             },
             Record => {
                 let decl = decl.expect("record decl should not be none");
