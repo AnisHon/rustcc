@@ -153,6 +153,7 @@ pub struct EnumVariant {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Parameter {
     pub id: super::DeclId,
+    pub context: super::DeclContextId,
     pub name: Option<String>,
     pub ty: CType,
     pub range: SourceRange,

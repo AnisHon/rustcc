@@ -12,8 +12,14 @@ impl Parser {
         let start = self.peek().range;
         let spec = self.declaration_specifiers()?;
         if self.eat(&TokenKind::Semi).is_some() {
+            let (context, linkage, storage_duration) =
+                self.sema.declaration_properties(spec.storage, &spec.ty);
             return Ok(vec![ExternalDeclaration::Declaration(Declaration {
                 id: self.sema.fresh_decl_id(),
+                previous_declaration: None,
+                context,
+                linkage,
+                storage_duration,
                 name: None,
                 ty: spec.ty,
                 storage: spec.storage,
@@ -50,8 +56,14 @@ impl Parser {
                 return Err(self.err("only a function declarator may have a body"));
             };
             let declaration_id = self.sema.fresh_decl_id();
-            let d = Declaration {
+            let (context, linkage, storage_duration) =
+                self.sema.declaration_properties(spec.storage, &ty);
+            let mut d = Declaration {
                 id: declaration_id,
+                previous_declaration: None,
+                context,
+                linkage,
+                storage_duration,
                 name: Some(name.clone()),
                 ty: ty.clone(),
                 storage: spec.storage,
@@ -60,17 +72,23 @@ impl Parser {
                 alignment: spec.alignment,
                 range: start,
             };
-            self.sema.declare(&d)?;
+            self.sema.declare_function_definition(&mut d)?;
             let return_type = match &ty.kind {
                 TypeKind::Function { return_type, .. } => (**return_type).clone(),
                 _ => unreachable!(),
             };
-            self.sema.begin_function(&params, return_type);
-            let body = self.compound_statement(false)?;
-            self.sema.end_function();
+            let body_context = self.sema.begin_function(&mut params, return_type);
+            let body_result = self.compound_statement(false);
+            let end_result = self.sema.end_function();
+            let body = body_result?;
+            end_result?;
             let span = start.join(body.range);
             return Ok(vec![ExternalDeclaration::Function(FunctionDefinition {
                 id: declaration_id,
+                previous_declaration: d.previous_declaration,
+                context,
+                body_context,
+                linkage,
                 name,
                 ty,
                 storage: spec.storage,
@@ -81,14 +99,14 @@ impl Parser {
             })]);
         }
         let mut decls = vec![];
-        let first = self.finish_declaration(start, spec.clone(), name, ty)?;
-        self.sema.declare(&first)?;
+        let mut first = self.finish_declaration(start, spec.clone(), name, ty)?;
+        self.sema.declare(&mut first)?;
         decls.push(ExternalDeclaration::Declaration(first));
         while self.eat(&TokenKind::Comma).is_some() {
             let node = self.declarator(false)?;
             let (n, t, _) = self.apply_declarator(node, spec.ty.clone())?;
-            let d = self.finish_declaration(start, spec.clone(), n, t)?;
-            self.sema.declare(&d)?;
+            let mut d = self.finish_declaration(start, spec.clone(), n, t)?;
+            self.sema.declare(&mut d)?;
             decls.push(ExternalDeclaration::Declaration(d));
         }
         self.expect(&TokenKind::Semi)?;

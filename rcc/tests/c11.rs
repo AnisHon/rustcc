@@ -296,6 +296,48 @@ fn tag_types_use_declaration_identity() {
 }
 
 #[test]
+fn tag_namespace_supports_self_reference_shadowing_and_kind_checks() {
+    let ast = parse(
+        "struct Node { struct Node *next; }; int f(void) { struct Node { double value; } local; return 0; } struct Node global;",
+    );
+    let ExternalDeclaration::Declaration(outer) = &ast.declarations[0] else {
+        panic!()
+    };
+    let TypeKind::Struct {
+        id: outer_id,
+        fields: Some(fields),
+        ..
+    } = &outer.ty.kind
+    else {
+        panic!()
+    };
+    let TypeKind::Pointer(pointee) = &fields[0].ty.kind else {
+        panic!()
+    };
+    assert!(matches!(pointee.kind, TypeKind::Struct { id, .. } if id == *outer_id));
+
+    let ExternalDeclaration::Function(function) = &ast.declarations[1] else {
+        panic!()
+    };
+    let StatementKind::Compound(items) = &function.body.kind else {
+        panic!()
+    };
+    let rcc::BlockItem::Declaration(local) = &items[0] else {
+        panic!()
+    };
+    let TypeKind::Struct { id: local_id, .. } = local.ty.kind else {
+        panic!()
+    };
+    assert_ne!(local_id, *outer_id);
+
+    let ExternalDeclaration::Declaration(global) = &ast.declarations[2] else {
+        panic!()
+    };
+    assert!(matches!(global.ty.kind, TypeKind::Struct { id, .. } if id == *outer_id));
+    assert!(compile("struct Conflict; union Conflict;").is_err());
+}
+
+#[test]
 fn identifier_expressions_are_bound_to_declaration_ids() {
     let ast = parse("int source; int value = source;");
     let ExternalDeclaration::Declaration(source) = &ast.declarations[0] else {
@@ -315,4 +357,113 @@ fn identifier_expressions_are_bound_to_declaration_ids() {
         ExpressionKind::Identifier { declaration, .. } if declaration == source.id
     ));
     assert_eq!(std::mem::size_of::<rcc::DeclId>(), 4);
+}
+
+#[test]
+fn declarations_record_context_linkage_and_storage_duration() {
+    let ast = parse(
+        "static int internal; extern int external; _Thread_local int tls; int f(int p) { static int local; int automatic; return p; }",
+    );
+    let declarations = ast
+        .declarations
+        .iter()
+        .take(3)
+        .map(|declaration| match declaration {
+            ExternalDeclaration::Declaration(declaration) => declaration,
+            _ => panic!(),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(declarations[0].linkage, rcc::Linkage::Internal);
+    assert_eq!(declarations[1].linkage, rcc::Linkage::External);
+    assert_eq!(
+        declarations[2].storage_duration,
+        rcc::StorageDuration::Thread
+    );
+
+    let ExternalDeclaration::Function(function) = &ast.declarations[3] else {
+        panic!()
+    };
+    assert_eq!(function.parameters[0].context, function.body_context);
+    let StatementKind::Compound(items) = &function.body.kind else {
+        panic!()
+    };
+    let rcc::BlockItem::Declaration(local) = &items[0] else {
+        panic!()
+    };
+    let rcc::BlockItem::Declaration(automatic) = &items[1] else {
+        panic!()
+    };
+    assert_eq!(local.context, function.body_context);
+    assert_eq!(local.storage_duration, rcc::StorageDuration::Static);
+    assert_eq!(automatic.storage_duration, rcc::StorageDuration::Automatic);
+}
+
+#[test]
+fn compatible_redeclarations_form_a_decl_chain() {
+    let ast = parse("int function(int); int function(int value) { return value; }");
+    let ExternalDeclaration::Declaration(prototype) = &ast.declarations[0] else {
+        panic!()
+    };
+    let ExternalDeclaration::Function(definition) = &ast.declarations[1] else {
+        panic!()
+    };
+    assert_eq!(definition.previous_declaration, Some(prototype.id));
+
+    let errors = compile("int function(int); int function(double);").unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("incompatible redeclaration"))
+    );
+}
+
+#[test]
+fn rejects_duplicate_definitions_and_block_scope_redefinitions() {
+    for source in [
+        "int value = 1; int value = 2;",
+        "int function(void) { return 1; } int function(void) { return 2; }",
+        "int function(int parameter) { int parameter; return parameter; }",
+        "int function(void) { int local; int local; return 0; }",
+    ] {
+        let errors = compile(source).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("redefinition")),
+            "{source}: {errors:#?}"
+        );
+    }
+    parse("int tentative; int tentative; extern int object; int object = 1;");
+}
+
+#[test]
+fn validates_function_labels_and_switch_labels() {
+    parse("int f(void) { goto done; done: return 0; }");
+    for source in [
+        "int f(void) { goto missing; return 0; }",
+        "int f(void) { label: ; label: return 0; }",
+        "int f(int x) { switch (x) { case 1: ; case 1: return 0; } }",
+        "int f(int x) { switch (x) { default: ; default: return 0; } }",
+        "int f(void) { case 1: return 0; }",
+    ] {
+        assert!(compile(source).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn semantic_state_is_restored_when_function_parsing_recovers() {
+    let errors = compile(
+        "int first(void) { return missing_first; } int second(void) { return missing_second; }",
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("missing_first"))
+    );
+    assert!(
+        errors
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("missing_second"))
+    );
 }

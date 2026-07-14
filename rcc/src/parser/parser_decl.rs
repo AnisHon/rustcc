@@ -32,8 +32,14 @@ impl Parser {
             }
             self.check_initializer(&ty, initializer)?;
         }
+        let (context, linkage, storage_duration) =
+            self.sema.declaration_properties(spec.storage, &ty);
         Ok(Declaration {
             id: self.sema.fresh_decl_id(),
+            previous_declaration: None,
+            context,
+            linkage,
+            storage_duration,
             name,
             ty,
             storage: spec.storage,
@@ -418,18 +424,20 @@ impl Parser {
     }
 
     pub(crate) fn record_spec(&mut self, union: bool) -> PResult<CType> {
-        self.bump();
+        let start = self.bump().range;
         let name = if let TokenKind::Identifier(n) = self.peek().kind.clone() {
             self.bump();
             Some(n)
         } else {
             None
         };
-        let key = name.clone().map(|n| (n, if union { 1 } else { 0 }));
-        let existing = key.as_ref().and_then(|key| self.sema.tag(key));
+        let key = name.clone();
         if self.eat(&TokenKind::LBrace).is_none() {
-            if let Some(existing) = existing {
-                return Ok(existing);
+            if let Some(existing) = key.as_deref().and_then(|name| self.sema.tag(name)) {
+                if record_kind_matches(&existing, union) {
+                    return Ok(existing);
+                }
+                return Err(self.sema_err("tag kind does not match previous declaration", start));
             }
             let id = self.sema.fresh_tag_id();
             let ty = CType::new(if union {
@@ -450,13 +458,37 @@ impl Parser {
             }
             return Ok(ty);
         }
-        let id = existing.as_ref().map_or_else(
-            || self.sema.fresh_tag_id(),
-            |ty| match ty.kind {
+        let current = key.as_deref().and_then(|name| self.sema.current_tag(name));
+        let id = if let Some(current) = current {
+            if !record_kind_matches(&current, union) {
+                return Err(self.sema_err("tag kind does not match previous declaration", start));
+            }
+            if record_is_complete(&current) {
+                return Err(self.sema_err("redefinition of record tag", start));
+            }
+            match current.kind {
                 TypeKind::Struct { id, .. } | TypeKind::Union { id, .. } => id,
                 _ => unreachable!(),
-            },
-        );
+            }
+        } else {
+            self.sema.fresh_tag_id()
+        };
+        if let Some(key) = &key {
+            let incomplete = CType::new(if union {
+                TypeKind::Union {
+                    id,
+                    name: name.clone(),
+                    fields: None,
+                }
+            } else {
+                TypeKind::Struct {
+                    id,
+                    name: name.clone(),
+                    fields: None,
+                }
+            });
+            self.sema.define_tag(key.clone(), incomplete);
+        }
         let mut fields = vec![];
         while !self.at(&TokenKind::RBrace) {
             let s = self.peek().range;
@@ -509,18 +541,20 @@ impl Parser {
         Ok(ty)
     }
     pub(crate) fn enum_spec(&mut self) -> PResult<CType> {
-        self.bump();
+        let start = self.bump().range;
         let name = if let TokenKind::Identifier(n) = self.peek().kind.clone() {
             self.bump();
             Some(n)
         } else {
             None
         };
-        let key = name.clone().map(|n| (n, 2));
-        let existing = key.as_ref().and_then(|key| self.sema.tag(key));
+        let key = name.clone();
         if self.eat(&TokenKind::LBrace).is_none() {
-            if let Some(existing) = existing {
-                return Ok(existing);
+            if let Some(existing) = key.as_deref().and_then(|name| self.sema.tag(name)) {
+                if matches!(existing.kind, TypeKind::Enum { .. }) {
+                    return Ok(existing);
+                }
+                return Err(self.sema_err("tag kind does not match previous declaration", start));
             }
             let ty = CType::new(TypeKind::Enum {
                 id: self.sema.fresh_tag_id(),
@@ -532,13 +566,34 @@ impl Parser {
             }
             return Ok(ty);
         }
-        let id = existing.as_ref().map_or_else(
-            || self.sema.fresh_tag_id(),
-            |ty| match ty.kind {
-                TypeKind::Enum { id, .. } => id,
-                _ => unreachable!(),
-            },
-        );
+        let current = key.as_deref().and_then(|name| self.sema.current_tag(name));
+        let id = if let Some(current) = current {
+            match current.kind {
+                TypeKind::Enum {
+                    id, variants: None, ..
+                } => id,
+                TypeKind::Enum { .. } => {
+                    return Err(self.sema_err("redefinition of enum tag", start));
+                }
+                _ => {
+                    return Err(
+                        self.sema_err("tag kind does not match previous declaration", start)
+                    );
+                }
+            }
+        } else {
+            self.sema.fresh_tag_id()
+        };
+        if let Some(key) = &key {
+            self.sema.define_tag(
+                key.clone(),
+                CType::new(TypeKind::Enum {
+                    id,
+                    name: name.clone(),
+                    variants: None,
+                }),
+            );
+        }
         let mut variants = vec![];
         let mut next = 0i64;
         while !self.at(&TokenKind::RBrace) {
@@ -660,6 +715,7 @@ impl Parser {
     pub(crate) fn parameter_list(&mut self) -> PResult<(Vec<Parameter>, bool, bool)> {
         let mut p = vec![];
         let mut var = false;
+        let parameter_context = self.sema.fresh_context();
         if self.at(&TokenKind::RParen) {
             return Ok((p, var, false));
         }
@@ -672,6 +728,7 @@ impl Parser {
                 };
                 p.push(Parameter {
                     id: self.sema.fresh_decl_id(),
+                    context: parameter_context,
                     name: Some(name),
                     ty: CType::int(),
                     range: token.range,
@@ -701,6 +758,7 @@ impl Parser {
             }
             p.push(Parameter {
                 id: self.sema.fresh_decl_id(),
+                context: parameter_context,
                 name: n,
                 ty,
                 range: s.join(self.previous().range),
@@ -849,8 +907,14 @@ impl Parser {
         let start = self.peek().range;
         let spec = self.declaration_specifiers()?;
         if self.eat(&TokenKind::Semi).is_some() {
+            let (context, linkage, storage_duration) =
+                self.sema.declaration_properties(spec.storage, &spec.ty);
             return Ok(vec![Declaration {
                 id: self.sema.fresh_decl_id(),
+                previous_declaration: None,
+                context,
+                linkage,
+                storage_duration,
                 name: None,
                 ty: spec.ty,
                 storage: spec.storage,
@@ -864,8 +928,8 @@ impl Parser {
         loop {
             let n = self.declarator(false)?;
             let (name, ty, _) = self.apply_declarator(n, spec.ty.clone())?;
-            let d = self.finish_declaration(start, spec.clone(), name, ty)?;
-            self.sema.declare(&d)?;
+            let mut d = self.finish_declaration(start, spec.clone(), name, ty)?;
+            self.sema.declare(&mut d)?;
             out.push(d);
             if self.eat(&TokenKind::Comma).is_none() {
                 break;
@@ -874,4 +938,24 @@ impl Parser {
         self.expect(&TokenKind::Semi)?;
         Ok(out)
     }
+}
+
+fn record_kind_matches(ty: &CType, union: bool) -> bool {
+    matches!(
+        (&ty.kind, union),
+        (TypeKind::Struct { .. }, false) | (TypeKind::Union { .. }, true)
+    )
+}
+
+fn record_is_complete(ty: &CType) -> bool {
+    matches!(
+        ty.kind,
+        TypeKind::Struct {
+            fields: Some(_),
+            ..
+        } | TypeKind::Union {
+            fields: Some(_),
+            ..
+        }
+    )
 }

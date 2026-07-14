@@ -177,6 +177,7 @@ impl Parser {
             let TokenKind::Identifier(n) = t.kind else {
                 return Err(self.err("expected label after goto"));
             };
+            self.sema.reference_label(n.clone(), t.range);
             let s = self.expect(&TokenKind::Semi)?;
             return Ok(Statement {
                 kind: StatementKind::Goto(n),
@@ -232,13 +233,12 @@ impl Parser {
             });
         }
         if self.eat_kw(Keyword::Case).is_some() {
-            if !self.sema.in_switch() {
-                return Err(self.sema_err("case outside switch", start));
-            }
             let e = self.assignment_expression()?;
-            if self.sema.const_int(&e).is_none() {
-                return Err(self.sema_err("case value must be an integer constant", e.range));
-            }
+            let value = self
+                .sema
+                .const_int(&e)
+                .ok_or_else(|| self.sema_err("case value must be an integer constant", e.range))?;
+            self.sema.declare_case(value, e.range)?;
             self.expect(&TokenKind::Colon)?;
             let st = Box::new(self.statement()?);
             let span = start.join(st.range);
@@ -251,9 +251,7 @@ impl Parser {
             });
         }
         if self.eat_kw(Keyword::Default).is_some() {
-            if !self.sema.in_switch() {
-                return Err(self.sema_err("default outside switch", start));
-            }
+            self.sema.declare_default(start)?;
             self.expect(&TokenKind::Colon)?;
             let st = Box::new(self.statement()?);
             let span = start.join(st.range);
@@ -270,6 +268,7 @@ impl Parser {
         {
             self.bump();
             self.bump();
+            self.sema.declare_label(n.clone(), start)?;
             let st = Box::new(self.statement()?);
             let span = start.join(st.range);
             return Ok(Statement {
