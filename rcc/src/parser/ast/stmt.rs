@@ -1,10 +1,10 @@
 use super::{Declaration, Expression, StaticAssertion};
-use crate::types::Span;
+use crate::source::SourceRange;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Statement {
     pub kind: StatementKind,
-    pub span: Span,
+    pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]

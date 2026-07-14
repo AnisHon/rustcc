@@ -2,9 +2,6 @@ use super::super::ast::*;
 use super::Sema;
 
 impl Sema {
-    pub(crate) fn sizeof(&self, t: &CType) -> usize {
-        self.layout(t).0
-    }
     pub(crate) fn alignof(&self, t: &CType) -> usize {
         self.layout(t).1
     }

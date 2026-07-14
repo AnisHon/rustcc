@@ -1,5 +1,6 @@
+use crate::TargetInfo;
 use crate::err::{Diagnostic, ErrorKind};
-use crate::parser::ast::{CType, Declaration, Parameter, StorageClass};
+use crate::parser::ast::{CType, Declaration, Parameter, StorageClass, TagId};
 use std::collections::HashMap;
 
 mod constant_eval;
@@ -15,6 +16,8 @@ pub(crate) struct Sema {
     current_return: Option<CType>,
     loop_depth: usize,
     switch_depth: usize,
+    target: TargetInfo,
+    next_tag_id: u32,
 }
 
 impl Sema {
@@ -27,6 +30,8 @@ impl Sema {
             current_return: None,
             loop_depth: 0,
             switch_depth: 0,
+            target: TargetInfo::default(),
+            next_tag_id: 0,
         }
     }
 
@@ -70,7 +75,7 @@ impl Sema {
                 return Err(Diagnostic::new(
                     ErrorKind::Semantic,
                     format!("redefinition of '{name}' in the ordinary identifier namespace"),
-                    declaration.span,
+                    declaration.range,
                 ));
             }
             self.typedefs.last_mut().unwrap()
@@ -79,7 +84,7 @@ impl Sema {
                 return Err(Diagnostic::new(
                     ErrorKind::Semantic,
                     format!("redefinition of typedef name '{name}'"),
-                    declaration.span,
+                    declaration.range,
                 ));
             }
             self.scopes.last_mut().unwrap()
@@ -89,7 +94,7 @@ impl Sema {
                 return Err(Diagnostic::new(
                     ErrorKind::Semantic,
                     format!("incompatible redeclaration of '{name}'"),
-                    declaration.span,
+                    declaration.range,
                 ));
             }
         } else {
@@ -126,6 +131,12 @@ impl Sema {
 
     pub(crate) fn define_tag(&mut self, key: (String, u8), ty: CType) {
         self.tags.insert(key, ty);
+    }
+
+    pub(crate) fn fresh_tag_id(&mut self) -> TagId {
+        let id = TagId(self.next_tag_id);
+        self.next_tag_id += 1;
+        id
     }
 
     pub(crate) fn declare_enumerator(&mut self, name: String, value: i128) {

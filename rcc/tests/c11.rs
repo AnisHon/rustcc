@@ -1,7 +1,9 @@
 use rcc::{ExpressionKind, ExternalDeclaration, StatementKind, TypeKind, compile};
 
 fn parse(source: &str) -> rcc::TranslationUnit {
-    compile(source).unwrap_or_else(|errors| panic!("{errors:#?}"))
+    compile(source)
+        .unwrap_or_else(|errors| panic!("{errors:#?}"))
+        .ast
 }
 
 #[test]
@@ -82,7 +84,13 @@ fn supports_c11_generic_compound_literal_and_static_assert() {
     let StatementKind::Return(Some(expr)) = &ret.kind else {
         panic!()
     };
-    assert!(matches!(expr.kind, ExpressionKind::GenericSelection { .. }));
+    let ExpressionKind::ImplicitCast { expression, .. } = &expr.kind else {
+        panic!()
+    };
+    assert!(matches!(
+        expression.kind,
+        ExpressionKind::GenericSelection { .. }
+    ));
 }
 
 #[test]
@@ -93,6 +101,18 @@ fn reports_semantic_errors() {
             .iter()
             .any(|e| e.message.contains("modifiable lvalue"))
     );
+}
+
+#[test]
+fn rejects_invalid_derived_types_without_panicking() {
+    for source in [
+        "void values[2];",
+        "int function(void)[2];",
+        "_Atomic(int (void)) value;",
+    ] {
+        let errors = compile(source).unwrap_err();
+        assert!(!errors.diagnostics.is_empty(), "{source}");
+    }
 }
 
 #[test]
@@ -212,4 +232,65 @@ fn preserves_wide_literals_and_old_style_function_types() {
     };
     assert!(!has_prototype);
     assert!(matches!(params[1].ty.kind, TypeKind::Short { .. }));
+}
+
+#[test]
+fn typed_ast_preserves_implicit_c_conversions() {
+    let ast = parse("int left; short right; int value = left + right;");
+    let ExternalDeclaration::Declaration(value) = &ast.declarations[2] else {
+        panic!()
+    };
+    let Some(rcc::Initializer::Expression(expression)) = &value.initializer else {
+        panic!()
+    };
+    let ExpressionKind::Binary { left, right, .. } = &expression.kind else {
+        panic!()
+    };
+    assert!(matches!(
+        left.kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::LValueToRValue,
+            ..
+        }
+    ));
+    assert!(matches!(
+        right.kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::IntegralPromotion,
+            ..
+        }
+    ));
+    let ExpressionKind::ImplicitCast { expression, .. } = &right.kind else {
+        panic!()
+    };
+    assert!(matches!(
+        expression.kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::LValueToRValue,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn tag_types_use_declaration_identity() {
+    let ast = parse(
+        "struct Item; struct Item { int value; }; struct Item item; struct { int value; } a; struct { int value; } b;",
+    );
+    let ids = ast
+        .declarations
+        .iter()
+        .filter_map(|declaration| {
+            let ExternalDeclaration::Declaration(declaration) = declaration else {
+                return None;
+            };
+            match declaration.ty.kind {
+                TypeKind::Struct { id, .. } => Some(id),
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(ids[0], ids[1]);
+    assert_eq!(ids[1], ids[2]);
+    assert_ne!(ids[3], ids[4]);
 }

@@ -7,13 +7,13 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     };
     match compile_file(&path) {
-        Ok(ast) => {
-            print!("{}", AstWriter::render(&ast));
+        Ok(compilation) => {
+            print!("{}", AstWriter::render(&compilation.ast));
             ExitCode::SUCCESS
         }
         Err(diagnostics) => {
-            for diagnostic in diagnostics {
-                eprintln!("{path}:{diagnostic}");
+            for diagnostic in &diagnostics.diagnostics {
+                eprintln!("{}", diagnostic.render(&diagnostics.source_manager));
             }
             ExitCode::FAILURE
         }

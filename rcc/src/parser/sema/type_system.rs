@@ -2,30 +2,247 @@ use super::super::ast::*;
 use super::super::parser_core::PResult;
 use super::Sema;
 use crate::err::{Diagnostic, ErrorKind};
-use crate::types::Span;
+use crate::source::SourceRange;
 
 impl Sema {
-    fn error(&self, message: impl Into<String>, span: Span) -> Diagnostic {
-        Diagnostic::new(ErrorKind::Semantic, message, span)
+    fn error(&self, message: impl Into<String>, range: SourceRange) -> Diagnostic {
+        Diagnostic::new(ErrorKind::Semantic, message, range)
+    }
+
+    pub(crate) fn validate_type(&self, ty: &CType, range: SourceRange) -> PResult<()> {
+        if ty.qualifiers.is_atomic
+            && matches!(ty.kind, TypeKind::Array { .. } | TypeKind::Function { .. })
+        {
+            return Err(self.error(
+                "_Atomic cannot be applied to an array or function type",
+                range,
+            ));
+        }
+        match &ty.kind {
+            TypeKind::Pointer(pointee) => self.validate_type(pointee, range),
+            TypeKind::Array { element, .. } => {
+                if matches!(element.kind, TypeKind::Void | TypeKind::Function { .. }) {
+                    return Err(
+                        self.error("array element type must be a complete object type", range)
+                    );
+                }
+                self.validate_type(element, range)
+            }
+            TypeKind::Function {
+                return_type,
+                params,
+                ..
+            } => {
+                if matches!(
+                    return_type.kind,
+                    TypeKind::Array { .. } | TypeKind::Function { .. }
+                ) {
+                    return Err(
+                        self.error("function cannot return an array or function type", range)
+                    );
+                }
+                self.validate_type(return_type, range)?;
+                for parameter in params {
+                    self.validate_type(&parameter.ty, parameter.range)?;
+                }
+                Ok(())
+            }
+            TypeKind::Complex(inner) | TypeKind::Imaginary(inner) => {
+                self.validate_type(inner, range)
+            }
+            _ => Ok(()),
+        }
     }
 
     pub(crate) fn require_scalar(&self, e: &Expression, where_: &str) -> PResult<()> {
         if e.ty.decay().is_scalar() {
             Ok(())
         } else {
-            Err(self.error(format!("{where_} requires scalar type"), e.span))
+            Err(self.error(format!("{where_} requires scalar type"), e.range))
         }
     }
-    pub(crate) fn require_assignable(&self, to: &CType, from: &Expression) -> PResult<()> {
-        let f = from.ty.decay();
-        if self.compatible(to, &f)
-            || to.is_arithmetic() && f.is_arithmetic()
-            || matches!(to.kind, TypeKind::Pointer(_))
-                && (matches!(f.kind, TypeKind::Pointer(_)) || self.const_int(from) == Some(0))
-        {
-            Ok(())
+    pub(crate) fn assignment_conversion(
+        &self,
+        target: &CType,
+        expression: Expression,
+    ) -> PResult<Expression> {
+        let null_pointer_constant = self.const_int(&expression) == Some(0);
+        let expression = self.default_conversion(expression);
+        let source = expression.ty.clone();
+        let allowed = self.compatible(target, &source)
+            || target.is_arithmetic() && source.is_arithmetic()
+            || matches!(target.kind, TypeKind::Pointer(_))
+                && (matches!(source.kind, TypeKind::Pointer(_)) || null_pointer_constant);
+        if !allowed {
+            return Err(self.error("incompatible assignment", expression.range));
+        }
+        let mut result = target.clone();
+        result.qualifiers = Qualifiers::default();
+        Ok(self.convert_to(expression, result))
+    }
+
+    pub(crate) fn make_binary(
+        &self,
+        op: BinaryOp,
+        left: Expression,
+        right: Expression,
+    ) -> PResult<Expression> {
+        use BinaryOp::*;
+        let span = left.range.join(right.range);
+        let mut left = self.default_conversion(left);
+        let mut right = self.default_conversion(right);
+        let left_type = left.ty.clone();
+        let right_type = right.ty.clone();
+        let result = match op {
+            LogicalAnd | LogicalOr => {
+                if !left_type.is_scalar() || !right_type.is_scalar() {
+                    return Err(self.error("logical operands must be scalar", span));
+                }
+                CType::int()
+            }
+            Less | LessEqual | Greater | GreaterEqual | Equal | NotEqual => {
+                if left_type.is_arithmetic() && right_type.is_arithmetic() {
+                    (left, right, _) = self.usual_arithmetic_conversions(left, right);
+                } else if !(matches!(left_type.kind, TypeKind::Pointer(_))
+                    && matches!(right_type.kind, TypeKind::Pointer(_)))
+                {
+                    return Err(self.error("invalid comparison operands", span));
+                }
+                CType::int()
+            }
+            Add | Subtract
+                if matches!(left_type.kind, TypeKind::Pointer(_)) && right_type.is_integer() =>
+            {
+                right = self.integer_promotion(right);
+                left_type
+            }
+            Subtract
+                if matches!(left_type.kind, TypeKind::Pointer(_))
+                    && matches!(right_type.kind, TypeKind::Pointer(_)) =>
+            {
+                CType::new(TypeKind::Long { signed: true })
+            }
+            Add if left_type.is_integer() && matches!(right_type.kind, TypeKind::Pointer(_)) => {
+                left = self.integer_promotion(left);
+                right_type
+            }
+            ShiftLeft | ShiftRight => {
+                if !left_type.is_integer() || !right_type.is_integer() {
+                    return Err(self.error("operator requires integer operands", span));
+                }
+                left = self.integer_promotion(left);
+                right = self.integer_promotion(right);
+                left.ty.clone()
+            }
+            Remainder | BitAnd | BitXor | BitOr => {
+                if !left_type.is_integer() || !right_type.is_integer() {
+                    return Err(self.error("operator requires integer operands", span));
+                }
+                let common;
+                (left, right, common) = self.usual_arithmetic_conversions(left, right);
+                common
+            }
+            Multiply | Divide | Add | Subtract => {
+                if !left_type.is_arithmetic() || !right_type.is_arithmetic() {
+                    return Err(self.error("operator requires arithmetic operands", span));
+                }
+                let common;
+                (left, right, common) = self.usual_arithmetic_conversions(left, right);
+                common
+            }
+        };
+        Ok(Expression {
+            kind: ExpressionKind::Binary {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+            ty: result,
+            category: ValueCategory::RValue,
+            range: span,
+        })
+    }
+
+    pub(crate) fn default_conversion(&self, expression: Expression) -> Expression {
+        let (kind, ty) = match &expression.ty.kind {
+            TypeKind::Array { element, .. } => (
+                ImplicitCastKind::ArrayToPointerDecay,
+                CType::pointer((**element).clone()),
+            ),
+            TypeKind::Function { .. } => (
+                ImplicitCastKind::FunctionToPointerDecay,
+                CType::pointer(expression.ty.clone()),
+            ),
+            _ if expression.category == ValueCategory::LValue => {
+                let mut ty = expression.ty.clone();
+                ty.qualifiers = Qualifiers::default();
+                (ImplicitCastKind::LValueToRValue, ty)
+            }
+            _ => return expression,
+        };
+        self.implicit_cast(expression, ty, kind)
+    }
+
+    pub(crate) fn integer_promotion(&self, expression: Expression) -> Expression {
+        let expression = self.default_conversion(expression);
+        let promoted = self.integer_promote(&expression.ty);
+        if promoted == expression.ty {
+            expression
         } else {
-            Err(self.error("incompatible assignment", from.span))
+            self.implicit_cast(expression, promoted, ImplicitCastKind::IntegralPromotion)
+        }
+    }
+
+    fn usual_arithmetic_conversions(
+        &self,
+        left: Expression,
+        right: Expression,
+    ) -> (Expression, Expression, CType) {
+        let left = if left.ty.is_integer() {
+            self.integer_promotion(left)
+        } else {
+            left
+        };
+        let right = if right.ty.is_integer() {
+            self.integer_promotion(right)
+        } else {
+            right
+        };
+        let common = self.usual_arithmetic(&left.ty, &right.ty);
+        let left = self.convert_to(left, common.clone());
+        let right = self.convert_to(right, common.clone());
+        (left, right, common)
+    }
+
+    fn convert_to(&self, expression: Expression, target: CType) -> Expression {
+        if expression.ty == target {
+            return expression;
+        }
+        let kind = if expression.ty.is_integer() && target.is_integer() {
+            ImplicitCastKind::IntegralConversion
+        } else if expression.ty.is_arithmetic() && target.is_arithmetic() {
+            ImplicitCastKind::FloatingConversion
+        } else {
+            ImplicitCastKind::PointerConversion
+        };
+        self.implicit_cast(expression, target, kind)
+    }
+
+    fn implicit_cast(
+        &self,
+        expression: Expression,
+        target: CType,
+        kind: ImplicitCastKind,
+    ) -> Expression {
+        let span = expression.range;
+        Expression {
+            kind: ExpressionKind::ImplicitCast {
+                kind,
+                expression: Box::new(expression),
+            },
+            ty: target,
+            category: ValueCategory::RValue,
+            range: span,
         }
     }
     pub(crate) fn compatible(&self, a: &CType, b: &CType) -> bool {
@@ -62,11 +279,9 @@ impl Sema {
                         || matches!(sx, ArraySize::Unspecified)
                         || matches!(sy, ArraySize::Unspecified))
             }
-            (TypeKind::Struct { name: x, .. }, TypeKind::Struct { name: y, .. })
-            | (TypeKind::Union { name: x, .. }, TypeKind::Union { name: y, .. })
-            | (TypeKind::Enum { name: x, .. }, TypeKind::Enum { name: y, .. }) => {
-                x.is_some() && x == y
-            }
+            (TypeKind::Struct { id: x, .. }, TypeKind::Struct { id: y, .. })
+            | (TypeKind::Union { id: x, .. }, TypeKind::Union { id: y, .. })
+            | (TypeKind::Enum { id: x, .. }, TypeKind::Enum { id: y, .. }) => x == y,
             (
                 TypeKind::Function {
                     return_type: x,

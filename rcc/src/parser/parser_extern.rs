@@ -9,7 +9,7 @@ impl Parser {
                 self.static_assert()?,
             )]);
         }
-        let start = self.peek().span;
+        let start = self.peek().range;
         let spec = self.declaration_specifiers()?;
         if self.eat(&TokenKind::Semi).is_some() {
             return Ok(vec![ExternalDeclaration::Declaration(Declaration {
@@ -19,11 +19,12 @@ impl Parser {
                 function_specifiers: spec.function_specifiers,
                 initializer: None,
                 alignment: spec.alignment,
-                span: start.join(self.previous().span),
+                range: start.join(self.previous().range),
             })]);
         }
         let node = self.declarator(false)?;
         let (name, mut ty, mut params) = self.apply_declarator(node, spec.ty.clone())?;
+        self.sema.validate_type(&ty, start)?;
         let old_style = matches!(
             &ty.kind,
             TypeKind::Function {
@@ -54,7 +55,7 @@ impl Parser {
                 function_specifiers: spec.function_specifiers,
                 initializer: None,
                 alignment: spec.alignment,
-                span: start,
+                range: start,
             };
             self.sema.declare(&d)?;
             let return_type = match &ty.kind {
@@ -64,7 +65,7 @@ impl Parser {
             self.sema.begin_function(&params, return_type);
             let body = self.compound_statement(false)?;
             self.sema.end_function();
-            let span = start.join(body.span);
+            let span = start.join(body.range);
             return Ok(vec![ExternalDeclaration::Function(FunctionDefinition {
                 name,
                 ty,
@@ -72,7 +73,7 @@ impl Parser {
                 function_specifiers: spec.function_specifiers,
                 parameters: params,
                 body,
-                span,
+                range: span,
             })]);
         }
         let mut decls = vec![];

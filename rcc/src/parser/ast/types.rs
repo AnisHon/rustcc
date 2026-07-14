@@ -1,5 +1,5 @@
 use super::Expression;
-use crate::types::Span;
+use crate::source::SourceRange;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Qualifiers {
@@ -13,6 +13,7 @@ pub struct Qualifiers {
 pub struct CType {
     pub kind: TypeKind,
     pub qualifiers: Qualifiers,
+    pub canonical: crate::QualType,
 }
 
 impl CType {
@@ -20,6 +21,7 @@ impl CType {
         Self {
             kind,
             qualifiers: Qualifiers::default(),
+            canonical: crate::QualType::default(),
         }
     }
     pub fn int() -> Self {
@@ -105,18 +107,24 @@ pub enum TypeKind {
         has_prototype: bool,
     },
     Struct {
+        id: TagId,
         name: Option<String>,
         fields: Option<Vec<Field>>,
     },
     Union {
+        id: TagId,
         name: Option<String>,
         fields: Option<Vec<Field>>,
     },
     Enum {
+        id: TagId,
         name: Option<String>,
         variants: Option<Vec<EnumVariant>>,
     },
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TagId(pub u32);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArraySize {
@@ -131,21 +139,21 @@ pub struct Field {
     pub name: Option<String>,
     pub ty: CType,
     pub bit_width: Option<u32>,
-    pub span: Span,
+    pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumVariant {
     pub name: String,
     pub value: i64,
-    pub span: Span,
+    pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Parameter {
     pub name: Option<String>,
     pub ty: CType,
-    pub span: Span,
+    pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

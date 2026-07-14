@@ -1,6 +1,6 @@
 use super::{CType, Initializer};
 use crate::lex::token::StringEncoding;
-use crate::types::Span;
+use crate::source::SourceRange;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueCategory {
@@ -14,7 +14,7 @@ pub struct Expression {
     pub kind: ExpressionKind,
     pub ty: CType,
     pub category: ValueCategory,
-    pub span: Span,
+    pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,6 +66,11 @@ pub enum ExpressionKind {
         target: CType,
         expression: Box<Expression>,
     },
+    /// A conversion required by the C abstract machine and inserted by Sema.
+    ImplicitCast {
+        kind: ImplicitCastKind,
+        expression: Box<Expression>,
+    },
     SizeofType(CType),
     SizeofExpression(Box<Expression>),
     Alignof(CType),
@@ -82,6 +87,17 @@ pub enum ExpressionKind {
         decrement: bool,
     },
     Comma(Vec<Expression>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImplicitCastKind {
+    LValueToRValue,
+    ArrayToPointerDecay,
+    FunctionToPointerDecay,
+    IntegralPromotion,
+    FloatingConversion,
+    IntegralConversion,
+    PointerConversion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

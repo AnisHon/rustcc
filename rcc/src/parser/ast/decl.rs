@@ -1,5 +1,5 @@
 use super::{CType, Expression, FunctionSpecifiers, Parameter, Statement, StorageClass};
-use crate::types::Span;
+use crate::source::SourceRange;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TranslationUnit {
@@ -18,7 +18,7 @@ pub enum ExternalDeclaration {
 pub struct StaticAssertion {
     pub condition: Expression,
     pub message: String,
-    pub span: Span,
+    pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,7 +29,7 @@ pub struct Declaration {
     pub function_specifiers: FunctionSpecifiers,
     pub initializer: Option<Initializer>,
     pub alignment: Option<usize>,
-    pub span: Span,
+    pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,7 +40,7 @@ pub struct FunctionDefinition {
     pub function_specifiers: FunctionSpecifiers,
     pub parameters: Vec<Parameter>,
     pub body: Statement,
-    pub span: Span,
+    pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -72,71 +72,14 @@ impl Sema {
         })
     }
     pub(crate) fn const_int(&self, e: &Expression) -> Option<i128> {
-        use BinaryOp::*;
-        match &e.kind {
-            ExpressionKind::Integer(x) => Some(*x),
-            ExpressionKind::Identifier(name) => self
-                .constants
+        let lookup = |name: &str| {
+            self.constants
                 .iter()
                 .rev()
-                .find_map(|scope| scope.get(name).copied()),
-            ExpressionKind::Character { value, .. } => Some(*value as i128),
-            ExpressionKind::Unary { op, operand } => {
-                let x = self.const_int(operand)?;
-                Some(match op {
-                    UnaryOp::Plus => x,
-                    UnaryOp::Minus => -x,
-                    UnaryOp::LogicalNot => (x == 0) as i128,
-                    UnaryOp::BitNot => !x,
-                    _ => return None,
-                })
-            }
-            ExpressionKind::Binary { op, left, right } => {
-                let a = self.const_int(left)?;
-                if *op == LogicalAnd && a == 0 {
-                    return Some(0);
-                }
-                if *op == LogicalOr && a != 0 {
-                    return Some(1);
-                }
-                let b = self.const_int(right)?;
-                Some(match op {
-                    Multiply => a * b,
-                    Divide => a.checked_div(b)?,
-                    Remainder => a.checked_rem(b)?,
-                    Add => a + b,
-                    Subtract => a - b,
-                    ShiftLeft => a << b,
-                    ShiftRight => a >> b,
-                    Less => (a < b) as i128,
-                    LessEqual => (a <= b) as i128,
-                    Greater => (a > b) as i128,
-                    GreaterEqual => (a >= b) as i128,
-                    Equal => (a == b) as i128,
-                    NotEqual => (a != b) as i128,
-                    BitAnd => a & b,
-                    BitXor => a ^ b,
-                    BitOr => a | b,
-                    LogicalAnd => (a != 0 && b != 0) as i128,
-                    LogicalOr => (a != 0 || b != 0) as i128,
-                })
-            }
-            ExpressionKind::Conditional {
-                condition,
-                then_expr,
-                else_expr,
-            } => {
-                if self.const_int(condition)? != 0 {
-                    self.const_int(then_expr)
-                } else {
-                    self.const_int(else_expr)
-                }
-            }
-            ExpressionKind::Cast { expression, .. } => self.const_int(expression),
-            ExpressionKind::SizeofType(t) => Some(self.sizeof(t) as i128),
-            ExpressionKind::SizeofExpression(x) => Some(self.sizeof(&x.ty) as i128),
-            ExpressionKind::Alignof(t) => Some(self.alignof(t) as i128),
-            _ => None,
-        }
+                .find_map(|scope| scope.get(name).copied())
+        };
+        crate::ConstantEvaluator::new(&self.target, &lookup)
+            .evaluate_integer(e)
+            .ok()
     }
 }

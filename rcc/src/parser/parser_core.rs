@@ -2,7 +2,7 @@ use super::sema::Sema;
 use crate::err::{Diagnostic, ErrorKind};
 use crate::lex::token::{Keyword, Token, TokenKind};
 use crate::parser::ast::*;
-use crate::types::Span;
+use crate::source::SourceRange;
 
 pub(crate) type PResult<T> = Result<T, Diagnostic>;
 
@@ -88,10 +88,10 @@ impl Parser {
         }
     }
     pub(crate) fn err(&self, msg: impl Into<String>) -> Diagnostic {
-        Diagnostic::new(ErrorKind::Syntax, msg, self.peek().span)
+        Diagnostic::new(ErrorKind::Syntax, msg, self.peek().range)
     }
-    pub(crate) fn sema_err(&self, msg: impl Into<String>, span: Span) -> Diagnostic {
-        Diagnostic::new(ErrorKind::Semantic, msg, span)
+    pub(crate) fn sema_err(&self, msg: impl Into<String>, range: SourceRange) -> Diagnostic {
+        Diagnostic::new(ErrorKind::Semantic, msg, range)
     }
     pub(crate) fn synchronize(&mut self) {
         while !self.at(&TokenKind::Eof) {

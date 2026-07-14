@@ -1,4 +1,4 @@
-use crate::types::Span;
+use crate::source::SourceRange;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StringEncoding {
@@ -182,5 +182,5 @@ pub enum TokenKind {
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,
-    pub span: Span,
+    pub range: SourceRange,
 }

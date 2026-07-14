@@ -2,7 +2,7 @@ use super::parser_core::{PResult, Parser};
 use crate::err::{Diagnostic, ErrorKind};
 use crate::lex::token::{Keyword, Literal, StringEncoding, TokenKind};
 use crate::parser::ast::*;
-use crate::types::Span;
+use crate::source::SourceRange;
 
 impl Parser {
     pub(crate) fn expression(&mut self) -> PResult<Expression> {
@@ -10,7 +10,7 @@ impl Parser {
         if self.eat(&TokenKind::Comma).is_none() {
             return Ok(first);
         }
-        let start = first.span;
+        let start = first.range;
         let mut xs = vec![first];
         loop {
             xs.push(self.assignment_expression()?);
@@ -19,12 +19,12 @@ impl Parser {
             }
         }
         let ty = xs.last().unwrap().ty.clone();
-        let span = start.join(xs.last().unwrap().span);
+        let span = start.join(xs.last().unwrap().range);
         Ok(Expression {
             kind: ExpressionKind::Comma(xs),
             ty,
             category: ValueCategory::RValue,
-            span,
+            range: span,
         })
     }
     pub(crate) fn assignment_expression(&mut self) -> PResult<Expression> {
@@ -45,11 +45,11 @@ impl Parser {
         };
         self.bump();
         if left.category != ValueCategory::LValue || left.ty.qualifiers.is_const {
-            return Err(self.sema_err("assignment requires a modifiable lvalue", left.span));
+            return Err(self.sema_err("assignment requires a modifiable lvalue", left.range));
         }
         let right = self.assignment_expression()?;
-        self.sema.require_assignable(&left.ty, &right)?;
-        let span = left.span.join(right.span);
+        let right = self.sema.assignment_conversion(&left.ty, right)?;
+        let span = left.range.join(right.range);
         let ty = left.ty.clone();
         Ok(Expression {
             kind: ExpressionKind::Assignment {
@@ -59,7 +59,7 @@ impl Parser {
             },
             ty,
             category: ValueCategory::RValue,
-            span,
+            range: span,
         })
     }
     pub(crate) fn conditional_expression(&mut self) -> PResult<Expression> {
@@ -72,9 +72,9 @@ impl Parser {
         self.expect(&TokenKind::Colon)?;
         let b = self.conditional_expression()?;
         let ty = self.sema.common_type(&a.ty, &b.ty).ok_or_else(|| {
-            self.sema_err("incompatible conditional operands", a.span.join(b.span))
+            self.sema_err("incompatible conditional operands", a.range.join(b.range))
         })?;
-        let span = c.span.join(b.span);
+        let span = c.range.join(b.range);
         Ok(Expression {
             kind: ExpressionKind::Conditional {
                 condition: Box::new(c),
@@ -83,7 +83,7 @@ impl Parser {
             },
             ty,
             category: ValueCategory::RValue,
-            span,
+            range: span,
         })
     }
 
@@ -120,80 +120,10 @@ impl Parser {
             }
             self.bump();
             let rhs = self.binary_expression(prec + 1)?;
-            lhs = self.make_binary(op, lhs, rhs)?
+            lhs = self.sema.make_binary(op, lhs, rhs)?
         }
         Ok(lhs)
     }
-    pub(crate) fn make_binary(
-        &self,
-        op: BinaryOp,
-        left: Expression,
-        right: Expression,
-    ) -> PResult<Expression> {
-        use BinaryOp::*;
-        let l = left.ty.decay();
-        let r = right.ty.decay();
-        let ty = match op {
-            LogicalAnd | LogicalOr => {
-                if !l.is_scalar() || !r.is_scalar() {
-                    return Err(self.sema_err(
-                        "logical operands must be scalar",
-                        left.span.join(right.span),
-                    ));
-                }
-                CType::int()
-            }
-            Less | LessEqual | Greater | GreaterEqual | Equal | NotEqual => {
-                if !(l.is_arithmetic() && r.is_arithmetic()
-                    || matches!(l.kind, TypeKind::Pointer(_))
-                        && matches!(r.kind, TypeKind::Pointer(_)))
-                {
-                    return Err(
-                        self.sema_err("invalid comparison operands", left.span.join(right.span))
-                    );
-                }
-                CType::int()
-            }
-            Add | Subtract if matches!(l.kind, TypeKind::Pointer(_)) && r.is_integer() => l.clone(),
-            Subtract
-                if matches!(l.kind, TypeKind::Pointer(_))
-                    && matches!(r.kind, TypeKind::Pointer(_)) =>
-            {
-                CType::new(TypeKind::Long { signed: true })
-            }
-            Add if l.is_integer() && matches!(r.kind, TypeKind::Pointer(_)) => r.clone(),
-            ShiftLeft | ShiftRight | Remainder | BitAnd | BitXor | BitOr => {
-                if !l.is_integer() || !r.is_integer() {
-                    return Err(self.sema_err(
-                        "operator requires integer operands",
-                        left.span.join(right.span),
-                    ));
-                }
-                self.sema.usual_arithmetic(&l, &r)
-            }
-            Multiply | Divide | Add | Subtract => {
-                if !l.is_arithmetic() || !r.is_arithmetic() {
-                    return Err(self.sema_err(
-                        "operator requires arithmetic operands",
-                        left.span.join(right.span),
-                    ));
-                }
-                self.sema.usual_arithmetic(&l, &r)
-            }
-        };
-        let span = left.span.join(right.span);
-        Ok(Expression {
-            kind: ExpressionKind::Binary {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            },
-            ty,
-            category: ValueCategory::RValue,
-            span,
-        })
-    }
-
     pub(crate) fn cast_expression(&mut self) -> PResult<Expression> {
         if self.at(&TokenKind::LParen) {
             let save = self.pos;
@@ -204,7 +134,7 @@ impl Parser {
             {
                 if self.at(&TokenKind::LBrace) {
                     let init = self.initializer()?;
-                    let span = l.span.join(self.previous().span);
+                    let span = l.range.join(self.previous().range);
                     return Ok(Expression {
                         kind: ExpressionKind::CompoundLiteral {
                             ty: ty.clone(),
@@ -212,14 +142,14 @@ impl Parser {
                         },
                         ty,
                         category: ValueCategory::LValue,
-                        span,
+                        range: span,
                     });
                 }
                 let e = self.cast_expression()?;
                 if matches!(ty.kind, TypeKind::Array { .. } | TypeKind::Function { .. }) {
-                    return Err(self.sema_err("cast target must be a scalar type", l.span));
+                    return Err(self.sema_err("cast target must be a scalar type", l.range));
                 }
-                let span = l.span.join(e.span);
+                let span = l.range.join(e.range);
                 return Ok(Expression {
                     kind: ExpressionKind::Cast {
                         target: ty.clone(),
@@ -227,7 +157,7 @@ impl Parser {
                     },
                     ty,
                     category: ValueCategory::RValue,
-                    span,
+                    range: span,
                 });
             }
             self.pos = save;
@@ -235,7 +165,7 @@ impl Parser {
         self.unary_expression()
     }
     pub(crate) fn unary_expression(&mut self) -> PResult<Expression> {
-        let start = self.peek().span;
+        let start = self.peek().range;
         if self.eat_kw(Keyword::Sizeof).is_some() {
             if self.eat(&TokenKind::LParen).is_some() {
                 let save = self.pos;
@@ -246,7 +176,7 @@ impl Parser {
                         kind: ExpressionKind::SizeofType(ty),
                         ty: CType::new(TypeKind::Long { signed: false }),
                         category: ValueCategory::RValue,
-                        span: start.join(r.span),
+                        range: start.join(r.range),
                     });
                 }
                 self.pos = save;
@@ -256,16 +186,16 @@ impl Parser {
                     kind: ExpressionKind::SizeofExpression(Box::new(e)),
                     ty: CType::new(TypeKind::Long { signed: false }),
                     category: ValueCategory::RValue,
-                    span: start.join(r.span),
+                    range: start.join(r.range),
                 });
             }
             let e = self.unary_expression()?;
-            let span = start.join(e.span);
+            let span = start.join(e.range);
             return Ok(Expression {
                 kind: ExpressionKind::SizeofExpression(Box::new(e)),
                 ty: CType::new(TypeKind::Long { signed: false }),
                 category: ValueCategory::RValue,
-                span,
+                range: span,
             });
         }
         if self.eat_kw(Keyword::Alignof).is_some() {
@@ -276,7 +206,7 @@ impl Parser {
                 kind: ExpressionKind::Alignof(ty),
                 ty: CType::new(TypeKind::Long { signed: false }),
                 category: ValueCategory::RValue,
-                span: start.join(r.span),
+                range: start.join(r.range),
             });
         }
         let op = match self.peek().kind {
@@ -297,7 +227,7 @@ impl Parser {
                 UnaryOp::AddressOf => {
                     if e.category == ValueCategory::RValue {
                         return Err(
-                            self.sema_err("address-of requires an lvalue or function", e.span)
+                            self.sema_err("address-of requires an lvalue or function", e.range)
                         );
                     }
                     (CType::pointer(e.ty.clone()), ValueCategory::RValue)
@@ -311,7 +241,7 @@ impl Parser {
                         };
                         (*to, c)
                     }
-                    _ => return Err(self.sema_err("dereference requires a pointer", e.span)),
+                    _ => return Err(self.sema_err("dereference requires a pointer", e.range)),
                 },
                 UnaryOp::LogicalNot => {
                     self.sema.require_scalar(&e, "logical not")?;
@@ -319,7 +249,7 @@ impl Parser {
                 }
                 UnaryOp::BitNot => {
                     if !e.ty.is_integer() {
-                        return Err(self.sema_err("bitwise not requires integer operand", e.span));
+                        return Err(self.sema_err("bitwise not requires integer operand", e.range));
                     }
                     (self.sema.integer_promote(&e.ty), ValueCategory::RValue)
                 }
@@ -327,7 +257,7 @@ impl Parser {
                     if !e.ty.is_arithmetic() {
                         return Err(self.sema_err(
                             "unary arithmetic operator requires arithmetic operand",
-                            e.span,
+                            e.range,
                         ));
                     }
                     (self.sema.integer_promote(&e.ty), ValueCategory::RValue)
@@ -338,13 +268,13 @@ impl Parser {
                         || e.ty.qualifiers.is_const
                     {
                         return Err(
-                            self.sema_err("increment requires modifiable scalar lvalue", e.span)
+                            self.sema_err("increment requires modifiable scalar lvalue", e.range)
                         );
                     }
                     (e.ty.clone(), ValueCategory::RValue)
                 }
             };
-            let span = start.join(e.span);
+            let span = start.join(e.range);
             return Ok(Expression {
                 kind: ExpressionKind::Unary {
                     op,
@@ -352,7 +282,7 @@ impl Parser {
                 },
                 ty,
                 category: cat,
-                span,
+                range: span,
             });
         }
         self.postfix_expression()
@@ -371,11 +301,11 @@ impl Parser {
                     _ => {
                         return Err(self.sema_err(
                             "subscript requires a pointer and integer",
-                            e.span.join(i.span),
+                            e.range.join(i.range),
                         ));
                     }
                 };
-                let span = e.span.join(r.span);
+                let span = e.range.join(r.range);
                 e = Expression {
                     kind: ExpressionKind::Subscript {
                         base: Box::new(e),
@@ -383,7 +313,7 @@ impl Parser {
                     },
                     ty: elem,
                     category: ValueCategory::LValue,
-                    span,
+                    range: span,
                 };
                 continue;
             }
@@ -400,7 +330,7 @@ impl Parser {
                 let r = self.expect(&TokenKind::RParen)?;
                 let fty = e.ty.decay();
                 let TypeKind::Pointer(target) = fty.kind else {
-                    return Err(self.sema_err("called object is not a function", e.span));
+                    return Err(self.sema_err("called object is not a function", e.range));
                 };
                 let TypeKind::Function {
                     return_type,
@@ -409,7 +339,7 @@ impl Parser {
                     has_prototype,
                 } = target.kind
                 else {
-                    return Err(self.sema_err("called object is not a function", e.span));
+                    return Err(self.sema_err("called object is not a function", e.range));
                 };
                 if has_prototype
                     && (args.len() < params.len() || (!variadic && args.len() != params.len()))
@@ -420,15 +350,17 @@ impl Parser {
                             params.len(),
                             args.len()
                         ),
-                        e.span.join(r.span),
+                        e.range.join(r.range),
                     ));
                 }
                 if has_prototype {
-                    for (p, a) in params.iter().zip(args.iter()) {
-                        self.sema.require_assignable(&p.ty, a)?
+                    for (parameter, argument) in params.iter().zip(args.iter_mut()) {
+                        *argument = self
+                            .sema
+                            .assignment_conversion(&parameter.ty, argument.clone())?;
                     }
                 }
-                let span = e.span.join(r.span);
+                let span = e.range.join(r.range);
                 e = Expression {
                     kind: ExpressionKind::Call {
                         callee: Box::new(e),
@@ -436,7 +368,7 @@ impl Parser {
                     },
                     ty: *return_type,
                     category: ValueCategory::RValue,
-                    span,
+                    range: span,
                 };
                 continue;
             }
@@ -453,10 +385,10 @@ impl Parser {
                     {
                         return Err(self.sema_err(
                             "postfix increment requires modifiable scalar lvalue",
-                            e.span,
+                            e.range,
                         ));
                     }
-                    let span = e.span.join(self.previous().span);
+                    let span = e.range.join(self.previous().range);
                     let ty = e.ty.clone();
                     e = Expression {
                         kind: ExpressionKind::PostIncrement {
@@ -465,7 +397,7 @@ impl Parser {
                         },
                         ty,
                         category: ValueCategory::RValue,
-                        span,
+                        range: span,
                     };
                     continue;
                 }
@@ -480,7 +412,7 @@ impl Parser {
                     TypeKind::Pointer(x) => *x,
                     _ => {
                         return Err(
-                            self.sema_err("arrow requires pointer to struct or union", e.span)
+                            self.sema_err("arrow requires pointer to struct or union", e.range)
                         );
                     }
                 }
@@ -496,15 +428,15 @@ impl Parser {
                 } => f,
                 _ => {
                     return Err(
-                        self.sema_err("member access requires a complete struct or union", e.span)
+                        self.sema_err("member access requires a complete struct or union", e.range)
                     );
                 }
             };
             let f = fields
                 .iter()
                 .find(|x| x.name.as_deref() == Some(&field))
-                .ok_or_else(|| self.sema_err(format!("no member named '{field}'"), t.span))?;
-            let span = e.span.join(t.span);
+                .ok_or_else(|| self.sema_err(format!("no member named '{field}'"), t.range))?;
+            let span = e.range.join(t.range);
             e = Expression {
                 kind: ExpressionKind::Member {
                     base: Box::new(e),
@@ -513,7 +445,7 @@ impl Parser {
                 },
                 ty: f.ty.clone(),
                 category: ValueCategory::LValue,
-                span,
+                range: span,
             };
         }
         Ok(e)
@@ -523,7 +455,7 @@ impl Parser {
         match t.kind {
             TokenKind::Identifier(n) => {
                 let ty = self.sema.lookup(&n).ok_or_else(|| {
-                    self.sema_err(format!("use of undeclared identifier '{n}'"), t.span)
+                    self.sema_err(format!("use of undeclared identifier '{n}'"), t.range)
                 })?;
                 let category = if matches!(ty.kind, TypeKind::Function { .. }) {
                     ValueCategory::Function
@@ -534,19 +466,19 @@ impl Parser {
                     kind: ExpressionKind::Identifier(n),
                     ty,
                     category,
-                    span: t.span,
+                    range: t.range,
                 })
             }
             TokenKind::Literal(Literal::Integer(raw)) => {
                 let (v, ty) = self
                     .sema
                     .integer_literal(&raw)
-                    .ok_or_else(|| self.sema_err("invalid integer literal", t.span))?;
+                    .ok_or_else(|| self.sema_err("invalid integer literal", t.range))?;
                 Ok(Expression {
                     kind: ExpressionKind::Integer(v),
                     ty,
                     category: ValueCategory::RValue,
-                    span: t.span,
+                    range: t.range,
                 })
             }
             TokenKind::Literal(Literal::Floating(raw)) => {
@@ -556,7 +488,7 @@ impl Parser {
                 } else {
                     clean.parse().ok()
                 }
-                .ok_or_else(|| self.sema_err("invalid floating literal", t.span))?;
+                .ok_or_else(|| self.sema_err("invalid floating literal", t.range))?;
                 let ty = if raw.ends_with(['f', 'F']) {
                     CType::new(TypeKind::Float)
                 } else if raw.ends_with(['l', 'L']) {
@@ -568,7 +500,7 @@ impl Parser {
                     kind: ExpressionKind::Floating(v),
                     ty,
                     category: ValueCategory::RValue,
-                    span: t.span,
+                    range: t.range,
                 })
             }
             TokenKind::Literal(Literal::Character {
@@ -578,14 +510,14 @@ impl Parser {
                 let v = self
                     .sema
                     .decode_char(&raw)
-                    .ok_or_else(|| self.sema_err("invalid character literal", t.span))?;
+                    .ok_or_else(|| self.sema_err("invalid character literal", t.range))?;
                 let ty = match encoding {
                     StringEncoding::Narrow | StringEncoding::Wide => CType::int(),
                     StringEncoding::Utf16 => CType::new(TypeKind::Short { signed: false }),
                     StringEncoding::Utf32 => CType::uint(),
                     StringEncoding::Utf8 => {
                         return Err(
-                            self.sema_err("u8 character constants are not part of C11", t.span)
+                            self.sema_err("u8 character constants are not part of C11", t.range)
                         );
                     }
                 };
@@ -593,20 +525,20 @@ impl Parser {
                     kind: ExpressionKind::Character { value: v, encoding },
                     ty,
                     category: ValueCategory::RValue,
-                    span: t.span,
+                    range: t.range,
                 })
             }
             TokenKind::Literal(Literal::String {
                 value: mut raw,
                 mut encoding,
             }) => {
-                let mut span = t.span;
+                let mut span = t.range;
                 while let TokenKind::Literal(Literal::String {
                     value: s,
                     encoding: next_encoding,
                 }) = self.peek().kind.clone()
                 {
-                    span = span.join(self.bump().span);
+                    span = span.join(self.bump().range);
                     if encoding == StringEncoding::Narrow {
                         encoding = next_encoding;
                     } else if next_encoding != StringEncoding::Narrow && next_encoding != encoding {
@@ -635,7 +567,7 @@ impl Parser {
                     },
                     ty,
                     category: ValueCategory::LValue,
-                    span,
+                    range: span,
                 })
             }
             TokenKind::LParen => {
@@ -643,15 +575,15 @@ impl Parser {
                 self.expect(&TokenKind::RParen)?;
                 Ok(e)
             }
-            TokenKind::Keyword(Keyword::Generic) => self.generic_selection(t.span),
+            TokenKind::Keyword(Keyword::Generic) => self.generic_selection(t.range),
             _ => Err(Diagnostic::new(
                 ErrorKind::Syntax,
                 "expected expression",
-                t.span,
+                t.range,
             )),
         }
     }
-    pub(crate) fn generic_selection(&mut self, start: Span) -> PResult<Expression> {
+    pub(crate) fn generic_selection(&mut self, start: SourceRange) -> PResult<Expression> {
         self.expect(&TokenKind::LParen)?;
         let controlling = self.assignment_expression()?;
         self.expect(&TokenKind::Comma)?;
@@ -667,7 +599,9 @@ impl Parser {
                 let e = self.assignment_expression()?;
                 if self.sema.compatible(&controlling.ty.decay(), &ty) {
                     if selected.is_some() {
-                        return Err(self.sema_err("multiple matching generic associations", e.span));
+                        return Err(
+                            self.sema_err("multiple matching generic associations", e.range)
+                        );
                     }
                     selected = Some(e)
                 }
@@ -680,7 +614,7 @@ impl Parser {
         let choice = selected.or(default).ok_or_else(|| {
             self.sema_err(
                 "generic selection has no matching association",
-                controlling.span,
+                controlling.range,
             )
         })?;
         let ty = choice.ty.clone();
@@ -692,7 +626,7 @@ impl Parser {
             },
             ty,
             category,
-            span: start.join(r.span),
+            range: start.join(r.range),
         })
     }
 }

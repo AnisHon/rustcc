@@ -1,22 +1,23 @@
 use super::parser_core::{DNode, DeclSpec, PResult, Parser};
 use crate::lex::token::{Keyword, Literal, TokenKind};
 use crate::parser::ast::*;
-use crate::types::Span;
+use crate::source::SourceRange;
 
 impl Parser {
     pub(crate) fn finish_declaration(
         &mut self,
-        start: Span,
+        start: SourceRange,
         spec: DeclSpec,
         name: Option<String>,
         mut ty: CType,
     ) -> PResult<Declaration> {
-        let initializer = if self.eat(&TokenKind::Assign).is_some() {
+        self.sema.validate_type(&ty, start)?;
+        let mut initializer = if self.eat(&TokenKind::Assign).is_some() {
             Some(self.initializer()?)
         } else {
             None
         };
-        if let Some(initializer) = &initializer {
+        if let Some(initializer) = &mut initializer {
             if let TypeKind::Array { size, .. } = &mut ty.kind
                 && matches!(size, ArraySize::Unspecified)
             {
@@ -38,14 +39,14 @@ impl Parser {
             function_specifiers: spec.function_specifiers,
             initializer,
             alignment: spec.alignment,
-            span: start.join(self.previous().span),
+            range: start.join(self.previous().range),
         })
     }
 
     pub(crate) fn check_initializer(
         &self,
         target: &CType,
-        initializer: &Initializer,
+        initializer: &mut Initializer,
     ) -> PResult<()> {
         match (initializer, &target.kind) {
             (Initializer::Expression(expression), TypeKind::Array { element, .. })
@@ -62,19 +63,22 @@ impl Parser {
                 } else {
                     Err(self.sema_err(
                         "string literal encoding does not match array element type",
-                        expression.span,
+                        expression.range,
                     ))
                 }
             }
             (Initializer::Expression(expression), _) => {
-                self.sema.require_assignable(target, expression)
+                *expression = self
+                    .sema
+                    .assignment_conversion(target, expression.clone())?;
+                Ok(())
             }
             (Initializer::List(items), TypeKind::Array { element, size }) => {
                 if matches!(size, ArraySize::Constant(size) if items.len() > *size) {
-                    return Err(self.sema_err("too many array initializers", self.peek().span));
+                    return Err(self.sema_err("too many array initializers", self.peek().range));
                 }
                 for item in items {
-                    self.check_initializer(element, &item.value)?;
+                    self.check_initializer(element, &mut item.value)?;
                 }
                 Ok(())
             }
@@ -94,14 +98,14 @@ impl Parser {
                             .ok_or_else(|| {
                                 self.sema_err(
                                     format!("no field named '{name}' in initializer"),
-                                    self.peek().span,
+                                    self.peek().range,
                                 )
                             })?;
                     }
                     let field = fields.get(next).ok_or_else(|| {
-                        self.sema_err("too many struct initializers", self.peek().span)
+                        self.sema_err("too many struct initializers", self.peek().range)
                     })?;
-                    self.check_initializer(&field.ty, &item.value)?;
+                    self.check_initializer(&field.ty, &mut item.value)?;
                     next += 1;
                 }
                 Ok(())
@@ -114,9 +118,9 @@ impl Parser {
                 },
             ) => {
                 if items.len() > 1 {
-                    return Err(self.sema_err("too many union initializers", self.peek().span));
+                    return Err(self.sema_err("too many union initializers", self.peek().range));
                 }
-                if let Some(item) = items.first() {
+                if let Some(item) = items.first_mut() {
                     let field = if let Some(Designator::Field(name)) = item.designators.first() {
                         fields
                             .iter()
@@ -125,17 +129,17 @@ impl Parser {
                         fields.first()
                     }
                     .ok_or_else(|| {
-                        self.sema_err("union has no matching field", self.peek().span)
+                        self.sema_err("union has no matching field", self.peek().range)
                     })?;
-                    self.check_initializer(&field.ty, &item.value)?;
+                    self.check_initializer(&field.ty, &mut item.value)?;
                 }
                 Ok(())
             }
             (Initializer::List(items), _) if items.len() == 1 => {
-                self.check_initializer(target, &items[0].value)
+                self.check_initializer(target, &mut items[0].value)
             }
             (Initializer::List(_), _) => {
-                Err(self.sema_err("excess elements in scalar initializer", self.peek().span))
+                Err(self.sema_err("excess elements in scalar initializer", self.peek().range))
             }
         }
     }
@@ -281,7 +285,7 @@ impl Parser {
                     } else {
                         let e = self.expression()?;
                         alignment = Some(self.sema.const_int(&e).ok_or_else(|| {
-                            self.sema_err("alignment must be an integer constant", e.span)
+                            self.sema_err("alignment must be an integer constant", e.range)
                         })? as usize)
                     }
                     self.expect(&TokenKind::RParen)?;
@@ -421,21 +425,40 @@ impl Parser {
             None
         };
         let key = name.clone().map(|n| (n, if union { 1 } else { 0 }));
+        let existing = key.as_ref().and_then(|key| self.sema.tag(key));
         if self.eat(&TokenKind::LBrace).is_none() {
-            if let Some(k) = key.as_ref()
-                && let Some(t) = self.sema.tag(k)
-            {
-                return Ok(t);
+            if let Some(existing) = existing {
+                return Ok(existing);
             }
-            return Ok(CType::new(if union {
-                TypeKind::Union { name, fields: None }
+            let id = self.sema.fresh_tag_id();
+            let ty = CType::new(if union {
+                TypeKind::Union {
+                    id,
+                    name,
+                    fields: None,
+                }
             } else {
-                TypeKind::Struct { name, fields: None }
-            }));
+                TypeKind::Struct {
+                    id,
+                    name,
+                    fields: None,
+                }
+            });
+            if let Some(key) = key {
+                self.sema.define_tag(key, ty.clone());
+            }
+            return Ok(ty);
         }
+        let id = existing.as_ref().map_or_else(
+            || self.sema.fresh_tag_id(),
+            |ty| match ty.kind {
+                TypeKind::Struct { id, .. } | TypeKind::Union { id, .. } => id,
+                _ => unreachable!(),
+            },
+        );
         let mut fields = vec![];
         while !self.at(&TokenKind::RBrace) {
-            let s = self.peek().span;
+            let s = self.peek().range;
             let spec = self.declaration_specifiers()?;
             if self.eat(&TokenKind::Semi).is_some() {
                 continue;
@@ -443,11 +466,12 @@ impl Parser {
             loop {
                 let node = self.declarator(true)?;
                 let (n, ty, _) = self.apply_declarator(node, spec.ty.clone())?;
+                self.sema.validate_type(&ty, s)?;
                 let bit_width =
                     if self.eat(&TokenKind::Colon).is_some() {
                         let e = self.assignment_expression()?;
                         Some(self.sema.const_int(&e).ok_or_else(|| {
-                            self.sema_err("bit-field width must be constant", e.span)
+                            self.sema_err("bit-field width must be constant", e.range)
                         })? as u32)
                     } else {
                         None
@@ -456,7 +480,7 @@ impl Parser {
                     name: n,
                     ty,
                     bit_width,
-                    span: s.join(self.previous().span),
+                    range: s.join(self.previous().range),
                 });
                 if self.eat(&TokenKind::Comma).is_none() {
                     break;
@@ -467,11 +491,13 @@ impl Parser {
         self.expect(&TokenKind::RBrace)?;
         let ty = CType::new(if union {
             TypeKind::Union {
+                id,
                 name,
                 fields: Some(fields),
             }
         } else {
             TypeKind::Struct {
+                id,
                 name,
                 fields: Some(fields),
             }
@@ -490,17 +516,28 @@ impl Parser {
             None
         };
         let key = name.clone().map(|n| (n, 2));
+        let existing = key.as_ref().and_then(|key| self.sema.tag(key));
         if self.eat(&TokenKind::LBrace).is_none() {
-            if let Some(k) = key.as_ref()
-                && let Some(t) = self.sema.tag(k)
-            {
-                return Ok(t);
+            if let Some(existing) = existing {
+                return Ok(existing);
             }
-            return Ok(CType::new(TypeKind::Enum {
+            let ty = CType::new(TypeKind::Enum {
+                id: self.sema.fresh_tag_id(),
                 name,
                 variants: None,
-            }));
+            });
+            if let Some(key) = key {
+                self.sema.define_tag(key, ty.clone());
+            }
+            return Ok(ty);
         }
+        let id = existing.as_ref().map_or_else(
+            || self.sema.fresh_tag_id(),
+            |ty| match ty.kind {
+                TypeKind::Enum { id, .. } => id,
+                _ => unreachable!(),
+            },
+        );
         let mut variants = vec![];
         let mut next = 0i64;
         while !self.at(&TokenKind::RBrace) {
@@ -511,13 +548,13 @@ impl Parser {
             if self.eat(&TokenKind::Assign).is_some() {
                 let e = self.assignment_expression()?;
                 next = self.sema.const_int(&e).ok_or_else(|| {
-                    self.sema_err("enumerator must be an integer constant", e.span)
+                    self.sema_err("enumerator must be an integer constant", e.range)
                 })? as i64
             }
             variants.push(EnumVariant {
                 name: n.clone(),
                 value: next,
-                span: t.span,
+                range: t.range,
             });
             self.sema.declare_enumerator(n, next as i128);
             next += 1;
@@ -527,6 +564,7 @@ impl Parser {
         }
         self.expect(&TokenKind::RBrace)?;
         let ty = CType::new(TypeKind::Enum {
+            id,
             name,
             variants: Some(variants),
         });
@@ -578,20 +616,20 @@ impl Parser {
                 } else {
                     let e = self.assignment_expression()?;
                     if !e.ty.is_integer() {
-                        return Err(self.sema_err("array bound must have integer type", e.span));
+                        return Err(self.sema_err("array bound must have integer type", e.range));
                     }
                     match self.sema.const_int(&e) {
                         Some(value) if value > 0 => ArraySize::Constant(value as usize),
                         Some(_) => {
                             return Err(
-                                self.sema_err("array bound must be greater than zero", e.span)
+                                self.sema_err("array bound must be greater than zero", e.range)
                             );
                         }
                         None if !self.sema.is_file_scope() => ArraySize::Variable(Box::new(e)),
                         None => {
                             return Err(self.sema_err(
                                 "variably modified type is not allowed at file scope",
-                                e.span,
+                                e.range,
                             ));
                         }
                     }
@@ -633,7 +671,7 @@ impl Parser {
                 p.push(Parameter {
                     name: Some(name),
                     ty: CType::int(),
-                    span: token.span,
+                    range: token.range,
                 });
                 if self.eat(&TokenKind::Comma).is_none() {
                     break;
@@ -649,7 +687,7 @@ impl Parser {
                 var = true;
                 break;
             }
-            let s = self.peek().span;
+            let s = self.peek().range;
             let spec = self.declaration_specifiers()?;
             let node = self.declarator(true)?;
             let (n, mut ty, _) = self.apply_declarator(node, spec.ty)?;
@@ -661,7 +699,7 @@ impl Parser {
             p.push(Parameter {
                 name: n,
                 ty,
-                span: s.join(self.previous().span),
+                range: s.join(self.previous().range),
             });
             if self.eat(&TokenKind::Comma).is_none() {
                 break;
@@ -783,7 +821,7 @@ impl Parser {
         Ok(Initializer::List(items))
     }
     pub(crate) fn static_assert(&mut self) -> PResult<StaticAssertion> {
-        let start = self.bump().span;
+        let start = self.bump().range;
         self.expect(&TokenKind::LParen)?;
         let e = self.assignment_expression()?;
         self.expect(&TokenKind::Comma)?;
@@ -794,17 +832,17 @@ impl Parser {
         self.expect(&TokenKind::RParen)?;
         let semi = self.expect(&TokenKind::Semi)?;
         if self.sema.const_int(&e) == Some(0) {
-            return Err(self.sema_err("static assertion failed", e.span));
+            return Err(self.sema_err("static assertion failed", e.range));
         }
         Ok(StaticAssertion {
             condition: e,
             message,
-            span: start.join(semi.span),
+            range: start.join(semi.range),
         })
     }
 
     pub(crate) fn local_declaration(&mut self) -> PResult<Vec<Declaration>> {
-        let start = self.peek().span;
+        let start = self.peek().range;
         let spec = self.declaration_specifiers()?;
         if self.eat(&TokenKind::Semi).is_some() {
             return Ok(vec![Declaration {
@@ -814,7 +852,7 @@ impl Parser {
                 function_specifiers: spec.function_specifiers,
                 initializer: None,
                 alignment: spec.alignment,
-                span: start.join(self.previous().span),
+                range: start.join(self.previous().range),
             }]);
         }
         let mut out = vec![];

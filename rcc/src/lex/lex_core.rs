@@ -1,10 +1,62 @@
 use crate::err::{Diagnostic, ErrorKind};
 use crate::lex::token::{Keyword, Literal, StringEncoding, Token, TokenKind};
-use crate::types::{Position, Span};
+use crate::lex::{PPToken, PPTokenKind};
+use crate::source::SourceRange;
 use unicode_ident::{is_xid_continue, is_xid_start};
 
-pub fn lex(source: &str) -> Result<Vec<Token>, Vec<Diagnostic>> {
+#[derive(Clone, Copy)]
+struct Position {
+    offset: usize,
+}
+
+fn lex(source: &str) -> Result<Vec<Token>, Vec<Diagnostic>> {
     Lexer::new(source).run()
+}
+
+/// Classify an already-preprocessed token stream into C language tokens.
+/// Keyword recognition intentionally happens here, after macro replacement.
+pub fn classify_preprocessed(
+    preprocessing_tokens: Vec<PPToken>,
+) -> Result<Vec<Token>, Vec<Diagnostic>> {
+    let mut output = Vec::with_capacity(preprocessing_tokens.len());
+    let mut diagnostics = Vec::new();
+    for preprocessing_token in preprocessing_tokens {
+        let range = preprocessing_token.range;
+        if preprocessing_token.kind == PPTokenKind::EndOfFile {
+            output.push(Token {
+                kind: TokenKind::Eof,
+                lexeme: String::new(),
+                range,
+            });
+            continue;
+        }
+        match lex(&preprocessing_token.spelling) {
+            Ok(mut classified) if classified.len() == 2 => {
+                let mut token = classified.remove(0);
+                token.range = range;
+                output.push(token);
+            }
+            Ok(_) => diagnostics.push(Diagnostic::new(
+                ErrorKind::Lexical,
+                format!(
+                    "preprocessing token '{}' is not one C token",
+                    preprocessing_token.spelling
+                ),
+                range,
+            )),
+            Err(mut errors) => {
+                for error in &mut errors {
+                    error.range = range;
+                }
+                diagnostics.extend(errors);
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(output)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 struct Lexer<'a> {
@@ -26,11 +78,7 @@ impl<'a> Lexer<'a> {
         }
     }
     fn position(&self) -> Position {
-        Position {
-            offset: self.pos,
-            line: self.line,
-            column: self.column,
-        }
+        Position { offset: self.pos }
     }
     fn peek(&self) -> Option<char> {
         self.src[self.pos..].chars().next()
@@ -53,20 +101,14 @@ impl<'a> Lexer<'a> {
         Token {
             kind,
             lexeme: self.src[start.offset..self.pos].to_string(),
-            span: Span {
-                start,
-                end: self.position(),
-            },
+            range: SourceRange::default(),
         }
     }
-    fn error(&mut self, start: Position, msg: impl Into<String>) {
+    fn error(&mut self, _start: Position, msg: impl Into<String>) {
         self.diagnostics.push(Diagnostic::new(
             ErrorKind::Lexical,
             msg,
-            Span {
-                start,
-                end: self.position(),
-            },
+            SourceRange::default(),
         ));
     }
 
@@ -104,11 +146,10 @@ impl<'a> Lexer<'a> {
                 out.push(t);
             }
         }
-        let p = self.position();
         out.push(Token {
             kind: TokenKind::Eof,
             lexeme: String::new(),
-            span: Span { start: p, end: p },
+            range: SourceRange::default(),
         });
         if self.diagnostics.is_empty() {
             Ok(out)
