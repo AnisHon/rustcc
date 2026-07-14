@@ -6,14 +6,32 @@ impl Sema {
         self.layout(t).1
     }
     pub(crate) fn layout(&self, t: &CType) -> (usize, usize) {
+        let bytes = |bits: u16| usize::from(bits.div_ceil(8));
         match &t.kind {
-            TypeKind::Bool | TypeKind::Char { .. } => (1, 1),
-            TypeKind::Short { .. } => (2, 2),
-            TypeKind::Int { .. } | TypeKind::Float | TypeKind::Enum { .. } => (4, 4),
-            TypeKind::Long { .. }
-            | TypeKind::LongLong { .. }
-            | TypeKind::Double
-            | TypeKind::Pointer(_) => (8, 8),
+            TypeKind::Bool | TypeKind::Char { .. } => {
+                let size = bytes(self.target.char_width);
+                (size, size)
+            }
+            TypeKind::Short { .. } => {
+                let size = bytes(self.target.short_width);
+                (size, size)
+            }
+            TypeKind::Int { .. } | TypeKind::Float | TypeKind::Enum { .. } => {
+                let size = bytes(self.target.int_width);
+                (size, size)
+            }
+            TypeKind::Long { .. } => {
+                let size = bytes(self.target.long_width);
+                (size, size)
+            }
+            TypeKind::LongLong { .. } | TypeKind::Double => {
+                let size = bytes(self.target.long_long_width);
+                (size, size)
+            }
+            TypeKind::Pointer(_) => (
+                bytes(self.target.pointer_width),
+                bytes(self.target.pointer_align),
+            ),
             TypeKind::LongDouble => (16, 16),
             TypeKind::Complex(inner) | TypeKind::Imaginary(inner) => {
                 let (size, align) = self.layout(inner);

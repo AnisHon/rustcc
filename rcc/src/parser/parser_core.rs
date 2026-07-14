@@ -31,11 +31,15 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
+        Self::with_target(tokens, crate::TargetInfo::default())
+    }
+
+    pub fn with_target(tokens: Vec<Token>, target: crate::TargetInfo) -> Self {
         Self {
             tokens,
             pos: 0,
             diagnostics: vec![],
-            sema: Sema::new(),
+            sema: Sema::new(target),
         }
     }
     pub fn parse(mut self) -> Result<TranslationUnit, Vec<Diagnostic>> {

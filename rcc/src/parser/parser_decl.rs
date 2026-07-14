@@ -17,6 +17,14 @@ impl Parser {
         } else {
             None
         };
+        self.sema.validate_declaration(
+            &ty,
+            spec.storage,
+            spec.function_specifiers,
+            spec.alignment,
+            initializer.is_some(),
+            start,
+        )?;
         if let Some(initializer) = &mut initializer {
             if let TypeKind::Array { size, .. } = &mut ty.kind
                 && matches!(size, ArraySize::Unspecified)
@@ -210,70 +218,112 @@ impl Parser {
                 }
                 TokenKind::Keyword(Signed) => {
                     consumed = true;
+                    if signed.is_some() {
+                        return Err(self.err("duplicate or conflicting signedness specifier"));
+                    }
                     signed = Some(true);
                     self.bump();
                 }
                 TokenKind::Keyword(Unsigned) => {
                     consumed = true;
+                    if signed.is_some() {
+                        return Err(self.err("duplicate or conflicting signedness specifier"));
+                    }
                     signed = Some(false);
                     self.bump();
                 }
                 TokenKind::Keyword(Short) => {
                     consumed = true;
+                    if short {
+                        return Err(self.err("duplicate short specifier"));
+                    }
                     short = true;
                     self.bump();
                 }
                 TokenKind::Keyword(Long) => {
                     consumed = true;
                     long_count += 1;
+                    if long_count > 2 {
+                        return Err(self.err("too many long specifiers"));
+                    }
                     self.bump();
                 }
                 TokenKind::Keyword(Void) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(CType::void());
                     self.bump();
                 }
                 TokenKind::Keyword(Bool) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(CType::new(TypeKind::Bool));
                     self.bump();
                 }
                 TokenKind::Keyword(Char) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(CType::new(TypeKind::Char { signed }));
                     self.bump();
                 }
                 TokenKind::Keyword(Int) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(CType::int());
                     self.bump();
                 }
                 TokenKind::Keyword(Float) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(CType::new(TypeKind::Float));
                     self.bump();
                 }
                 TokenKind::Keyword(Double) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(CType::new(TypeKind::Double));
                     self.bump();
                 }
                 TokenKind::Keyword(Struct) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(self.record_spec(false)?);
                 }
                 TokenKind::Keyword(Union) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(self.record_spec(true)?);
                 }
                 TokenKind::Keyword(Enum) => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     base = Some(self.enum_spec()?);
                 }
                 TokenKind::Keyword(Atomic) => {
                     consumed = true;
                     self.bump();
                     if self.eat(&TokenKind::LParen).is_some() {
+                        if base.is_some() {
+                            return Err(self.err("multiple base type specifiers"));
+                        }
                         let mut t = self.type_name()?;
                         self.expect(&TokenKind::RParen)?;
                         t.qualifiers.is_atomic = true;
@@ -299,11 +349,17 @@ impl Parser {
                 }
                 TokenKind::Keyword(Complex) => {
                     consumed = true;
+                    if complex.is_some() {
+                        return Err(self.err("duplicate complex type specifier"));
+                    }
                     complex = Some(false);
                     self.bump();
                 }
                 TokenKind::Keyword(Imaginary) => {
                     consumed = true;
+                    if complex.is_some() {
+                        return Err(self.err("conflicting complex type specifier"));
+                    }
                     complex = Some(true);
                     self.bump();
                 }
@@ -315,6 +371,9 @@ impl Parser {
                 }
                 TokenKind::Identifier(ref n) if self.sema.lookup_typedef(n).is_some() => {
                     consumed = true;
+                    if base.is_some() {
+                        return Err(self.err("multiple base type specifiers"));
+                    }
                     let n = n.clone();
                     self.bump();
                     base = self.sema.lookup_typedef(&n);
@@ -324,6 +383,9 @@ impl Parser {
         }
         if !consumed {
             return Err(self.err("expected declaration specifier"));
+        }
+        if short && long_count != 0 {
+            return Err(self.err("short and long cannot be combined"));
         }
         if complex.is_some() && base.is_none() && !short && long_count == 0 && signed.is_none() {
             base = Some(CType::new(TypeKind::Double));
@@ -349,7 +411,12 @@ impl Parser {
                         }
                     }
                 }
-                TypeKind::Double if long_count > 0 => b.kind = TypeKind::LongDouble,
+                TypeKind::Char { .. } if long_count == 0 && !short => {
+                    b.kind = TypeKind::Char { signed };
+                }
+                TypeKind::Double if long_count == 1 && !short && signed.is_none() => {
+                    b.kind = TypeKind::LongDouble;
+                }
                 _ if short || long_count > 0 || signed.is_some() => {
                     return Err(self.err("invalid type specifier combination"));
                 }
@@ -493,6 +560,11 @@ impl Parser {
         while !self.at(&TokenKind::RBrace) {
             let s = self.peek().range;
             let spec = self.declaration_specifiers()?;
+            if spec.storage != StorageClass::None
+                || spec.function_specifiers != FunctionSpecifiers::default()
+            {
+                return Err(self.sema_err("storage class is not allowed on a field", s));
+            }
             if self.eat(&TokenKind::Semi).is_some() {
                 continue;
             }
@@ -749,6 +821,12 @@ impl Parser {
             }
             let s = self.peek().range;
             let spec = self.declaration_specifiers()?;
+            if !matches!(spec.storage, StorageClass::None | StorageClass::Register)
+                || spec.alignment.is_some()
+                || spec.function_specifiers != FunctionSpecifiers::default()
+            {
+                return Err(self.sema_err("invalid declaration specifier for parameter", s));
+            }
             let node = self.declarator(true)?;
             let (n, mut ty, _) = self.apply_declarator(node, spec.ty)?;
             if let TypeKind::Array { element, .. } = ty.kind {

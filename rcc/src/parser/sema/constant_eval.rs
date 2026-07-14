@@ -40,11 +40,15 @@ impl Sema {
             _ => return None,
         };
         let (rank, signed) = candidates.iter().copied().find(|(rank, signed)| {
-            let bits = if *rank == 3 { 32 } else { 64 };
+            let bits = match rank {
+                3 => self.target.int_width,
+                4 => self.target.long_width,
+                _ => self.target.long_long_width,
+            };
             if *signed {
-                value < (1i128 << (bits - 1))
+                bits == 128 || value < (1_i128 << (bits - 1))
             } else {
-                value < (1i128 << bits)
+                bits == 128 || value < (1_i128 << bits)
             }
         })?;
         let ty = CType::new(match rank {

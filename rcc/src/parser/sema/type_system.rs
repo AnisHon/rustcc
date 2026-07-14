@@ -54,11 +54,61 @@ impl Sema {
         }
     }
 
-    pub(crate) fn require_scalar(&self, e: &Expression, where_: &str) -> PResult<()> {
-        if e.ty.decay().is_scalar() {
-            Ok(())
+    pub(crate) fn validate_declaration(
+        &self,
+        ty: &CType,
+        storage: StorageClass,
+        function_specifiers: FunctionSpecifiers,
+        alignment: Option<usize>,
+        has_initializer: bool,
+        range: SourceRange,
+    ) -> PResult<()> {
+        let function = matches!(ty.kind, TypeKind::Function { .. });
+        if self.is_file_scope() && matches!(storage, StorageClass::Auto | StorageClass::Register) {
+            return Err(self.error("auto and register are not allowed at file scope", range));
+        }
+        if function
+            && matches!(
+                storage,
+                StorageClass::Auto
+                    | StorageClass::Register
+                    | StorageClass::ThreadLocal
+                    | StorageClass::StaticThreadLocal
+                    | StorageClass::ExternThreadLocal
+            )
+        {
+            return Err(self.error("invalid storage class for function declaration", range));
+        }
+        if !self.is_file_scope() && storage == StorageClass::ThreadLocal {
+            return Err(self.error("block-scope _Thread_local requires static or extern", range));
+        }
+        if storage == StorageClass::Typedef && has_initializer {
+            return Err(self.error("typedef declaration cannot have an initializer", range));
+        }
+        if !function && (function_specifiers.is_inline || function_specifiers.is_noreturn) {
+            return Err(self.error("function specifier requires a function declaration", range));
+        }
+        if alignment.is_some()
+            && (function || matches!(storage, StorageClass::Typedef | StorageClass::Register))
+        {
+            return Err(self.error(
+                "alignment specifier is not allowed on this declaration",
+                range,
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn scalar_conversion(
+        &self,
+        expression: Expression,
+        where_: &str,
+    ) -> PResult<Expression> {
+        let expression = self.default_conversion(expression);
+        if expression.ty.is_scalar() {
+            Ok(expression)
         } else {
-            Err(self.error(format!("{where_} requires scalar type"), e.range))
+            Err(self.error(format!("{where_} requires scalar type"), expression.range))
         }
     }
     pub(crate) fn assignment_conversion(
@@ -79,6 +129,51 @@ impl Sema {
         let mut result = target.clone();
         result.qualifiers = Qualifiers::default();
         Ok(self.convert_to(expression, result))
+    }
+
+    pub(crate) fn conditional_conversion(
+        &self,
+        then_expression: Expression,
+        else_expression: Expression,
+    ) -> PResult<(Expression, Expression, CType)> {
+        let then_null = self.const_int(&then_expression) == Some(0);
+        let else_null = self.const_int(&else_expression) == Some(0);
+        let then_expression = self.default_conversion(then_expression);
+        let else_expression = self.default_conversion(else_expression);
+        if then_expression.ty.is_arithmetic() && else_expression.ty.is_arithmetic() {
+            return Ok(self.usual_arithmetic_conversions(then_expression, else_expression));
+        }
+        if matches!(then_expression.ty.kind, TypeKind::Pointer(_)) && else_null {
+            let target = then_expression.ty.clone();
+            let else_expression = self.convert_to(else_expression, target.clone());
+            return Ok((then_expression, else_expression, target));
+        }
+        if matches!(else_expression.ty.kind, TypeKind::Pointer(_)) && then_null {
+            let target = else_expression.ty.clone();
+            let then_expression = self.convert_to(then_expression, target.clone());
+            return Ok((then_expression, else_expression, target));
+        }
+        if matches!(then_expression.ty.kind, TypeKind::Pointer(_))
+            && matches!(else_expression.ty.kind, TypeKind::Pointer(_))
+            && self.compatible(&then_expression.ty, &else_expression.ty)
+        {
+            let target = if pointer_to_void(&then_expression.ty) {
+                then_expression.ty.clone()
+            } else {
+                else_expression.ty.clone()
+            };
+            let then_expression = self.convert_to(then_expression, target.clone());
+            let else_expression = self.convert_to(else_expression, target.clone());
+            return Ok((then_expression, else_expression, target));
+        }
+        if self.compatible(&then_expression.ty, &else_expression.ty) {
+            let result = then_expression.ty.clone();
+            return Ok((then_expression, else_expression, result));
+        }
+        Err(self.error(
+            "incompatible conditional operands",
+            then_expression.range.join(else_expression.range),
+        ))
     }
 
     pub(crate) fn make_binary(
@@ -308,23 +403,18 @@ impl Sema {
             _ => false,
         }
     }
-    pub(crate) fn common_type(&self, a: &CType, b: &CType) -> Option<CType> {
-        if a.is_arithmetic() && b.is_arithmetic() {
-            Some(self.usual_arithmetic(a, b))
-        } else if self.compatible(a, b)
-            || matches!(a.kind, TypeKind::Pointer(_)) && matches!(b.kind, TypeKind::Pointer(_))
-        {
-            Some(a.clone())
-        } else {
-            None
-        }
-    }
     pub(crate) fn integer_promote(&self, t: &CType) -> CType {
         if matches!(
             t.kind,
             TypeKind::Bool | TypeKind::Char { .. } | TypeKind::Short { .. } | TypeKind::Enum { .. }
         ) {
-            CType::int()
+            let (_, signed) = self.rank(t);
+            let width = self.integer_width(t);
+            if signed || width < self.target.int_width {
+                CType::int()
+            } else {
+                CType::uint()
+            }
         } else {
             t.clone()
         }
@@ -332,7 +422,7 @@ impl Sema {
     pub(crate) fn rank(&self, t: &CType) -> (u8, bool) {
         match t.kind {
             TypeKind::Bool => (0, false),
-            TypeKind::Char { signed } => (1, signed.unwrap_or(true)),
+            TypeKind::Char { signed } => (1, signed.unwrap_or(self.target.char_is_signed)),
             TypeKind::Short { signed } => (2, signed),
             TypeKind::Int { signed } => (3, signed),
             TypeKind::Long { signed } => (4, signed),
@@ -374,16 +464,49 @@ impl Sema {
         let b = self.integer_promote(b);
         let (ra, sa) = self.rank(&a);
         let (rb, sb) = self.rank(&b);
-        let rank = ra.max(rb);
-        let signed = if sa == sb {
-            sa
+        let (rank, signed) = if sa == sb {
+            (ra.max(rb), sa)
         } else {
-            (rb < ra || sb) && (ra < rb || sa)
+            let (unsigned_rank, signed_rank) = if sa { (rb, ra) } else { (ra, rb) };
+            if unsigned_rank >= signed_rank {
+                (unsigned_rank, false)
+            } else {
+                let signed_width = self.rank_width(signed_rank);
+                let unsigned_width = self.rank_width(unsigned_rank);
+                if signed_width > unsigned_width {
+                    (signed_rank, true)
+                } else {
+                    (signed_rank, false)
+                }
+            }
         };
+        self.integer_type(rank, signed)
+    }
+
+    fn integer_type(&self, rank: u8, signed: bool) -> CType {
         CType::new(match rank {
             0..=3 => TypeKind::Int { signed },
             4 => TypeKind::Long { signed },
             _ => TypeKind::LongLong { signed },
         })
     }
+
+    fn integer_width(&self, ty: &CType) -> u16 {
+        self.rank_width(self.rank(ty).0)
+    }
+
+    fn rank_width(&self, rank: u8) -> u16 {
+        match rank {
+            0 => 1,
+            1 => self.target.char_width,
+            2 => self.target.short_width,
+            3 => self.target.int_width,
+            4 => self.target.long_width,
+            _ => self.target.long_long_width,
+        }
+    }
+}
+
+fn pointer_to_void(ty: &CType) -> bool {
+    matches!(ty.kind, TypeKind::Pointer(ref pointee) if matches!(pointee.kind, TypeKind::Void))
 }

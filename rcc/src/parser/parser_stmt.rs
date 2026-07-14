@@ -62,7 +62,7 @@ impl Parser {
         if self.eat_kw(Keyword::If).is_some() {
             self.expect(&TokenKind::LParen)?;
             let c = self.expression()?;
-            self.sema.require_scalar(&c, "if condition")?;
+            let c = self.sema.scalar_conversion(c, "if condition")?;
             self.expect(&TokenKind::RParen)?;
             let then_branch = Box::new(self.statement()?);
             let else_branch = if self.eat_kw(Keyword::Else).is_some() {
@@ -83,6 +83,7 @@ impl Parser {
         if self.eat_kw(Keyword::Switch).is_some() {
             self.expect(&TokenKind::LParen)?;
             let e = self.expression()?;
+            let e = self.sema.integer_promotion(e);
             if !e.ty.is_integer() {
                 return Err(self.sema_err("switch expression must have integer type", e.range));
             }
@@ -102,7 +103,7 @@ impl Parser {
         if self.eat_kw(Keyword::While).is_some() {
             self.expect(&TokenKind::LParen)?;
             let c = self.expression()?;
-            self.sema.require_scalar(&c, "while condition")?;
+            let c = self.sema.scalar_conversion(c, "while condition")?;
             self.expect(&TokenKind::RParen)?;
             self.sema.begin_loop();
             let body = Box::new(self.statement()?);
@@ -121,7 +122,7 @@ impl Parser {
                 .ok_or_else(|| self.err("expected while after do body"))?;
             self.expect(&TokenKind::LParen)?;
             let c = self.expression()?;
-            self.sema.require_scalar(&c, "do-while condition")?;
+            let c = self.sema.scalar_conversion(c, "do-while condition")?;
             self.expect(&TokenKind::RParen)?;
             let semi = self.expect(&TokenKind::Semi)?;
             return Ok(Statement {
@@ -147,8 +148,7 @@ impl Parser {
                 None
             } else {
                 let e = self.expression()?;
-                self.sema.require_scalar(&e, "for condition")?;
-                Some(e)
+                Some(self.sema.scalar_conversion(e, "for condition")?)
             };
             self.expect(&TokenKind::Semi)?;
             let step = if self.at(&TokenKind::RParen) {

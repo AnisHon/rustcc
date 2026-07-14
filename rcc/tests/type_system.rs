@@ -83,3 +83,32 @@ fn compilation_attaches_canonical_type_ids_to_ast_types() {
         rcc::CanonicalTypeKind::Pointer(_)
     ));
 }
+
+#[test]
+fn semantic_typing_uses_the_selected_target_model() {
+    let lp64 = rcc::compile_with_target(
+        "_Static_assert(sizeof(long) == 8, \"LP64 long\"); long value = 2147483648L;",
+        rcc::TargetInfo::x86_64_lp64(),
+    )
+    .unwrap();
+    let rcc::ExternalDeclaration::Declaration(lp64_value) = &lp64.ast.declarations[1] else {
+        panic!()
+    };
+    assert!(matches!(lp64_value.ty.kind, rcc::TypeKind::Long { .. }));
+
+    let llp64 = rcc::compile_with_target(
+        "_Static_assert(sizeof(long) == 4, \"LLP64 long\"); long long value = 2147483648L;",
+        rcc::TargetInfo::x86_64_llp64(),
+    )
+    .unwrap();
+    let rcc::ExternalDeclaration::Declaration(llp64_value) = &llp64.ast.declarations[1] else {
+        panic!()
+    };
+    let Some(rcc::Initializer::Expression(expression)) = &llp64_value.initializer else {
+        panic!()
+    };
+    let rcc::ExpressionKind::Integer(_) = expression.kind else {
+        panic!()
+    };
+    assert!(matches!(expression.ty.kind, rcc::TypeKind::LongLong { .. }));
+}

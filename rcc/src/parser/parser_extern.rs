@@ -32,6 +32,14 @@ impl Parser {
         let node = self.declarator(false)?;
         let (name, mut ty, mut params) = self.apply_declarator(node, spec.ty.clone())?;
         self.sema.validate_type(&ty, start)?;
+        self.sema.validate_declaration(
+            &ty,
+            spec.storage,
+            spec.function_specifiers,
+            spec.alignment,
+            false,
+            start,
+        )?;
         let old_style = matches!(
             &ty.kind,
             TypeKind::Function {

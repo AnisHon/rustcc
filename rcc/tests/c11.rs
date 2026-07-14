@@ -116,6 +116,25 @@ fn rejects_invalid_derived_types_without_panicking() {
 }
 
 #[test]
+fn validates_c11_declaration_specifier_combinations() {
+    for source in [
+        "short long value;",
+        "long long long value;",
+        "signed unsigned value;",
+        "int int value;",
+        "auto int file_object;",
+        "_Thread_local int function(void);",
+        "typedef int Alias = 1;",
+        "inline int object;",
+        "struct S { static int field; };",
+        "int function(static int parameter);",
+    ] {
+        assert!(compile(source).is_err(), "{source}");
+    }
+    parse("char unsigned byte; long double real; const const int qualified;");
+}
+
+#[test]
 fn preprocesses_c11_macros_and_conditionals() {
     let ast = parse(
         r#"
@@ -267,6 +286,65 @@ fn typed_ast_preserves_implicit_c_conversions() {
         expression.kind,
         ExpressionKind::ImplicitCast {
             kind: rcc::ImplicitCastKind::LValueToRValue,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn typed_ast_records_decay_control_and_conditional_conversions() {
+    let ast = parse(
+        "short condition; int array[2]; int function(int); long selected = condition ? +condition : 1L; int *pointer = array; int (*callback)(int) = function;",
+    );
+    let initializer = |index: usize| {
+        let ExternalDeclaration::Declaration(declaration) = &ast.declarations[index] else {
+            panic!()
+        };
+        let Some(rcc::Initializer::Expression(expression)) = &declaration.initializer else {
+            panic!()
+        };
+        expression
+    };
+    let ExpressionKind::Conditional {
+        condition,
+        then_expr,
+        ..
+    } = &initializer(3).kind
+    else {
+        panic!()
+    };
+    assert!(matches!(
+        condition.kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::LValueToRValue,
+            ..
+        }
+    ));
+    assert!(matches!(
+        then_expr.kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::IntegralConversion,
+            ..
+        }
+    ));
+    assert!(matches!(
+        initializer(4).kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::ArrayToPointerDecay,
+            ..
+        }
+    ));
+    let ExpressionKind::ImplicitCast {
+        kind: rcc::ImplicitCastKind::PointerConversion,
+        expression,
+    } = &initializer(5).kind
+    else {
+        panic!()
+    };
+    assert!(matches!(
+        expression.kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::FunctionToPointerDecay,
             ..
         }
     ));

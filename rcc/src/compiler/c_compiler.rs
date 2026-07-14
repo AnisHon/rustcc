@@ -50,17 +50,24 @@ impl IntoIterator for CompileError {
 /// Coordinates the C11 preprocessing, lexing, parsing and semantic phases.
 pub struct CCompiler {
     source: String,
+    target: TargetInfo,
 }
 
 impl CCompiler {
     pub fn new(source: impl Into<String>) -> Self {
         Self {
             source: source.into(),
+            target: TargetInfo::default(),
         }
     }
 
+    pub fn with_target(mut self, target: TargetInfo) -> Self {
+        self.target = target;
+        self
+    }
+
     pub fn compile(&self) -> Result<Compilation, CompileError> {
-        compile(&self.source)
+        compile_with_target(&self.source, self.target.clone())
     }
 
     pub fn compile_file(path: impl AsRef<Path>) -> Result<Compilation, CompileError> {
@@ -70,12 +77,16 @@ impl CCompiler {
 
 /// Compile an in-memory C11 translation unit.
 pub fn compile(source: &str) -> Result<Compilation, CompileError> {
+    compile_with_target(source, TargetInfo::default())
+}
+
+pub fn compile_with_target(source: &str, target: TargetInfo) -> Result<Compilation, CompileError> {
     let mut sources = SourceManager::new();
     let file = match sources.add_memory_buffer("<memory>", source) {
         Ok(file) => file,
         Err(error) => return Err(compile_error(sources, source_error(error))),
     };
-    finish_compilation(sources, file)
+    finish_compilation(sources, file, target)
 }
 
 /// Compile a C11 file and resolve its include directives.
@@ -85,20 +96,21 @@ pub fn compile_file(path: impl AsRef<Path>) -> Result<Compilation, CompileError>
         Ok(file) => file,
         Err(error) => return Err(compile_error(sources, source_error(error))),
     };
-    finish_compilation(sources, file)
+    finish_compilation(sources, file, TargetInfo::default())
 }
 
 fn finish_compilation(
     mut source_manager: SourceManager,
     main_file: crate::source::FileId,
+    target: TargetInfo,
 ) -> Result<Compilation, CompileError> {
-    match compile_source_manager(&mut source_manager, main_file) {
+    match compile_source_manager(&mut source_manager, main_file, &target) {
         Ok(mut ast) => {
             let mut types = TypeContext::new();
             TypeImporter::new(&mut types).import_translation_unit(&mut ast);
             Ok(Compilation {
                 source_manager,
-                target: TargetInfo::default(),
+                target,
                 types,
                 ast,
             })
@@ -117,6 +129,7 @@ fn compile_error(source_manager: SourceManager, diagnostics: Vec<Diagnostic>) ->
 fn compile_source_manager(
     sources: &mut SourceManager,
     main_file: crate::source::FileId,
+    target: &TargetInfo,
 ) -> Result<TranslationUnit, Vec<Diagnostic>> {
     let mut preprocessor = match Preprocessor::new(sources, main_file) {
         Ok(preprocessor) => preprocessor,
@@ -138,7 +151,7 @@ fn compile_source_manager(
     let preprocessing_tokens =
         preprocessing_result.map_err(|error| vec![preprocessor_diagnostic(error)])?;
     let tokens = classify_preprocessed(preprocessing_tokens)?;
-    Parser::new(tokens).parse()
+    Parser::with_target(tokens, target.clone()).parse()
 }
 
 fn preprocessor_diagnostic(error: crate::lex::PreprocessorError) -> Diagnostic {

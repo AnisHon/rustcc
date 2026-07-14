@@ -67,13 +67,11 @@ impl Parser {
         if self.eat(&TokenKind::Question).is_none() {
             return Ok(c);
         }
-        self.sema.require_scalar(&c, "conditional operand")?;
+        let c = self.sema.scalar_conversion(c, "conditional operand")?;
         let a = self.expression()?;
         self.expect(&TokenKind::Colon)?;
         let b = self.conditional_expression()?;
-        let ty = self.sema.common_type(&a.ty, &b.ty).ok_or_else(|| {
-            self.sema_err("incompatible conditional operands", a.range.join(b.range))
-        })?;
+        let (a, b, ty) = self.sema.conditional_conversion(a, b)?;
         let span = c.range.join(b.range);
         Ok(Expression {
             kind: ExpressionKind::Conditional {
@@ -222,7 +220,7 @@ impl Parser {
         };
         if let Some(op) = op {
             self.bump();
-            let e = self.cast_expression()?;
+            let mut e = self.cast_expression()?;
             let (ty, cat) = match op {
                 UnaryOp::AddressOf => {
                     if e.category == ValueCategory::RValue {
@@ -232,26 +230,30 @@ impl Parser {
                     }
                     (CType::pointer(e.ty.clone()), ValueCategory::RValue)
                 }
-                UnaryOp::Dereference => match e.ty.decay().kind {
-                    TypeKind::Pointer(to) => {
-                        let c = if matches!(to.kind, TypeKind::Function { .. }) {
-                            ValueCategory::Function
-                        } else {
-                            ValueCategory::LValue
-                        };
-                        (*to, c)
+                UnaryOp::Dereference => {
+                    e = self.sema.default_conversion(e);
+                    match e.ty.kind.clone() {
+                        TypeKind::Pointer(to) => {
+                            let c = if matches!(to.kind, TypeKind::Function { .. }) {
+                                ValueCategory::Function
+                            } else {
+                                ValueCategory::LValue
+                            };
+                            (*to, c)
+                        }
+                        _ => return Err(self.sema_err("dereference requires a pointer", e.range)),
                     }
-                    _ => return Err(self.sema_err("dereference requires a pointer", e.range)),
-                },
+                }
                 UnaryOp::LogicalNot => {
-                    self.sema.require_scalar(&e, "logical not")?;
+                    e = self.sema.scalar_conversion(e, "logical not")?;
                     (CType::int(), ValueCategory::RValue)
                 }
                 UnaryOp::BitNot => {
                     if !e.ty.is_integer() {
                         return Err(self.sema_err("bitwise not requires integer operand", e.range));
                     }
-                    (self.sema.integer_promote(&e.ty), ValueCategory::RValue)
+                    e = self.sema.integer_promotion(e);
+                    (e.ty.clone(), ValueCategory::RValue)
                 }
                 UnaryOp::Plus | UnaryOp::Minus => {
                     if !e.ty.is_arithmetic() {
@@ -260,7 +262,11 @@ impl Parser {
                             e.range,
                         ));
                     }
-                    (self.sema.integer_promote(&e.ty), ValueCategory::RValue)
+                    e = self.sema.default_conversion(e);
+                    if e.ty.is_integer() {
+                        e = self.sema.integer_promotion(e);
+                    }
+                    (e.ty.clone(), ValueCategory::RValue)
                 }
                 UnaryOp::PreIncrement | UnaryOp::PreDecrement => {
                     if e.category != ValueCategory::LValue
@@ -293,23 +299,27 @@ impl Parser {
             if self.eat(&TokenKind::LBracket).is_some() {
                 let i = self.expression()?;
                 let r = self.expect(&TokenKind::RBracket)?;
-                let base = e.ty.decay();
-                let ity = i.ty.decay();
+                let operand_range = e.range.join(i.range);
+                let span = e.range.join(r.range);
+                let mut base_expression = self.sema.default_conversion(e);
+                let mut index_expression = self.sema.default_conversion(i);
+                let base = base_expression.ty.clone();
+                let ity = index_expression.ty.clone();
                 let elem = match (&base.kind, &ity.kind) {
                     (TypeKind::Pointer(x), _) if ity.is_integer() => (**x).clone(),
-                    (_, TypeKind::Pointer(x)) if base.is_integer() => (**x).clone(),
+                    (_, TypeKind::Pointer(x)) if base.is_integer() => {
+                        std::mem::swap(&mut base_expression, &mut index_expression);
+                        (**x).clone()
+                    }
                     _ => {
-                        return Err(self.sema_err(
-                            "subscript requires a pointer and integer",
-                            e.range.join(i.range),
-                        ));
+                        return Err(self
+                            .sema_err("subscript requires a pointer and integer", operand_range));
                     }
                 };
-                let span = e.range.join(r.range);
                 e = Expression {
                     kind: ExpressionKind::Subscript {
-                        base: Box::new(e),
-                        index: Box::new(i),
+                        base: Box::new(base_expression),
+                        index: Box::new(self.sema.integer_promotion(index_expression)),
                     },
                     ty: elem,
                     category: ValueCategory::LValue,
@@ -328,7 +338,8 @@ impl Parser {
                     }
                 }
                 let r = self.expect(&TokenKind::RParen)?;
-                let fty = e.ty.decay();
+                e = self.sema.default_conversion(e);
+                let fty = e.ty.clone();
                 let TypeKind::Pointer(target) = fty.kind else {
                     return Err(self.sema_err("called object is not a function", e.range));
                 };
@@ -586,6 +597,7 @@ impl Parser {
     pub(crate) fn generic_selection(&mut self, start: SourceRange) -> PResult<Expression> {
         self.expect(&TokenKind::LParen)?;
         let controlling = self.assignment_expression()?;
+        let controlling = self.sema.default_conversion(controlling);
         self.expect(&TokenKind::Comma)?;
         let mut selected = None;
         let mut default = None;

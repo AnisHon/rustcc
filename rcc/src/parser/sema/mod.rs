@@ -44,7 +44,7 @@ pub(crate) struct Binding {
 }
 
 impl Sema {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(target: TargetInfo) -> Self {
         Self {
             scopes: vec![HashMap::new()],
             typedefs: vec![HashMap::new()],
@@ -53,7 +53,7 @@ impl Sema {
             current_return: None,
             loop_depth: 0,
             switches: Vec::new(),
-            target: TargetInfo::default(),
+            target,
             next_tag_id: 0,
             next_decl_id: 0,
             contexts: vec![DeclContextId(0)],

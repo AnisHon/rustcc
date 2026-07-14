@@ -10,7 +10,9 @@ pub mod target;
 pub mod type_system;
 pub mod writer;
 
-pub use compiler::{CCompiler, Compilation, CompileError, compile, compile_file};
+pub use compiler::{
+    CCompiler, Compilation, CompileError, compile, compile_file, compile_with_target,
+};
 pub use constant_eval::{ConstantEvaluator, ConstantValue, EvaluationContext, EvaluationFailure};
 pub use err::{Diagnostic, ErrorKind};
 pub use lex::{Keyword, Literal, StringEncoding, Token, TokenKind, classify_preprocessed};
