@@ -1,240 +1,108 @@
-use crate::err::parser_error;
-use crate::err::parser_error::{ParserError, ParserResult};
-use crate::lex::token_stream::TokenStream;
-use crate::types::lex::token::Token;
-use crate::types::lex::token_kind::{Keyword, TokenKind};
-use crate::types::parser::common::Ident;
-use crate::parser::comp_ctx::CompCtx;
-use crate::parser::sema::Sema;
+use super::sema::Sema;
+use crate::err::{Diagnostic, ErrorKind};
+use crate::lex::token::{Keyword, Token, TokenKind};
+use crate::parser::ast::*;
+use crate::types::Span;
 
-pub struct Parser<'a> {
-    pub(crate) ctx: &'a mut CompCtx,
-    pub(crate) stream: TokenStream,
+pub(crate) type PResult<T> = Result<T, Diagnostic>;
+
+#[derive(Clone)]
+pub(crate) struct DeclSpec {
+    pub(crate) ty: CType,
+    pub(crate) storage: StorageClass,
+    pub(crate) function_specifiers: FunctionSpecifiers,
+    pub(crate) alignment: Option<usize>,
 }
-impl Parser<'_> {
-    /// 根据条件决定是否next
-    pub(crate) fn next_conditional(&mut self, cond: bool) -> Option<Token> {
-        match cond {
-            true => Some(self.stream.next()),
-            false => None,
+
+#[derive(Clone)]
+pub(crate) enum DNode {
+    Name(Option<String>),
+    Pointer(Box<DNode>, Qualifiers),
+    Array(Box<DNode>, ArraySize),
+    Function(Box<DNode>, Vec<Parameter>, bool, bool),
+}
+
+pub struct Parser {
+    pub(crate) tokens: Vec<Token>,
+    pub(crate) pos: usize,
+    pub(crate) diagnostics: Vec<Diagnostic>,
+    pub(crate) sema: Sema,
+}
+
+impl Parser {
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self {
+            tokens,
+            pos: 0,
+            diagnostics: vec![],
+            sema: Sema::new(),
         }
     }
-
-    /// 不建议用次函数检查TokenKind下的子类型
-    /// 对于Literal Ident行为未知
-    pub(crate) fn check(&self, kind: TokenKind) -> bool {
-        self.stream.peek().kind == kind
-    }
-
-    pub(crate) fn checks(&self, kind: &[TokenKind]) -> bool {
-        let token_kind = self.stream.peek().kind;
-        kind.iter().any(|kind| token_kind.eq(kind))
-    }
-
-    pub(crate) fn check_ident(&self) -> bool {
-        let kind = self.stream.peek().kind;
-        matches!(kind, TokenKind::Ident(_))
-    }
-
-    pub(crate) fn check_keyword(&self, keyword: Keyword) -> bool {
-        let kind = self.stream.peek().kind;
-        kind == TokenKind::Keyword(keyword)
-    }
-
-    /// 同上，不建议用此函数预期TokenKind下的子类型
-    pub(crate) fn expects(&mut self, kinds: &[TokenKind]) -> ParserResult<Token> {
-        let expected = self.checks( kinds);
-
-        if expected {
-            Ok(self.stream.next())
+    pub fn parse(mut self) -> Result<TranslationUnit, Vec<Diagnostic>> {
+        let mut declarations = vec![];
+        while !self.at(&TokenKind::Eof) {
+            match self.external_declaration() {
+                Ok(mut x) => declarations.append(&mut x),
+                Err(e) => {
+                    self.diagnostics.push(e);
+                    self.synchronize();
+                }
+            }
+        }
+        if self.diagnostics.is_empty() {
+            Ok(TranslationUnit { declarations })
         } else {
-            let expect: Vec<_> = kinds.iter().map(|x| x.to_string()).collect();
-            let expect = expect.join(", ");
-            let found = self.stream.peek().kind.to_string();
-
-            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
-            let error = self.error_here( error_kind);
-            Err(error)
+            Err(self.diagnostics)
         }
     }
-
-    /// 同上，不建议用此函数预期TokenKind下的子类型
-    pub(crate) fn expect(&mut self, kind: TokenKind) -> ParserResult<Token> {
-        let expected = self.stream.peek().kind == kind;
-
-        if expected {
-            Ok(self.stream.next())
+    pub(crate) fn peek(&self) -> &Token {
+        &self.tokens[self.pos]
+    }
+    pub(crate) fn previous(&self) -> &Token {
+        &self.tokens[self.pos - 1]
+    }
+    pub(crate) fn at(&self, k: &TokenKind) -> bool {
+        std::mem::discriminant(&self.peek().kind) == std::mem::discriminant(k)
+    }
+    pub(crate) fn kw(&self, k: Keyword) -> bool {
+        self.peek().kind == TokenKind::Keyword(k)
+    }
+    pub(crate) fn bump(&mut self) -> Token {
+        let t = self.tokens[self.pos].clone();
+        if !matches!(t.kind, TokenKind::Eof) {
+            self.pos += 1
+        }
+        t
+    }
+    pub(crate) fn eat(&mut self, k: &TokenKind) -> Option<Token> {
+        if self.at(k) { Some(self.bump()) } else { None }
+    }
+    pub(crate) fn eat_kw(&mut self, k: Keyword) -> Option<Token> {
+        if self.kw(k) { Some(self.bump()) } else { None }
+    }
+    pub(crate) fn expect(&mut self, k: &TokenKind) -> PResult<Token> {
+        if self.at(k) {
+            Ok(self.bump())
         } else {
-            let expect = kind.to_string();
-            let found = self.stream.peek().kind.to_string();
-
-            let error_kind = parser_error::ErrorKind::ExpectButFound { expect, found };
-            let error = self.error_here(error_kind);
-            Err(error)
+            Err(self.err(format!("expected {:?}, found {:?}", k, self.peek().kind)))
         }
     }
-
-    pub(crate) fn expect_ident(&mut self) -> ParserResult<Token> {
-        let expected = self.check_ident();
-
-        if expected {
-            Ok(self.stream.next())
-        } else {
-            let expect = "identifier".to_owned();
-            let found: &Token = self.stream.peek();
-
-            let kind = parser_error::ErrorKind::ExpectButFound {
-                expect,
-                found: found.kind.to_string(),
-            };
-            let error: ParserError = self.error_here( kind);
-            Err(error)
+    pub(crate) fn err(&self, msg: impl Into<String>) -> Diagnostic {
+        Diagnostic::new(ErrorKind::Syntax, msg, self.peek().span)
+    }
+    pub(crate) fn sema_err(&self, msg: impl Into<String>, span: Span) -> Diagnostic {
+        Diagnostic::new(ErrorKind::Semantic, msg, span)
+    }
+    pub(crate) fn synchronize(&mut self) {
+        while !self.at(&TokenKind::Eof) {
+            if self.eat(&TokenKind::Semi).is_some() {
+                break;
+            }
+            if self.at(&TokenKind::RBrace) {
+                self.bump();
+                break;
+            }
+            self.bump();
         }
     }
-
-    pub(crate) fn expect_keyword(&mut self, keyword: Keyword) -> ParserResult<Token> {
-        let expected = self.check_keyword( keyword);
-
-        if expected {
-            Ok(self.stream.next())
-        } else {
-            let expect = keyword.to_string();
-            let error_kind = parser_error::ErrorKind::Expect { expect };
-            let error = self.error_here( error_kind);
-            Err(error)
-        }
-    }
-
-    pub(crate) fn expect_keyword_pair(
-        &mut self,
-        kw1: Keyword,
-        kw2: Keyword,
-    ) -> ParserResult<Token> {
-        let kind = self.stream.peek().kind;
-        let expected = match kind {
-            TokenKind::Keyword(k) => k == kw1 || k == kw2,
-            _ => false,
-        };
-        if expected {
-            Ok(self.stream.next())
-        } else {
-            let expect = format!("{}, {}", kw1.to_string(), kw2.to_string());
-            let error_kind = parser_error::ErrorKind::Expect { expect };
-            let error = self.error_here( error_kind);
-            Err(error)
-        }
-    }
-
-    /// 同上，不建议用此函数消费TokenKind下的子类型
-    pub(crate) fn consumes(&mut self, kind: &[TokenKind]) -> Option<Token> {
-        let is_kind = self.checks( kind);
-        self.next_conditional( is_kind)
-    }
-
-    pub(crate) fn consume_pair(&mut self, kind1: TokenKind, kind2: TokenKind) -> Option<Token> {
-        let kind = self.stream.peek().kind;
-        let is_kind = kind == kind1 || kind == kind2;
-        self.next_conditional( is_kind)
-    }
-
-    // pub(crate) fn consume_triple(&mut self, kind1: TokenKind, kind2: TokenKind, kind3: TokenKind) -> Option<Token> {
-    //     let kind = self.stream.peek().kind;
-    //     let is_kind = kind == kind1 || kind == kind2 || kind == kind3;
-    //     next_conditional(is_kind)
-    // }
-
-    /// 同上，不建议用此函数消费TokenKind下的子类型
-    pub(crate) fn consume(&mut self, kind: TokenKind) -> Option<Token> {
-        let is_kind = self.check( kind);
-        self.next_conditional(is_kind)
-    }
-
-    pub(crate) fn consume_keyword(&mut self, keyword: Keyword) -> Option<Token> {
-        let is_keyword = self.check_keyword( keyword);
-        self.next_conditional( is_keyword)
-    }
-
-    pub(crate) fn consume_keyword_pair(&mut self, kw1: Keyword, kw2: Keyword) -> Option<Token> {
-        let kind = self.stream.peek().kind;
-        let is_kw = match kind {
-            TokenKind::Keyword(k) => k == kw1 || k == kw2,
-            _ => false,
-        };
-        self.next_conditional( is_kw)
-    }
-
-    pub(crate) fn consume_ident(&mut self) -> Option<Token> {
-        let is_ident = self.check_ident();
-        self.next_conditional( is_ident)
-    }
-
-    pub(crate) fn error_here(&self, kind: parser_error::ErrorKind) -> ParserError {
-        let span = self.stream.peek().span;
-        ParserError::new(kind, span)
-    }
-
-    pub(crate) fn is_type_name(&self, token: &Token) -> bool {
-        let ident = match token.kind {
-            TokenKind::Ident(symbol) => Ident {
-                symbol,
-                span: token.span,
-            },
-            _ => return false,
-        };
-        self.ctx.scope_mgr
-            .lookup_ident(&ident)
-            .is_some_and(|x| self.ctx.get_decl(x.get_decl()).kind.is_type_def())
-    }
-
-    /// (type-specifier | type-qualifier)*
-    pub fn is_spec_qual(&self, token: &Token) -> bool {
-        self.is_type_spec( token) || Self::is_type_qual(token)
-    }
-
-    pub fn is_type_spec(&self, token: &Token) -> bool {
-        use Keyword::*;
-        match token.kind {
-            TokenKind::Ident(_) => self.is_type_name( token),
-            TokenKind::Keyword(x) => matches!(
-                x,
-                Char | Short
-                    | Int
-                    | Long
-                    | Float
-                    | Double
-                    | Void
-                    | Signed
-                    | Unsigned
-                    | Struct
-                    | Union
-                    | Enum
-            ),
-            _ => false,
-        }
-    }
-
-    pub fn is_type_qual(token: &Token) -> bool {
-        use Keyword::*;
-        match token.kind {
-            TokenKind::Keyword(x) => matches!(x, Const | Restrict | Volatile),
-            _ => false,
-        }
-    }
-
-    pub fn is_storage_spec(token: &Token) -> bool {
-        use Keyword::*;
-        match token.kind {
-            TokenKind::Keyword(x) => matches!(x, Typedef | Extern | Static | Auto | Register),
-            _ => false,
-        }
-    }
-
-    pub fn is_func_spec(&self, token: &Token) -> bool {
-        match token.kind {
-            TokenKind::Ident(_) => self.is_type_name( token),
-            TokenKind::Keyword(x) => matches!(x, Keyword::Inline),
-            _ => false,
-        }
-    }
-
 }

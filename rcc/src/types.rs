@@ -1,3 +1,5 @@
+//! Types shared across compiler layers.
+
 pub mod span;
-pub mod parser;
-pub mod lex;
+
+pub use span::{Position, Span};

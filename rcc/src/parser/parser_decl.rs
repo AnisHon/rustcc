@@ -1,824 +1,834 @@
-use std::rc::Rc;
+use super::parser_core::{DNode, DeclSpec, PResult, Parser};
+use crate::lex::token::{Keyword, Literal, TokenKind};
+use crate::parser::ast::*;
+use crate::types::Span;
 
-use crate::constant::str::EXPECT_IDENT_OR_LB;
-use crate::types::parser::decl_spec::{EnumSuffix, RecordSuffix, TypeQualKind};
-use crate::types::parser::declarator::DeclPrefix;
-use crate::{
-    constant::str::DECL_SPEC,
-    err::parser_error::{self, ParserError, ParserResult},
-    types::span::Span,
-};
-use crate::parser::ast::decls::initializer::InitializerList;
-use crate::types::parser::ast::decls::decl::{DeclGroup};
-use crate::types::parser::ast::decls::initializer::Initializer;
-use crate::parser::parser_core::Parser;
-use crate::parser::sema::decl::decl_spec::DeclSpecBuilder;
-use crate::parser::sema::{expr, Sema};
-use crate::types::lex::token_kind::{Keyword, TokenKind};
-use crate::types::parser::ast::{
-    common::StructOrUnion, DeclKey,
-    TypeKey,
-};
-use crate::types::parser::common::{Ident, IdentList};
-use crate::types::parser::decl_spec::{
-    DeclSpec, EnumSpec, Enumerator, FuncSpec, ParamDecl, ParamList,
-    StorageSpec, StructDeclarator, TypeQual, TypeQuals, TypeSpec,
-    TypeSpecKind,
-};
-use crate::types::parser::declarator::{Declarator, DeclaratorChunk, DeclaratorChunkKind, InitDeclarator};
-
-impl Parser<'_> {
-    fn expect_semi_or_lbrace_error(&mut self) -> ParserError {
-        let kind = parser_error::ErrorKind::Expect {
-            expect: "identifier or '{'".to_owned(),
+impl Parser {
+    pub(crate) fn finish_declaration(
+        &mut self,
+        start: Span,
+        spec: DeclSpec,
+        name: Option<String>,
+        mut ty: CType,
+    ) -> PResult<Declaration> {
+        let initializer = if self.eat(&TokenKind::Assign).is_some() {
+            Some(self.initializer()?)
+        } else {
+            None
         };
-        self.error_here( kind)
+        if let Some(initializer) = &initializer {
+            if let TypeKind::Array { size, .. } = &mut ty.kind
+                && matches!(size, ArraySize::Unspecified)
+            {
+                *size = match initializer {
+                    Initializer::List(items) => ArraySize::Constant(items.len()),
+                    Initializer::Expression(Expression {
+                        kind: ExpressionKind::String { value, .. },
+                        ..
+                    }) => ArraySize::Constant(value.chars().count() + 1),
+                    _ => ArraySize::Unspecified,
+                };
+            }
+            self.check_initializer(&ty, initializer)?;
+        }
+        Ok(Declaration {
+            name,
+            ty,
+            storage: spec.storage,
+            function_specifiers: spec.function_specifiers,
+            initializer,
+            alignment: spec.alignment,
+            span: start.join(self.previous().span),
+        })
     }
 
-    /// 检查 declarator `{` '(` `[` `ident`
-    fn check_declarator(&mut self) -> bool {
-        use TokenKind::*;
-        let kind = &self.stream.peek().kind;
-        match kind {
-            LParen | LBrace | LBracket | Ident(_) => true,
+    pub(crate) fn check_initializer(
+        &self,
+        target: &CType,
+        initializer: &Initializer,
+    ) -> PResult<()> {
+        match (initializer, &target.kind) {
+            (Initializer::Expression(expression), TypeKind::Array { element, .. })
+                if matches!(expression.kind, ExpressionKind::String { .. }) =>
+            {
+                let TypeKind::Array {
+                    element: source, ..
+                } = &expression.ty.kind
+                else {
+                    unreachable!()
+                };
+                if self.sema.compatible(element, source) {
+                    Ok(())
+                } else {
+                    Err(self.sema_err(
+                        "string literal encoding does not match array element type",
+                        expression.span,
+                    ))
+                }
+            }
+            (Initializer::Expression(expression), _) => {
+                self.sema.require_assignable(target, expression)
+            }
+            (Initializer::List(items), TypeKind::Array { element, size }) => {
+                if matches!(size, ArraySize::Constant(size) if items.len() > *size) {
+                    return Err(self.sema_err("too many array initializers", self.peek().span));
+                }
+                for item in items {
+                    self.check_initializer(element, &item.value)?;
+                }
+                Ok(())
+            }
+            (
+                Initializer::List(items),
+                TypeKind::Struct {
+                    fields: Some(fields),
+                    ..
+                },
+            ) => {
+                let mut next = 0;
+                for item in items {
+                    if let Some(Designator::Field(name)) = item.designators.first() {
+                        next = fields
+                            .iter()
+                            .position(|field| field.name.as_deref() == Some(name))
+                            .ok_or_else(|| {
+                                self.sema_err(
+                                    format!("no field named '{name}' in initializer"),
+                                    self.peek().span,
+                                )
+                            })?;
+                    }
+                    let field = fields.get(next).ok_or_else(|| {
+                        self.sema_err("too many struct initializers", self.peek().span)
+                    })?;
+                    self.check_initializer(&field.ty, &item.value)?;
+                    next += 1;
+                }
+                Ok(())
+            }
+            (
+                Initializer::List(items),
+                TypeKind::Union {
+                    fields: Some(fields),
+                    ..
+                },
+            ) => {
+                if items.len() > 1 {
+                    return Err(self.sema_err("too many union initializers", self.peek().span));
+                }
+                if let Some(item) = items.first() {
+                    let field = if let Some(Designator::Field(name)) = item.designators.first() {
+                        fields
+                            .iter()
+                            .find(|field| field.name.as_deref() == Some(name))
+                    } else {
+                        fields.first()
+                    }
+                    .ok_or_else(|| {
+                        self.sema_err("union has no matching field", self.peek().span)
+                    })?;
+                    self.check_initializer(&field.ty, &item.value)?;
+                }
+                Ok(())
+            }
+            (Initializer::List(items), _) if items.len() == 1 => {
+                self.check_initializer(target, &items[0].value)
+            }
+            (Initializer::List(_), _) => {
+                Err(self.sema_err("excess elements in scalar initializer", self.peek().span))
+            }
+        }
+    }
+
+    pub(crate) fn declaration_specifiers(&mut self) -> PResult<DeclSpec> {
+        use Keyword::*;
+        let mut storage = StorageClass::None;
+        let mut q = Qualifiers::default();
+        let mut signed = None;
+        let mut long_count = 0;
+        let mut short = false;
+        let mut base: Option<CType> = None;
+        let mut complex = None;
+        let mut consumed = false;
+        let mut alignment = None;
+        let mut function_specifiers = FunctionSpecifiers::default();
+        loop {
+            match self.peek().kind.clone() {
+                TokenKind::Keyword(Typedef | Extern | Static | Auto | Register | ThreadLocal) => {
+                    consumed = true;
+                    let k = match self.bump().kind {
+                        TokenKind::Keyword(k) => k,
+                        _ => unreachable!(),
+                    };
+                    let s = match k {
+                        Typedef => StorageClass::Typedef,
+                        Extern => StorageClass::Extern,
+                        Static => StorageClass::Static,
+                        ThreadLocal => StorageClass::ThreadLocal,
+                        Auto => StorageClass::Auto,
+                        Register => StorageClass::Register,
+                        _ => unreachable!(),
+                    };
+                    storage = match (storage, s) {
+                        (StorageClass::None, x) | (x, StorageClass::None) => x,
+                        (StorageClass::Static, StorageClass::ThreadLocal)
+                        | (StorageClass::ThreadLocal, StorageClass::Static) => {
+                            StorageClass::StaticThreadLocal
+                        }
+                        (StorageClass::Extern, StorageClass::ThreadLocal)
+                        | (StorageClass::ThreadLocal, StorageClass::Extern) => {
+                            StorageClass::ExternThreadLocal
+                        }
+                        _ => return Err(self.err("invalid storage-class combination")),
+                    }
+                }
+                TokenKind::Keyword(Const) => {
+                    consumed = true;
+                    q.is_const = true;
+                    self.bump();
+                }
+                TokenKind::Keyword(Volatile) => {
+                    consumed = true;
+                    q.is_volatile = true;
+                    self.bump();
+                }
+                TokenKind::Keyword(Restrict) => {
+                    consumed = true;
+                    q.is_restrict = true;
+                    self.bump();
+                }
+                TokenKind::Keyword(Signed) => {
+                    consumed = true;
+                    signed = Some(true);
+                    self.bump();
+                }
+                TokenKind::Keyword(Unsigned) => {
+                    consumed = true;
+                    signed = Some(false);
+                    self.bump();
+                }
+                TokenKind::Keyword(Short) => {
+                    consumed = true;
+                    short = true;
+                    self.bump();
+                }
+                TokenKind::Keyword(Long) => {
+                    consumed = true;
+                    long_count += 1;
+                    self.bump();
+                }
+                TokenKind::Keyword(Void) => {
+                    consumed = true;
+                    base = Some(CType::void());
+                    self.bump();
+                }
+                TokenKind::Keyword(Bool) => {
+                    consumed = true;
+                    base = Some(CType::new(TypeKind::Bool));
+                    self.bump();
+                }
+                TokenKind::Keyword(Char) => {
+                    consumed = true;
+                    base = Some(CType::new(TypeKind::Char { signed }));
+                    self.bump();
+                }
+                TokenKind::Keyword(Int) => {
+                    consumed = true;
+                    base = Some(CType::int());
+                    self.bump();
+                }
+                TokenKind::Keyword(Float) => {
+                    consumed = true;
+                    base = Some(CType::new(TypeKind::Float));
+                    self.bump();
+                }
+                TokenKind::Keyword(Double) => {
+                    consumed = true;
+                    base = Some(CType::new(TypeKind::Double));
+                    self.bump();
+                }
+                TokenKind::Keyword(Struct) => {
+                    consumed = true;
+                    base = Some(self.record_spec(false)?);
+                }
+                TokenKind::Keyword(Union) => {
+                    consumed = true;
+                    base = Some(self.record_spec(true)?);
+                }
+                TokenKind::Keyword(Enum) => {
+                    consumed = true;
+                    base = Some(self.enum_spec()?);
+                }
+                TokenKind::Keyword(Atomic) => {
+                    consumed = true;
+                    self.bump();
+                    if self.eat(&TokenKind::LParen).is_some() {
+                        let mut t = self.type_name()?;
+                        self.expect(&TokenKind::RParen)?;
+                        t.qualifiers.is_atomic = true;
+                        base = Some(t)
+                    } else {
+                        q.is_atomic = true
+                    }
+                }
+                TokenKind::Keyword(Alignas) => {
+                    consumed = true;
+                    self.bump();
+                    self.expect(&TokenKind::LParen)?;
+                    if self.is_type_start() {
+                        let t = self.type_name()?;
+                        alignment = Some(self.sema.alignof(&t))
+                    } else {
+                        let e = self.expression()?;
+                        alignment = Some(self.sema.const_int(&e).ok_or_else(|| {
+                            self.sema_err("alignment must be an integer constant", e.span)
+                        })? as usize)
+                    }
+                    self.expect(&TokenKind::RParen)?;
+                }
+                TokenKind::Keyword(Complex) => {
+                    consumed = true;
+                    complex = Some(false);
+                    self.bump();
+                }
+                TokenKind::Keyword(Imaginary) => {
+                    consumed = true;
+                    complex = Some(true);
+                    self.bump();
+                }
+                TokenKind::Keyword(Inline | Noreturn) => {
+                    consumed = true;
+                    let keyword = self.bump().kind;
+                    function_specifiers.is_inline |= keyword == TokenKind::Keyword(Inline);
+                    function_specifiers.is_noreturn |= keyword == TokenKind::Keyword(Noreturn);
+                }
+                TokenKind::Identifier(ref n) if self.sema.lookup_typedef(n).is_some() => {
+                    consumed = true;
+                    let n = n.clone();
+                    self.bump();
+                    base = self.sema.lookup_typedef(&n);
+                }
+                _ => break,
+            }
+        }
+        if !consumed {
+            return Err(self.err("expected declaration specifier"));
+        }
+        if complex.is_some() && base.is_none() && !short && long_count == 0 && signed.is_none() {
+            base = Some(CType::new(TypeKind::Double));
+        }
+        let mut ty = if let Some(mut b) = base.take() {
+            match b.kind {
+                TypeKind::Int { .. } => {
+                    b.kind = if short {
+                        TypeKind::Short {
+                            signed: signed.unwrap_or(true),
+                        }
+                    } else if long_count == 1 {
+                        TypeKind::Long {
+                            signed: signed.unwrap_or(true),
+                        }
+                    } else if long_count >= 2 {
+                        TypeKind::LongLong {
+                            signed: signed.unwrap_or(true),
+                        }
+                    } else {
+                        TypeKind::Int {
+                            signed: signed.unwrap_or(true),
+                        }
+                    }
+                }
+                TypeKind::Double if long_count > 0 => b.kind = TypeKind::LongDouble,
+                _ if short || long_count > 0 || signed.is_some() => {
+                    return Err(self.err("invalid type specifier combination"));
+                }
+                _ => {}
+            }
+            b
+        } else if short {
+            CType::new(TypeKind::Short {
+                signed: signed.unwrap_or(true),
+            })
+        } else if long_count == 1 {
+            CType::new(TypeKind::Long {
+                signed: signed.unwrap_or(true),
+            })
+        } else if long_count >= 2 {
+            CType::new(TypeKind::LongLong {
+                signed: signed.unwrap_or(true),
+            })
+        } else {
+            CType::new(TypeKind::Int {
+                signed: signed.unwrap_or(true),
+            })
+        };
+        if let Some(imaginary) = complex {
+            if !matches!(
+                ty.kind,
+                TypeKind::Float | TypeKind::Double | TypeKind::LongDouble
+            ) {
+                return Err(self.err("_Complex and _Imaginary require a floating type"));
+            }
+            ty = CType::new(if imaginary {
+                TypeKind::Imaginary(Box::new(ty))
+            } else {
+                TypeKind::Complex(Box::new(ty))
+            });
+        }
+        ty.qualifiers = q;
+        Ok(DeclSpec {
+            ty,
+            storage,
+            function_specifiers,
+            alignment,
+        })
+    }
+    pub(crate) fn is_type_start(&self) -> bool {
+        match &self.peek().kind {
+            TokenKind::Keyword(k) => matches!(
+                k,
+                Keyword::Void
+                    | Keyword::Bool
+                    | Keyword::Char
+                    | Keyword::Short
+                    | Keyword::Int
+                    | Keyword::Long
+                    | Keyword::Float
+                    | Keyword::Double
+                    | Keyword::Signed
+                    | Keyword::Unsigned
+                    | Keyword::Struct
+                    | Keyword::Union
+                    | Keyword::Enum
+                    | Keyword::Const
+                    | Keyword::Volatile
+                    | Keyword::Restrict
+                    | Keyword::Atomic
+                    | Keyword::Complex
+                    | Keyword::Imaginary
+            ),
+            TokenKind::Identifier(n) => self.sema.lookup_typedef(n).is_some(),
             _ => false,
         }
     }
 
-    // 检查指针
-    fn check_pointer(&mut self) -> bool {
-        let kind = &self.stream.peek().kind;
-        matches!(kind, TokenKind::Star)
-    }
-
-
-    /// 解析前缀 declaration 和 function definiton 的共同前缀
-    pub(crate) fn parse_decl_prefix(&mut self) -> ParserResult<DeclPrefix> {
-        let lo = self.stream.span();
-        let decl_spec = self.parse_decl_spec()?;
-
-        let declarator = if self.check( TokenKind::Semi) {
-            // 遇到 ; 结束了
+    pub(crate) fn record_spec(&mut self, union: bool) -> PResult<CType> {
+        self.bump();
+        let name = if let TokenKind::Identifier(n) = self.peek().kind.clone() {
+            self.bump();
+            Some(n)
+        } else {
             None
-        } else {
-            let mut declarator = Declarator::new(Rc::clone(&decl_spec));
-            self.parse_declarator( &mut declarator)?;
-            Some(declarator)
         };
-
-        Ok(DeclPrefix { decl_spec, declarator, lo })
-    }
-
-    // 解 declaration
-    pub(crate) fn parse_decl(&mut self) -> ParserResult<DeclGroup> {
-        let prefix = self.parse_decl_prefix()?;
-        self.parse_decl_after_declarator( prefix)
-    }
-
-    /// 在已经解析 decl_spec [declarator] 后继续解析 decl
-    pub(crate) fn parse_decl_after_declarator(
-        &mut self,
-        prefix: DeclPrefix,
-    ) -> ParserResult<DeclGroup> {
-        let mut group = DeclGroup::default();
-
-        if let Some(x) = prefix.declarator {
-            // 解析到 declarator 继续解析
-            self.parse_init_declarator_list( x, &mut group)?;
-        } else {
-            // 没有 declarator 结束
-            // act on decl_spec
-            todo!()
-        }
-
-        let _ = self.expect( TokenKind::Semi)?;
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(prefix.lo, hi);
-        group.span = span;
-
-        Ok(group)
-    }
-
-    /// decl spec
-    pub(crate) fn parse_decl_spec(&mut self) -> ParserResult<Rc<DeclSpec>> {
-        let lo = self.stream.span();
-
-        let mut storages: Vec<StorageSpec> = Vec::new();
-        let mut type_quals: Vec<TypeQual> = Vec::new();
-        let mut func_specs: Vec<FuncSpec> = Vec::new();
-        let mut type_specs: Vec<TypeSpec> = Vec::new();
-
-        loop {
-            let token = self.stream.peek();
-            if Self::is_storage_spec(token) {
-                let spec = StorageSpec::new(self.stream.next());
-                storages.push(spec);
-                // typedef extern static auto register
-            } else if self.is_type_spec( token) {
-                // 解析组合下一个 type spec
-                let spec = self.parse_type_spec()?;
-                type_specs.push(spec);
-            } else if Self::is_type_qual(token) {
-                // const restrict volatile
-                let spec = TypeQual::new(self.stream.next());
-                type_quals.push(spec);
-            } else if self.check_keyword( Keyword::Inline) {
-                // inline
-                let spec = self.parse_function_spec()?;
-                func_specs.push(spec);
+        let key = name.clone().map(|n| (n, if union { 1 } else { 0 }));
+        if self.eat(&TokenKind::LBrace).is_none() {
+            if let Some(k) = key.as_ref()
+                && let Some(t) = self.sema.tag(k)
+            {
+                return Ok(t);
+            }
+            return Ok(CType::new(if union {
+                TypeKind::Union { name, fields: None }
             } else {
-                break;
-            };
+                TypeKind::Struct { name, fields: None }
+            }));
         }
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        // 肯定不能为空
-        debug_assert!(!type_specs.is_empty());
-
-        // 构建 decl_spec
-        let builder = DeclSpecBuilder {
-            storages,
-            type_quals,
-            func_specs,
-            type_specs,
-            span,
-        };
-
-        let decl_spec = builder.build(self.ctx)?;
-
-        Ok(decl_spec)
-    }
-
-    /// 解析type spec
-    fn parse_type_spec(&mut self) -> ParserResult<TypeSpec> {
-        let token = self.stream.peek();
-        let lo = token.span;
-
-        let kind = match &token.kind {
-            // 一定是 typedef (is_type_spec 已经检测过了)
-            TokenKind::Ident(_) => {
-                // 消耗 token
-                let token = self.stream.next();
-                let symbol = token.kind.into_ident().unwrap();
-                let ident = Ident {
-                    symbol,
-                    span: token.span,
-                };
-                let scope = self.ctx
-                    .scope_mgr
-                    .must_lookup_ident(ident.clone())?;
-                let decl_key = scope.get_decl();
-                TypeSpecKind::TypeName(ident, decl_key)
+        let mut fields = vec![];
+        while !self.at(&TokenKind::RBrace) {
+            let s = self.peek().span;
+            let spec = self.declaration_specifiers()?;
+            if self.eat(&TokenKind::Semi).is_some() {
+                continue;
             }
-
-            // keyword struct union enum
-            TokenKind::Keyword(kw) => match kw {
-                Keyword::Struct | Keyword::Union => {
-                    // 由这个函数自己消耗 token
-                    let spec = self.parse_record_spec()?;
-                    TypeSpecKind::Record(spec)
+            loop {
+                let node = self.declarator(true)?;
+                let (n, ty, _) = self.apply_declarator(node, spec.ty.clone())?;
+                let bit_width =
+                    if self.eat(&TokenKind::Colon).is_some() {
+                        let e = self.assignment_expression()?;
+                        Some(self.sema.const_int(&e).ok_or_else(|| {
+                            self.sema_err("bit-field width must be constant", e.span)
+                        })? as u32)
+                    } else {
+                        None
+                    };
+                fields.push(Field {
+                    name: n,
+                    ty,
+                    bit_width,
+                    span: s.join(self.previous().span),
+                });
+                if self.eat(&TokenKind::Comma).is_none() {
+                    break;
                 }
-                Keyword::Enum => {
-                    // 由这个函数自己消耗 enum token
-                    let spec = self.parse_enum_spec()?;
-                    TypeSpecKind::Enum(spec)
-                }
-
-                // 一定是那堆 keyword
-                _ => TypeSpecKind::new(*kw),
-            },
-            _ => unreachable!(),
-        };
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        let spec = TypeSpec { kind, span };
-
-        // 组合
-        Ok(spec)
-    }
-
-    // /// 解析 type qualifier
-    // /// - `ctx`: Context
-    // /// - `type_qual`: result qualifier. yes, it's output parameter
-    // fn parse_type_qual(&mut self) -> ParserResult<()> {
-    //     let token = self.stream.next();
-
-    //     let kw = token
-    //         .kind
-    //         .as_keyword()
-    //         .expect("wrong! token is not keyword");
-
-    //     let qual = Some(TypeQual::new(token));
-
-    //     // 追踪原来的 type_qual
-    //     let origin = match kw {
-    //         Keyword::Const => &mut type_quals.is_const,
-    //         Keyword::Restrict => &mut type_quals.is_restrict,
-    //         Keyword::Volatile => &mut type_quals.is_volatile,
-    //         _ => unreachable!("wrong! token is keyword but not one of const, restrict, volatile"),
-    //     };
-
-    //     // 出现重复了，发个Warning
-    //     if let Some(x) = origin.as_ref() {
-    //         let error = ParserError::duplicate(kw.to_string(), DECL_SPEC, token.span);
-    //         ctx.send_error(error)?;
-    //     }
-
-    //     Ok(())
-    // }
-
-    fn parse_function_spec(&mut self) -> ParserResult<FuncSpec> {
-        let inline = self.stream.next();
-        let func_spec = FuncSpec::new(inline);
-        Ok(func_spec)
-    }
-
-    /// 兼容 abstract_declarator
-    /// 假设 `int **( (*a)() )[]` 结果应该是 `setname(a) [ * () [] * * ] int`
-    /// 解析的时候应该反过来
-    pub(crate) fn parse_declarator(&mut self, declarator: &mut Declarator) -> ParserResult<()> {
-        let lo = self.stream.span();
-
-        let mut pointers: Vec<DeclaratorChunk> = Vec::new();
-
-        // 解析 pointer 部分
-        if self.check_pointer() {
-            self.parse_pointer( &mut pointers)?;
+            }
+            self.expect(&TokenKind::Semi)?;
         }
-
-        // 解析 direct declarator 部分
-        if self.check_declarator() {
-            self.parse_direct_declarator( declarator)?;
-        }
-
-        // 合并 direct declarator 和 pointer
-        // 反转插入
-        pointers.reverse();
-        declarator.chunks.append(&mut pointers);
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-        declarator.span = span;
-
-        Ok(())
-    }
-
-    /// 解析 direct declarator 的第一步，非循环部分，包括 `ident | (ident)`
-    fn parse_direct_declarator_suffix(
-        &mut self,
-        declarator: &mut Declarator,
-    ) -> ParserResult<()> {
-        // todo 这里可能有问题， abstract declarator 可能出问题
-        if let Some(ident) = self.consume_ident() {
-            // 设置name
-            let ident = Ident::new(ident);
-            declarator.name = Some(ident);
-        } else if let Some(_) = self.consume( TokenKind::LParen) {
-            // 解析 括号 (xxx)
-            self.parse_declarator( declarator)?;
-            let _ = self.expect( TokenKind::RParen)?;
+        self.expect(&TokenKind::RBrace)?;
+        let ty = CType::new(if union {
+            TypeKind::Union {
+                name,
+                fields: Some(fields),
+            }
         } else {
-            unreachable!(
-                "parse_direct_declarator_suffix: unexpected {:?}",
-                self.stream.peek()
-            );
-        };
-
-        Ok(())
-    }
-
-    /// 解析direct declarator
-    fn parse_direct_declarator(&mut self, declarator: &mut Declarator) -> ParserResult<()> {
-        // 非循环部分
-        self.parse_direct_declarator_suffix( declarator)?;
-
-        // 循环部分 [] ()
-        loop {
-            let lo = self.stream.span();
-
-            let kind = if let Some(_) = self.consume( TokenKind::LBracket) {
-                // array []
-                // let type_qual = self.parse_type_qual_list_opt()?;
-                // 是否是空括号[]
-                let expr = match self.check( TokenKind::RBracket) {
-                    true => None,                           // 空括号
-                    false => Some(self.parse_assign_expr()?), // 非空解析为表达式
-                };
-                let _ = self.expect( TokenKind::RBracket)?;
-                DeclaratorChunkKind::Array { expr }
-            } else if let Some(_lparen) = self.consume( TokenKind::LParen) {
-                // func ()
-
-                // 参数类型
-                let param = if self.is_type_spec( self.stream.peek()) {
-                    // 普通函数参数
-                    let list = self.parse_parameter_list()?;
-                    ParamDecl::Params(list)
-                } else if self.check_ident() {
-                    // K&R函数定义参数
-                    let idents = self.parse_ident_list()?;
-                    ParamDecl::Idents(idents)
-                } else {
-                    // 没有参数使用默认
-                    ParamDecl::Params(ParamList::default())
-                };
-
-                let _r = self.expect( TokenKind::RParen)?;
-
-                DeclaratorChunkKind::Function { param }
-            } else {
-                break;
-            };
-
-            let hi = self.stream.prev_span();
-            let span = Span::span(lo, hi);
-
-            let chunk = DeclaratorChunk::new(kind, span);
-            declarator.chunks.push(chunk)
-        }
-
-        Ok(())
-    }
-
-    /// 解析 pointer *
-    fn parse_pointer(&mut self, chunks: &mut Vec<DeclaratorChunk>) -> ParserResult<()> {
-        loop {
-            let lo = self.stream.span();
-
-            if self.consume( TokenKind::Star).is_none() {
-                break;
+            TypeKind::Struct {
+                name,
+                fields: Some(fields),
             }
-
-            let type_qual = match Self::is_type_qual(self.stream.peek()) {
-                true => self.parse_type_qual_list()?,
-                false => TypeQuals::default(),
-            };
-
-            let hi = self.stream.prev_span();
-            let span = Span::span(lo, hi);
-
-            let kind = DeclaratorChunkKind::Pointer {
-                type_quals: type_qual,
-            };
-            let chunk = DeclaratorChunk::new(kind, span);
-
-            chunks.push(chunk);
+        });
+        if let Some(k) = key {
+            self.sema.define_tag(k, ty.clone());
         }
-
-        Ok(())
+        Ok(ty)
     }
-
-    fn parse_type_qual_list_opt(&mut self) -> ParserResult<Option<TypeQuals>> {
-        if Self::is_type_qual(self.stream.peek()) {
-            self.parse_type_qual_list().map(|list| Some(list))
+    pub(crate) fn enum_spec(&mut self) -> PResult<CType> {
+        self.bump();
+        let name = if let TokenKind::Identifier(n) = self.peek().kind.clone() {
+            self.bump();
+            Some(n)
         } else {
-            Ok(None)
+            None
+        };
+        let key = name.clone().map(|n| (n, 2));
+        if self.eat(&TokenKind::LBrace).is_none() {
+            if let Some(k) = key.as_ref()
+                && let Some(t) = self.sema.tag(k)
+            {
+                return Ok(t);
+            }
+            return Ok(CType::new(TypeKind::Enum {
+                name,
+                variants: None,
+            }));
         }
-    }
-
-    fn parse_type_qual_list(&mut self) -> ParserResult<TypeQuals> {
-
-        let mut type_quals = TypeQuals::default();
-        loop {
-            if Self::is_type_qual(self.stream.peek()) {
-                let qual = TypeQual::new(self.stream.next());
-
-                // 设置 const restrict volatile
-                let field = match &qual.kind {
-                    TypeQualKind::Const => &mut type_quals.is_const,
-                    TypeQualKind::Restrict => &mut type_quals.is_restrict,
-                    TypeQualKind::Volatile => &mut type_quals.is_volatile,
-                };
-
-                // 重复发一个警告
-                if field.is_some() {
-                    let error = ParserError::duplicate(qual.to_string(), DECL_SPEC, qual.span);
-                    self.ctx.send_error(error)?;
-                }
-            } else {
+        let mut variants = vec![];
+        let mut next = 0i64;
+        while !self.at(&TokenKind::RBrace) {
+            let t = self.bump();
+            let TokenKind::Identifier(n) = t.kind else {
+                return Err(self.err("expected enumerator name"));
+            };
+            if self.eat(&TokenKind::Assign).is_some() {
+                let e = self.assignment_expression()?;
+                next = self.sema.const_int(&e).ok_or_else(|| {
+                    self.sema_err("enumerator must be an integer constant", e.span)
+                })? as i64
+            }
+            variants.push(EnumVariant {
+                name: n.clone(),
+                value: next,
+                span: t.span,
+            });
+            self.sema.declare_enumerator(n, next as i128);
+            next += 1;
+            if self.eat(&TokenKind::Comma).is_none() {
                 break;
             }
         }
-        Ok(type_quals)
-    }
-
-    fn parse_init_declarator_list(
-        &mut self,
-        declarator: Declarator,
-        group: &mut DeclGroup,
-    ) -> ParserResult<()> {
-        let decl_spec = Rc::clone(&declarator.decl_spec);
-
-        let init = self.parse_init_declarator( Rc::clone(&decl_spec), Some(declarator))?;
-        group.decls.push(init);
-
-        while let Some(comma) = self.consume( TokenKind::Comma) {
-            let init = self.parse_init_declarator( Rc::clone(&decl_spec), None)?;
-            group.decls.push(init);
-        }
-        Ok(())
-    }
-
-    ///
-    /// # Arguments
-    /// - `decl_spec`: DeclSpec引用
-    /// - `declarator`: 传入None表示无Declarator
-    fn parse_init_declarator(
-        &mut self,
-        decl_spec: Rc<DeclSpec>,
-        declarator: Option<Declarator>,
-    ) -> ParserResult<DeclKey> {
-        let lo = self.stream.span();
-
-        // 解析declarator
-        let declarator = match declarator {
-            Some(x) => x,
-            None => {
-                let mut declarator = Declarator::new(decl_spec);
-                self.parse_declarator( &mut declarator)?;
-                declarator
-            }
-        };
-
-        // 解析initializer部分
-        let init = match self.consume( TokenKind::Assign) {
-            Some(_) => Some(self.parse_initializer()?),
-            None => None,
-        };
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        let init_declarator = InitDeclarator {
-            declarator,
-            init,
-            span,
-        };
-
-        // 类型检查
-        let decl = Sema::act_on_init_declarator(self.ctx, init_declarator)?;
-        Ok(decl)
-    }
-
-    /// 解析 initializer
-    fn parse_initializer(&mut self) -> ParserResult<Initializer> {
-        let init = if let Some(lparen) = self.consume( TokenKind::LParen) {
-            let l = lparen.span.to_pos();
-            let inits = self.parse_initializer_list()?;
-            let r = self.expect( TokenKind::RParen)?.span.to_pos();
-            Initializer::InitList { inits }
-        } else {
-            let expr = self.parse_assign_expr()?;
-            Initializer::Expr(expr)
-        };
-        Ok(init)
-    }
-
-    fn parse_initializer_list(&mut self) -> ParserResult<InitializerList> {
-        let mut list = InitializerList::new();
-        let init = self.parse_initializer()?;
-        list.inits.push(init);
-
-        while let Some(comma) = self.consume( TokenKind::Comma) {
-            if self.check( TokenKind::RParen) {
-                break;
-            }
-            let init = self.parse_initializer()?;
-            list.inits.push(init);
-        }
-        Ok(list)
-    }
-
-    /// 解析 record `struct/union [ident]` 部分
-    fn parse_record_suffix(&mut self) -> ParserResult<RecordSuffix> {
-        let lo = self.stream.span();
-
-        // 消耗struct union关键字
-        let kw = self.expect_keyword_pair( Keyword::Struct, Keyword::Union)?;
-        let record_kind = StructOrUnion::new(kw);
-
-        let name = self.consume_ident().map(Ident::new); // 尝试解析名字
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        Ok(RecordSuffix {
-            record: record_kind,
+        self.expect(&TokenKind::RBrace)?;
+        let ty = CType::new(TypeKind::Enum {
             name,
-            span,
+            variants: Some(variants),
+        });
+        if let Some(k) = key {
+            self.sema.define_tag(k, ty.clone());
+        }
+        Ok(ty)
+    }
+
+    pub(crate) fn declarator(&mut self, abstract_ok: bool) -> PResult<DNode> {
+        let mut ptrs = vec![];
+        while self.eat(&TokenKind::Star).is_some() {
+            let mut q = Qualifiers::default();
+            loop {
+                if self.eat_kw(Keyword::Const).is_some() {
+                    q.is_const = true
+                } else if self.eat_kw(Keyword::Volatile).is_some() {
+                    q.is_volatile = true
+                } else if self.eat_kw(Keyword::Restrict).is_some() {
+                    q.is_restrict = true
+                } else {
+                    break;
+                }
+            }
+            ptrs.push(q)
+        }
+        let mut node = if let TokenKind::Identifier(n) = self.peek().kind.clone() {
+            self.bump();
+            DNode::Name(Some(n))
+        } else if self.eat(&TokenKind::LParen).is_some() {
+            let n = self.declarator(abstract_ok)?;
+            self.expect(&TokenKind::RParen)?;
+            n
+        } else if abstract_ok {
+            DNode::Name(None)
+        } else {
+            return Err(self.err("expected declarator"));
+        };
+        loop {
+            if self.eat(&TokenKind::LBracket).is_some() {
+                while self.eat_kw(Keyword::Static).is_some()
+                    || self.eat_kw(Keyword::Const).is_some()
+                    || self.eat_kw(Keyword::Restrict).is_some()
+                {}
+                let size = if self.eat(&TokenKind::Star).is_some() {
+                    ArraySize::Star
+                } else if self.at(&TokenKind::RBracket) {
+                    ArraySize::Unspecified
+                } else {
+                    let e = self.assignment_expression()?;
+                    if !e.ty.is_integer() {
+                        return Err(self.sema_err("array bound must have integer type", e.span));
+                    }
+                    match self.sema.const_int(&e) {
+                        Some(value) if value > 0 => ArraySize::Constant(value as usize),
+                        Some(_) => {
+                            return Err(
+                                self.sema_err("array bound must be greater than zero", e.span)
+                            );
+                        }
+                        None if !self.sema.is_file_scope() => ArraySize::Variable(Box::new(e)),
+                        None => {
+                            return Err(self.sema_err(
+                                "variably modified type is not allowed at file scope",
+                                e.span,
+                            ));
+                        }
+                    }
+                };
+                self.expect(&TokenKind::RBracket)?;
+                node = DNode::Array(Box::new(node), size)
+            } else if self.eat(&TokenKind::LParen).is_some() {
+                let (mut ps, var, mut has_prototype) = self.parameter_list()?;
+                self.expect(&TokenKind::RParen)?;
+                if ps.len() == 1 && ps[0].name.is_none() && matches!(ps[0].ty.kind, TypeKind::Void)
+                {
+                    ps.clear()
+                } else if ps.is_empty() {
+                    has_prototype = false;
+                }
+                node = DNode::Function(Box::new(node), ps, var, has_prototype)
+            } else {
+                break;
+            }
+        }
+        for q in ptrs.into_iter().rev() {
+            node = DNode::Pointer(Box::new(node), q)
+        }
+        Ok(node)
+    }
+    pub(crate) fn parameter_list(&mut self) -> PResult<(Vec<Parameter>, bool, bool)> {
+        let mut p = vec![];
+        let mut var = false;
+        if self.at(&TokenKind::RParen) {
+            return Ok((p, var, false));
+        }
+        if matches!(self.peek().kind, TokenKind::Identifier(ref name) if self.sema.lookup_typedef(name).is_none())
+        {
+            loop {
+                let token = self.bump();
+                let TokenKind::Identifier(name) = token.kind else {
+                    unreachable!()
+                };
+                p.push(Parameter {
+                    name: Some(name),
+                    ty: CType::int(),
+                    span: token.span,
+                });
+                if self.eat(&TokenKind::Comma).is_none() {
+                    break;
+                }
+            }
+            return Ok((p, false, false));
+        }
+        loop {
+            if self.eat(&TokenKind::Ellipsis).is_some() {
+                if p.is_empty() {
+                    return Err(self.err("ellipsis requires at least one named parameter"));
+                }
+                var = true;
+                break;
+            }
+            let s = self.peek().span;
+            let spec = self.declaration_specifiers()?;
+            let node = self.declarator(true)?;
+            let (n, mut ty, _) = self.apply_declarator(node, spec.ty)?;
+            if let TypeKind::Array { element, .. } = ty.kind {
+                ty = CType::pointer(*element)
+            } else if matches!(ty.kind, TypeKind::Function { .. }) {
+                ty = CType::pointer(ty)
+            }
+            p.push(Parameter {
+                name: n,
+                ty,
+                span: s.join(self.previous().span),
+            });
+            if self.eat(&TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        if p.iter()
+            .any(|parameter| matches!(parameter.ty.kind, TypeKind::Void))
+            && !(p.len() == 1 && p[0].name.is_none())
+        {
+            return Err(self.err("void must be the only parameter and have no name"));
+        }
+        Ok((p, var, true))
+    }
+
+    pub(crate) fn old_parameter_declarations(&mut self, params: &mut [Parameter]) -> PResult<()> {
+        while !self.at(&TokenKind::LBrace) {
+            let spec = self.declaration_specifiers()?;
+            if !matches!(spec.storage, StorageClass::None | StorageClass::Register) {
+                return Err(self.err("invalid storage class in old-style parameter declaration"));
+            }
+            loop {
+                let node = self.declarator(false)?;
+                let (name, mut ty, _) = self.apply_declarator(node, spec.ty.clone())?;
+                if let TypeKind::Array { element, .. } = ty.kind {
+                    ty = CType::pointer(*element);
+                } else if matches!(ty.kind, TypeKind::Function { .. }) {
+                    ty = CType::pointer(ty);
+                }
+                let name = name.ok_or_else(|| self.err("old-style parameter requires a name"))?;
+                let parameter = params
+                    .iter_mut()
+                    .find(|parameter| parameter.name.as_deref() == Some(&name))
+                    .ok_or_else(|| self.err(format!("declaration for non-parameter '{name}'")))?;
+                parameter.ty = ty;
+                if self.eat(&TokenKind::Comma).is_none() {
+                    break;
+                }
+            }
+            self.expect(&TokenKind::Semi)?;
+        }
+        Ok(())
+    }
+    pub(crate) fn apply_declarator(
+        &self,
+        node: DNode,
+        base: CType,
+    ) -> PResult<(Option<String>, CType, Vec<Parameter>)> {
+        fn go(n: DNode, b: CType) -> (Option<String>, CType, Vec<Parameter>) {
+            match n {
+                DNode::Name(x) => (x, b, vec![]),
+                DNode::Pointer(c, q) => {
+                    let mut t = CType::pointer(b);
+                    t.qualifiers = q;
+                    go(*c, t)
+                }
+                DNode::Array(c, s) => go(
+                    *c,
+                    CType::new(TypeKind::Array {
+                        element: Box::new(b),
+                        size: s,
+                    }),
+                ),
+                DNode::Function(c, p, v, has_prototype) => {
+                    let t = CType::new(TypeKind::Function {
+                        return_type: Box::new(b),
+                        params: p.clone(),
+                        variadic: v,
+                        has_prototype,
+                    });
+                    let (n, t, _) = go(*c, t);
+                    (n, t, p)
+                }
+            }
+        }
+        Ok(go(node, base))
+    }
+    pub(crate) fn type_name(&mut self) -> PResult<CType> {
+        let s = self.declaration_specifiers()?;
+        let node = self.declarator(true)?;
+        let (_, t, _) = self.apply_declarator(node, s.ty)?;
+        Ok(t)
+    }
+
+    pub(crate) fn initializer(&mut self) -> PResult<Initializer> {
+        if self.eat(&TokenKind::LBrace).is_none() {
+            return Ok(Initializer::Expression(self.assignment_expression()?));
+        }
+        let mut items = vec![];
+        while !self.at(&TokenKind::RBrace) {
+            let mut ds = vec![];
+            loop {
+                if self.eat(&TokenKind::Dot).is_some() {
+                    let t = self.bump();
+                    let TokenKind::Identifier(n) = t.kind else {
+                        return Err(self.err("expected field designator"));
+                    };
+                    ds.push(Designator::Field(n))
+                } else if self.eat(&TokenKind::LBracket).is_some() {
+                    let e = self.assignment_expression()?;
+                    self.expect(&TokenKind::RBracket)?;
+                    ds.push(Designator::Index(e))
+                } else {
+                    break;
+                }
+            }
+            if !ds.is_empty() {
+                self.expect(&TokenKind::Assign)?;
+            }
+            let value = self.initializer()?;
+            items.push(InitializerItem {
+                designators: ds,
+                value,
+            });
+            if self.eat(&TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        self.expect(&TokenKind::RBrace)?;
+        Ok(Initializer::List(items))
+    }
+    pub(crate) fn static_assert(&mut self) -> PResult<StaticAssertion> {
+        let start = self.bump().span;
+        self.expect(&TokenKind::LParen)?;
+        let e = self.assignment_expression()?;
+        self.expect(&TokenKind::Comma)?;
+        let message = match self.bump().kind {
+            TokenKind::Literal(Literal::String { value: message, .. }) => message,
+            _ => return Err(self.err("static assertion requires a string literal")),
+        };
+        self.expect(&TokenKind::RParen)?;
+        let semi = self.expect(&TokenKind::Semi)?;
+        if self.sema.const_int(&e) == Some(0) {
+            return Err(self.sema_err("static assertion failed", e.span));
+        }
+        Ok(StaticAssertion {
+            condition: e,
+            message,
+            span: start.join(semi.span),
         })
     }
 
-    /// 解析 record
-    fn parse_record_spec(&mut self) -> ParserResult<DeclKey> {
-        // 解析前缀
-        let suffix = self.parse_record_suffix()?;
-        
-        
-        // 前向声明，如果没有名字则不做前向声明
-        let fwd_decl = match suffix.name {
-            Some(x) => Some(insert_record_decl(
-                self.ctx,
-                suffix.record.clone(),
-                x,
-                suffix.span,
-            )?),
-            None => None,
-        };
-
-        // 尝试解析定义
-        let mut def_decl: Option<DeclKey> = None;
-        if self.consume(TokenKind::LBrace).is_some() {
-            let fields = self.parse_struct_decl_list()?;
-            let _ = self.expect(TokenKind::RBrace)?;
-
-            let hi = self.stream.prev_span();
-            let span = Span::span(suffix.span, hi);
-
-            def_decl = 
-        };
-
-        // fwd, def 必须存在一个，否则出错
-        let decl = def_decl.or(fwd_decl);
-        let decl = match decl {
-            Some(x) => x,
-            None => {
-                let err = ParserError::expect(EXPECT_IDENT_OR_LB, suffix.span);
-                return Err(err);
-            }
-        };
-
-        Ok(decl)
-    }
-
-    /// 结构体内部声明，不负责括号，要不要 members 作用域待定
-    fn parse_struct_decl_list(&mut self) -> ParserResult<Vec<DeclGroup>> {
-        let mut decls = Vec::new();
-
-        if self.check( TokenKind::RBrace) {
-            return Ok(decls);
+    pub(crate) fn local_declaration(&mut self) -> PResult<Vec<Declaration>> {
+        let start = self.peek().span;
+        let spec = self.declaration_specifiers()?;
+        if self.eat(&TokenKind::Semi).is_some() {
+            return Ok(vec![Declaration {
+                name: None,
+                ty: spec.ty,
+                storage: spec.storage,
+                function_specifiers: spec.function_specifiers,
+                initializer: None,
+                alignment: spec.alignment,
+                span: start.join(self.previous().span),
+            }]);
         }
-
+        let mut out = vec![];
         loop {
-            let group = self.parse_struct_decl()?;
-            decls.push(group);
-            if self.check( TokenKind::RBrace) {
+            let n = self.declarator(false)?;
+            let (name, ty, _) = self.apply_declarator(n, spec.ty.clone())?;
+            let d = self.finish_declaration(start, spec.clone(), name, ty)?;
+            self.sema.declare(&d)?;
+            out.push(d);
+            if self.eat(&TokenKind::Comma).is_none() {
                 break;
             }
         }
-
-        Ok(decls)
-    }
-
-    /// 结构体成员声明，包括结尾分号
-    fn parse_struct_decl(&mut self) -> ParserResult<DeclGroup> {
-        let lo = self.stream.span();
-
-        let decl_spec = self.parse_decl_spec()?;
-        let mut group = DeclGroup::default();
-        self.parse_struct_declarator_list( &mut group, decl_spec)?;
-        let semi = self.expect( TokenKind::Semi)?.span.to_pos();
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-        group.span = span;
-
-        Ok(group)
-    }
-
-    /// 结构体声明declarator列表形如 *a, **b, **c
-    fn parse_struct_declarator_list(
-        &mut self,
-        group: &mut DeclGroup,
-        decl_spec: Rc<DeclSpec>,
-    ) -> ParserResult<()> {
-        // 构建declarator
-        let decl = self.parse_struct_declarator( Rc::clone(&decl_spec))?;
-        group.decls.push(decl);
-
-        while let Some(_) = self.consume( TokenKind::Comma) {
-            let decl = self.parse_struct_declarator( Rc::clone(&decl_spec))?;
-            group.decls.push(decl);
-        }
-
-        Ok(())
-    }
-
-    /// 解析struct的成员，负责插入符号表，应该插入member
-    fn parse_struct_declarator(&mut self, decl_spec: Rc<DeclSpec>) -> ParserResult<DeclKey> {
-        let mut declarator = Declarator::new(decl_spec);
-
-        let lo = self.stream.span();
-
-        let mut colon = None;
-        let mut bit_field = None;
-
-        if self.check_declarator() {
-            self.parse_declarator( &mut declarator)?;
-        }
-
-        if let Some(colon_token) = self.consume( TokenKind::Colon) {
-            colon = Some(colon_token.span.to_pos());
-            bit_field = Some(self.parse_assign_expr()?);
-        }
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        let struct_declarator = StructDeclarator {
-            declarator,
-            bit_field,
-            span,
-        };
-
-        // 语义分析，获取类型
-        let decl = Sema::act_on_record_field(self.ctx, struct_declarator)?;
-        Ok(decl)
-    }
-
-    fn parse_enum_suffix(&mut self) -> ParserResult<EnumSuffix> {
-        let lo = self.stream.span();
-        self.expect_keyword( Keyword::Enum)?;
-
-        // 检查是否合法
-        if self.check_ident() || self.check(TokenKind::LBrace) {
-            let kind = parser_error::ErrorKind::Expect {
-                expect: "identifier or '{'".to_owned(),
-            };
-            return Err(self.error_here( kind));
-        }
-
-        let name = self.consume_ident().map(Ident::new);
-
-        // 计算一下当前的span，添加 Ref 声明
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        Ok(EnumSuffix { name, span })
-    }
-
-    // todo 重构成 parse_record_spec 的样子
-    /// 解析enum声明或定义
-    fn parse_enum_spec(&mut self) -> ParserResult<DeclKey> {
-        // 准备枚举上下文
-        // sema.enter_decl(DeclContextKind::Enum);
-
-        let suffix = self.parse_enum_suffix()?;
-
-        // 前向声明，虽然 enum 定义不需要前向声明
-        let fwd_decl = match suffix.name.clone() {
-            Some(x) => Some(Sema::insert_enum_decl(self.ctx, x, suffix.span)?),
-            None => None,
-        };
-
-        let def_decl: Option<DeclKey> = None;
-
-        if self.consume( TokenKind::RBrace).is_some() {
-            // 解析枚举列表
-            let enums = self.parse_enumerator_list()?;
-            self.expect( TokenKind::RBrace)?;
-
-            let hi = self.stream.prev_span();
-            let span = Span::span(suffix.span, hi);
-            let spec = EnumSpec {
-                name: suffix.name,
-                enums,
-                span,
-            };
-
-            todo!("act on enum spec def")
-        }
-
-        // 二者选其一，必须有 decl, def 优先
-        let decl = def_decl.or(fwd_decl);
-        let decl = match decl {
-            Some(x) => x,
-            None => {
-                let err = ParserError::expect(EXPECT_IDENT_OR_LB, suffix.span);
-                return Err(err);
-            }
-        };
-
-        Ok(decl)
-    }
-
-    fn parse_enumerator_list(&mut self) -> ParserResult<Vec<Enumerator>> {
-        let mut enums: Vec<Enumerator> = Vec::new();
-        loop {
-            let enumerator = self.parse_enumerator()?;
-            enums.push(enumerator);
-
-            if self.consume( TokenKind::Comma).is_none() {
-                break;
-            }
-        }
-        Ok(enums)
-    }
-
-    // 解析枚举的成员，应该是要管理符号表的
-    fn parse_enumerator(&mut self) -> ParserResult<Enumerator> {
-        let lo = self.stream.span();
-
-        let ident = self.expect_ident()?;
-        let name = Ident::new(ident);
-        let mut expr = None;
-        if let Some(_assign_token) = self.consume( TokenKind::Assign) {
-            expr = Some(self.parse_assign_expr()?);
-        };
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        let enumerator = Enumerator { name, expr, span };
-        Ok(enumerator)
-    }
-
-    /// 解析函数列表
-    /// - 不包含左右括号
-    /// - 不负责构建符号表
-    /// - 不支持尾部逗号
-    fn parse_parameter_list(&mut self) -> ParserResult<ParamList> {
-        let lo = self.stream.span();
-
-        let mut params: Vec<DeclKey> = Vec::new();
-        let mut is_variadic = false;
-
-        // 解析列表参数声明
-        loop {
-            let decl = self.parse_parameter_decl()?;
-            params.push(decl);
-            if self.consume( TokenKind::Comma).is_none() {
-                break;
-            }
-
-            if self.consume( TokenKind::Ellipsis).is_some() {
-                is_variadic = true;
-                break;
-            }
-        }
-
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        let list = ParamList {
-            params,
-            is_variadic,
-            span,
-        };
-        Ok(list)
-    }
-
-    /// 解析函数参数声明，不负责插入符号表
-    fn parse_parameter_decl(&mut self) -> ParserResult<DeclKey> {
-        let lo = self.stream.span();
-
-        // 准备 declarator 结构
-        let decl_spec = self.parse_decl_spec()?;
-        let mut declarator = Declarator::new(decl_spec);
-
-        // 解析 declarator
-        self.parse_declarator( &mut declarator)?;
-
-        // 计算span
-        let hi = self.stream.prev_span();
-        let span = Span::span(lo, hi);
-
-        declarator.span = span;
-
-        // 这个函数要进行必要的检测，不负责管理符号表
-        let decl = Sema::act_on_param_var(self.ctx, declarator)?;
-
-        Ok(decl)
-    }
-
-    fn parse_ident_list(&mut self) -> ParserResult<IdentList> {
-        let mut list = IdentList::new();
-        let ident = self.expect_ident()?;
-        let ident = Ident::new(ident);
-        list.idents.push(ident);
-
-        while let Some(_) = self.consume( TokenKind::Comma) {
-            let ident = self.expect_ident()?;
-            let ident = Ident::new(ident);
-            list.idents.push(ident);
-        }
-
-        Ok(list)
-    }
-
-    /// 解析 type name
-    pub(crate) fn parse_type_name(&mut self) -> ParserResult<TypeKey> {
-        let decl_specs = self.parse_decl_spec()?;
-        let mut declarator = Declarator::new(decl_specs);
-        if self.check_declarator() {
-            self.parse_declarator( &mut declarator)?;
-        };
-
-        let info = Sema::resolve_declarator(self.ctx, declarator)?;
-        Ok(info.ty)
+        self.expect(&TokenKind::Semi)?;
+        Ok(out)
     }
 }

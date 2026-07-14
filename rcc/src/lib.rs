@@ -1,9 +1,17 @@
-//! A self-contained C11 front end.
-//!
-//! The old prototype modules are intentionally no longer part of the crate's
-//! compilation graph.  They mixed several incompatible AST generations.  The
-//! public API below has one source of truth for tokens, types and semantic AST.
+//! C11 compiler front end.
 
-pub mod frontend;
+pub mod compiler;
+pub mod err;
+pub mod lex;
+pub mod parser;
+pub mod types;
+pub mod writer;
 
-pub use frontend::*;
+pub use compiler::{CCompiler, compile, compile_file};
+pub use err::{Diagnostic, ErrorKind};
+pub use lex::{
+    Keyword, Literal, StringEncoding, Token, TokenKind, lex, preprocess, preprocess_file,
+};
+pub use parser::ast::*;
+pub use types::{Position, Span};
+pub use writer::AstWriter;

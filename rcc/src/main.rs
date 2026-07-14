@@ -1,4 +1,4 @@
-use rcc::compile_file;
+use rcc::{AstWriter, compile_file};
 use std::{env, process::ExitCode};
 
 fn main() -> ExitCode {
@@ -8,7 +8,7 @@ fn main() -> ExitCode {
     };
     match compile_file(&path) {
         Ok(ast) => {
-            println!("{ast:#?}");
+            print!("{}", AstWriter::render(&ast));
             ExitCode::SUCCESS
         }
         Err(diagnostics) => {
