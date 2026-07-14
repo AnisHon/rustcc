@@ -90,3 +90,74 @@ fn stringifies_and_pastes_macro_arguments_as_tokens() {
     }
     assert_eq!(spellings, ["\"a + b\"", "longlong", "value"]);
 }
+
+#[test]
+fn expands_function_macros_in_if_expressions_without_expanding_defined_operands() {
+    let mut sources = SourceManager::new();
+    let file = sources
+        .add_memory_buffer(
+            "directive.c",
+            "#define VALUE 3\n#define TWICE(x) ((x) * 2)\n#if defined(VALUE) && TWICE(VALUE) == 6\nyes\n#else\nno\n#endif\n",
+        )
+        .unwrap();
+    let mut preprocessor = Preprocessor::new(&mut sources, file).unwrap();
+    assert_eq!(preprocessor.next_token().unwrap().spelling, "yes");
+}
+
+#[test]
+fn include_operand_is_macro_expanded() {
+    let directory = std::env::temp_dir().join(format!("rcc-pp-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let header = directory.join("value.h");
+    std::fs::write(&header, "included\n").unwrap();
+    let main = directory.join("main.c");
+    std::fs::write(&main, "#define HEADER \"value.h\"\n#include HEADER\n").unwrap();
+
+    let mut sources = SourceManager::new();
+    let file = sources
+        .add_file(&main, rcc::SourceLocation::INVALID)
+        .unwrap();
+    let mut preprocessor = Preprocessor::new(&mut sources, file).unwrap();
+    assert_eq!(preprocessor.next_token().unwrap().spelling, "included");
+    drop(preprocessor);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn permits_equivalent_macro_redefinitions_and_rejects_different_ones() {
+    let mut sources = SourceManager::new();
+    let file = sources
+        .add_memory_buffer("same.c", "#define F(x) x + 1\n#define F(y) y + 1\nF(2)\n")
+        .unwrap();
+    let mut preprocessor = Preprocessor::new(&mut sources, file).unwrap();
+    assert_eq!(preprocessor.next_token().unwrap().spelling, "2");
+
+    let mut sources = SourceManager::new();
+    let file = sources
+        .add_memory_buffer("different.c", "#define X 1\n#define X 2\nX\n")
+        .unwrap();
+    let mut preprocessor = Preprocessor::new(&mut sources, file).unwrap();
+    assert!(
+        preprocessor
+            .next_token()
+            .unwrap_err()
+            .message
+            .contains("redefinition")
+    );
+}
+
+#[test]
+fn rejects_malformed_c11_directives() {
+    for source in [
+        "#if (1 + )\n#endif\n",
+        "#ifdef X extra\n#endif\n",
+        "#define F(x, x) x\n",
+        "#line 0\nvalue\n",
+        "#if 1\n#else extra\n#endif\n",
+    ] {
+        let mut sources = SourceManager::new();
+        let file = sources.add_memory_buffer("bad.c", source).unwrap();
+        let mut preprocessor = Preprocessor::new(&mut sources, file).unwrap();
+        assert!(preprocessor.next_token().is_err(), "{source}");
+    }
+}

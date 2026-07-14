@@ -1,6 +1,9 @@
 use super::{CType, Expression, FunctionSpecifiers, Parameter, Statement, StorageClass};
 use crate::source::SourceRange;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct DeclId(pub u32);
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TranslationUnit {
     pub declarations: Vec<ExternalDeclaration>,
@@ -23,6 +26,7 @@ pub struct StaticAssertion {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
+    pub id: DeclId,
     pub name: Option<String>,
     pub ty: CType,
     pub storage: StorageClass,
@@ -34,6 +38,7 @@ pub struct Declaration {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefinition {
+    pub id: DeclId,
     pub name: String,
     pub ty: CType,
     pub storage: StorageClass,

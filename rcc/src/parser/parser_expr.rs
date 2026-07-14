@@ -454,16 +454,16 @@ impl Parser {
         let t = self.bump();
         match t.kind {
             TokenKind::Identifier(n) => {
-                let ty = self.sema.lookup(&n).ok_or_else(|| {
+                let binding = self.sema.lookup(&n).ok_or_else(|| {
                     self.sema_err(format!("use of undeclared identifier '{n}'"), t.range)
                 })?;
-                let category = if matches!(ty.kind, TypeKind::Function { .. }) {
-                    ValueCategory::Function
-                } else {
-                    ValueCategory::LValue
-                };
+                let ty = binding.ty;
+                let category = binding.category;
                 Ok(Expression {
-                    kind: ExpressionKind::Identifier(n),
+                    kind: ExpressionKind::Identifier {
+                        name: n,
+                        declaration: binding.declaration,
+                    },
                     ty,
                     category,
                     range: t.range,

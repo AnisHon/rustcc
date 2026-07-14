@@ -33,6 +33,7 @@ impl Parser {
             self.check_initializer(&ty, initializer)?;
         }
         Ok(Declaration {
+            id: self.sema.fresh_decl_id(),
             name,
             ty,
             storage: spec.storage,
@@ -551,12 +552,13 @@ impl Parser {
                     self.sema_err("enumerator must be an integer constant", e.range)
                 })? as i64
             }
+            let declaration = self.sema.declare_enumerator(n.clone(), next as i128);
             variants.push(EnumVariant {
+                id: declaration,
                 name: n.clone(),
                 value: next,
                 range: t.range,
             });
-            self.sema.declare_enumerator(n, next as i128);
             next += 1;
             if self.eat(&TokenKind::Comma).is_none() {
                 break;
@@ -669,6 +671,7 @@ impl Parser {
                     unreachable!()
                 };
                 p.push(Parameter {
+                    id: self.sema.fresh_decl_id(),
                     name: Some(name),
                     ty: CType::int(),
                     range: token.range,
@@ -697,6 +700,7 @@ impl Parser {
                 ty = CType::pointer(ty)
             }
             p.push(Parameter {
+                id: self.sema.fresh_decl_id(),
                 name: n,
                 ty,
                 range: s.join(self.previous().range),
@@ -846,6 +850,7 @@ impl Parser {
         let spec = self.declaration_specifiers()?;
         if self.eat(&TokenKind::Semi).is_some() {
             return Ok(vec![Declaration {
+                id: self.sema.fresh_decl_id(),
                 name: None,
                 ty: spec.ty,
                 storage: spec.storage,

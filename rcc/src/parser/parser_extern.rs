@@ -13,6 +13,7 @@ impl Parser {
         let spec = self.declaration_specifiers()?;
         if self.eat(&TokenKind::Semi).is_some() {
             return Ok(vec![ExternalDeclaration::Declaration(Declaration {
+                id: self.sema.fresh_decl_id(),
                 name: None,
                 ty: spec.ty,
                 storage: spec.storage,
@@ -48,7 +49,9 @@ impl Parser {
             let TypeKind::Function { .. } = ty.kind else {
                 return Err(self.err("only a function declarator may have a body"));
             };
+            let declaration_id = self.sema.fresh_decl_id();
             let d = Declaration {
+                id: declaration_id,
                 name: Some(name.clone()),
                 ty: ty.clone(),
                 storage: spec.storage,
@@ -67,6 +70,7 @@ impl Parser {
             self.sema.end_function();
             let span = start.join(body.range);
             return Ok(vec![ExternalDeclaration::Function(FunctionDefinition {
+                id: declaration_id,
                 name,
                 ty,
                 storage: spec.storage,

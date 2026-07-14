@@ -131,16 +131,24 @@ impl<'a> Preprocessor<'a> {
         match directive.spelling.as_str() {
             "define" if self.active() => self.define_macro(rest),
             "undef" if self.active() => {
-                if let Some(name) = rest.first() {
-                    self.macros.remove(&name.spelling);
+                if rest.len() != 1 || rest[0].kind != PPTokenKind::Identifier {
+                    return self.error("#undef requires exactly one macro name", directive.range);
                 }
+                self.macros.remove(&rest[0].spelling);
                 Ok(())
             }
-            "include" if self.active() => self.include(rest, hash_range),
+            "include" if self.active() => {
+                let expanded = self.expand_token_sequence(rest, false)?;
+                self.include(&expanded, hash_range)
+            }
             "ifdef" | "ifndef" | "if" => self.begin_conditional(&directive.spelling, rest),
             "elif" => self.elif(rest),
-            "else" => self.else_directive(directive.range),
-            "endif" => self.endif(directive.range),
+            "else" if rest.is_empty() => self.else_directive(directive.range),
+            "endif" if rest.is_empty() => self.endif(directive.range),
+            "else" | "endif" => self.error(
+                format!("#{} does not accept arguments", directive.spelling),
+                rest[0].range,
+            ),
             "error" if self.active() => self.error(
                 rest.iter()
                     .map(|token| token.spelling.as_str())
@@ -148,7 +156,10 @@ impl<'a> Preprocessor<'a> {
                     .join(" "),
                 directive.range,
             ),
-            "line" if self.active() => self.line_directive(rest),
+            "line" if self.active() => {
+                let expanded = self.expand_token_sequence(rest, false)?;
+                self.line_directive(&expanded)
+            }
             _ if !self.active() => Ok(()),
             _ => self.error(
                 format!("unsupported directive #{}", directive.spelling),
@@ -205,6 +216,9 @@ impl<'a> Preprocessor<'a> {
                 if token.kind != PPTokenKind::Identifier {
                     return self.error("expected macro parameter", token.range);
                 }
+                if params.contains(&token.spelling) {
+                    return self.error("duplicate macro parameter", token.range);
+                }
                 params.push(token.spelling.clone());
                 index += 1;
                 if line
@@ -229,17 +243,68 @@ impl<'a> Preprocessor<'a> {
         let end = replacement
             .last()
             .map_or(name_token.range.end, |token| token.range.end);
-        self.macros.insert(
-            name_token.spelling.clone(),
-            MacroDefinition {
-                name: name_token.spelling.clone(),
-                parameters,
-                variadic,
-                replacement,
-                definition_range: SourceRange::new(name_token.range.begin, end),
-            },
-        );
+        let definition = MacroDefinition {
+            name: name_token.spelling.clone(),
+            parameters,
+            variadic,
+            replacement,
+            definition_range: SourceRange::new(name_token.range.begin, end),
+        };
+        if let Some(previous) = self.macros.get(&name_token.spelling)
+            && !macro_equivalent(previous, &definition)
+        {
+            return self.error("incompatible macro redefinition", name_token.range);
+        }
+        self.macros.insert(name_token.spelling.clone(), definition);
         Ok(())
+    }
+
+    fn expand_token_sequence(
+        &mut self,
+        tokens: &[PPToken],
+        preserve_defined_operands: bool,
+    ) -> Result<Vec<PPToken>, PreprocessorError> {
+        let saved = std::mem::take(&mut self.queue);
+        let mut defined_operand = false;
+        self.queue = tokens
+            .iter()
+            .map(|token| {
+                let mut disabled = HashSet::new();
+                if preserve_defined_operands {
+                    if token.kind == PPTokenKind::Identifier && token.spelling == "defined" {
+                        disabled.insert(token.spelling.clone());
+                        defined_operand = true;
+                    } else if defined_operand && token.kind == PPTokenKind::Identifier {
+                        disabled.insert(token.spelling.clone());
+                        defined_operand = false;
+                    } else if defined_operand
+                        && token.kind != PPTokenKind::Punctuator(Punctuator::LParen)
+                    {
+                        defined_operand = false;
+                    }
+                }
+                QueuedToken {
+                    token: token.clone(),
+                    disabled_macros: Arc::new(disabled),
+                }
+            })
+            .collect();
+        let result = (|| {
+            let mut expanded = Vec::new();
+            while let Some(queued) = self.queue.pop_front() {
+                if queued.token.kind == PPTokenKind::Identifier
+                    && !queued.disabled_macros.contains(&queued.token.spelling)
+                    && self.macros.contains_key(&queued.token.spelling)
+                    && self.expand_macro(&queued)?
+                {
+                    continue;
+                }
+                expanded.push(queued.token);
+            }
+            Ok(expanded)
+        })();
+        self.queue = saved;
+        result
     }
 
     fn expand_macro(&mut self, invocation: &QueuedToken) -> Result<bool, PreprocessorError> {
@@ -489,14 +554,30 @@ impl<'a> Preprocessor<'a> {
             return self.error("#include requires a filename", include_range);
         };
         let (filename, quoted) = match name.kind {
-            PPTokenKind::String => (name.spelling.trim_matches('"').to_string(), true),
+            PPTokenKind::String if line.len() == 1 => {
+                (name.spelling.trim_matches('"').to_string(), true)
+            }
+            PPTokenKind::String => {
+                return self.error("extra tokens after #include filename", line[1].range);
+            }
             PPTokenKind::Punctuator(Punctuator::Lt) => {
                 let mut text = String::new();
-                for token in &line[1..] {
+                let mut closing_index = None;
+                for (index, token) in line[1..].iter().enumerate() {
                     if token.kind == PPTokenKind::Punctuator(Punctuator::Gt) {
+                        closing_index = Some(index + 1);
                         break;
                     }
                     text.push_str(&token.spelling);
+                }
+                let Some(closing_index) = closing_index else {
+                    return self.error("unterminated system header name", name.range);
+                };
+                if closing_index + 1 != line.len() {
+                    return self.error(
+                        "extra tokens after #include filename",
+                        line[closing_index + 1].range,
+                    );
                 }
                 (text, false)
             }
@@ -534,6 +615,16 @@ impl<'a> Preprocessor<'a> {
         tokens: &[PPToken],
     ) -> Result<(), PreprocessorError> {
         let parent_active = self.active();
+        if matches!(directive, "ifdef" | "ifndef")
+            && (tokens.len() != 1 || tokens[0].kind != PPTokenKind::Identifier)
+        {
+            return self.error(
+                format!("#{directive} requires exactly one macro name"),
+                tokens
+                    .first()
+                    .map_or(SourceRange::default(), |token| token.range),
+            );
+        }
         let value = match directive {
             "ifdef" => tokens
                 .first()
@@ -541,7 +632,15 @@ impl<'a> Preprocessor<'a> {
             "ifndef" => !tokens
                 .first()
                 .is_some_and(|token| self.macros.contains_key(&token.spelling)),
-            _ => eval_pp_condition(tokens, &self.macros),
+            _ => {
+                let expanded = self.expand_token_sequence(tokens, true)?;
+                eval_pp_condition(&expanded, &self.macros).ok_or_else(|| PreprocessorError {
+                    message: "invalid preprocessing constant expression".into(),
+                    range: tokens
+                        .first()
+                        .map_or(SourceRange::default(), |token| token.range),
+                })?
+            }
         };
         self.conditionals.push(Conditional {
             parent_active,
@@ -559,9 +658,18 @@ impl<'a> Preprocessor<'a> {
         if current.saw_else {
             return self.error("#elif after #else", SourceRange::default());
         }
-        let value = current.parent_active
-            && !current.branch_taken
-            && eval_pp_condition(tokens, &self.macros);
+        let should_evaluate = current.parent_active && !current.branch_taken;
+        let value = if should_evaluate {
+            let expanded = self.expand_token_sequence(tokens, true)?;
+            eval_pp_condition(&expanded, &self.macros).ok_or_else(|| PreprocessorError {
+                message: "invalid preprocessing constant expression".into(),
+                range: tokens
+                    .first()
+                    .map_or(SourceRange::default(), |token| token.range),
+            })?
+        } else {
+            false
+        };
         let current = self.conditionals.last_mut().unwrap();
         current.active = value;
         current.branch_taken |= value;
@@ -595,10 +703,23 @@ impl<'a> Preprocessor<'a> {
         let Some(number) = tokens.first() else {
             return Ok(());
         };
-        let presumed_line = number.spelling.parse().map_err(|_| PreprocessorError {
+        let presumed_line: u32 = number.spelling.parse().map_err(|_| PreprocessorError {
             message: "invalid #line number".into(),
             range: number.range,
         })?;
+        if presumed_line == 0 || presumed_line > 2_147_483_647 {
+            return self.error("#line number is outside the C11 range", number.range);
+        }
+        if tokens.len() > 2
+            || tokens
+                .get(1)
+                .is_some_and(|token| token.kind != PPTokenKind::String)
+        {
+            return self.error(
+                "invalid tokens after #line number",
+                tokens.get(1).map_or(number.range, |token| token.range),
+            );
+        }
         let file = self.sources.file_position(number.range.begin)?.file_id;
         let directive_end = self.sources.file_position(number.range.end)?.byte_offset as usize;
         let buffer = self.sources.buffer(file)?;
@@ -678,12 +799,49 @@ fn stringify(tokens: &[PPToken]) -> String {
     format!("\"{contents}\"")
 }
 
-fn eval_pp_condition(tokens: &[PPToken], macros: &HashMap<String, MacroDefinition>) -> bool {
+fn macro_equivalent(left: &MacroDefinition, right: &MacroDefinition) -> bool {
+    if left.variadic != right.variadic {
+        return false;
+    }
+    let parameter_index = |definition: &MacroDefinition, spelling: &str| {
+        definition.parameters.as_ref().and_then(|parameters| {
+            parameters
+                .iter()
+                .position(|parameter| parameter == spelling)
+        })
+    };
+    if left.parameters.as_ref().map(Vec::len) != right.parameters.as_ref().map(Vec::len)
+        || left.replacement.len() != right.replacement.len()
+    {
+        return false;
+    }
+    left.replacement
+        .iter()
+        .zip(&right.replacement)
+        .enumerate()
+        .all(|(index, (left_token, right_token))| {
+            left_token.kind == right_token.kind
+                && (index == 0 || left_token.leading_space == right_token.leading_space)
+                && match (
+                    parameter_index(left, &left_token.spelling),
+                    parameter_index(right, &right_token.spelling),
+                ) {
+                    (Some(left), Some(right)) => left == right,
+                    (None, None) => left_token.spelling == right_token.spelling,
+                    _ => false,
+                }
+        })
+}
+
+fn eval_pp_condition(
+    tokens: &[PPToken],
+    macros: &HashMap<String, MacroDefinition>,
+) -> Option<bool> {
     let mut parser = PpExpression::new(tokens, macros);
     parser
         .conditional()
         .filter(|_| parser.position == tokens.len())
-        .is_some_and(|value| value != 0)
+        .map(|value| value != 0)
 }
 
 fn parse_pp_integer(text: &str) -> Option<i128> {

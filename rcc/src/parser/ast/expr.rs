@@ -1,4 +1,4 @@
-use super::{CType, Initializer};
+use super::{CType, DeclId, Initializer};
 use crate::lex::token::StringEncoding;
 use crate::source::SourceRange;
 
@@ -29,7 +29,10 @@ pub enum ExpressionKind {
         value: String,
         encoding: StringEncoding,
     },
-    Identifier(String),
+    Identifier {
+        name: String,
+        declaration: DeclId,
+    },
     Unary {
         op: UnaryOp,
         operand: Box<Expression>,

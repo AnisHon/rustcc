@@ -1,6 +1,8 @@
 use crate::TargetInfo;
 use crate::err::{Diagnostic, ErrorKind};
-use crate::parser::ast::{CType, Declaration, Parameter, StorageClass, TagId};
+use crate::parser::ast::{
+    CType, DeclId, Declaration, Parameter, StorageClass, TagId, TypeKind, ValueCategory,
+};
 use std::collections::HashMap;
 
 mod constant_eval;
@@ -9,8 +11,8 @@ mod type_system;
 
 /// Semantic state shared by declaration, expression and statement parsing.
 pub(crate) struct Sema {
-    scopes: Vec<HashMap<String, CType>>,
-    typedefs: Vec<HashMap<String, CType>>,
+    scopes: Vec<HashMap<String, Binding>>,
+    typedefs: Vec<HashMap<String, Binding>>,
     constants: Vec<HashMap<String, i128>>,
     tags: HashMap<(String, u8), CType>,
     current_return: Option<CType>,
@@ -18,6 +20,14 @@ pub(crate) struct Sema {
     switch_depth: usize,
     target: TargetInfo,
     next_tag_id: u32,
+    next_decl_id: u32,
+}
+
+#[derive(Clone)]
+pub(crate) struct Binding {
+    pub(crate) ty: CType,
+    pub(crate) declaration: DeclId,
+    pub(crate) category: ValueCategory,
 }
 
 impl Sema {
@@ -32,6 +42,7 @@ impl Sema {
             switch_depth: 0,
             target: TargetInfo::default(),
             next_tag_id: 0,
+            next_decl_id: 0,
         }
     }
 
@@ -47,7 +58,7 @@ impl Sema {
         self.constants.pop();
     }
 
-    pub(crate) fn lookup(&self, name: &str) -> Option<CType> {
+    pub(crate) fn lookup(&self, name: &str) -> Option<Binding> {
         self.scopes
             .iter()
             .rev()
@@ -60,7 +71,7 @@ impl Sema {
                 return None;
             }
             if let Some(ty) = self.typedefs[index].get(name) {
-                return Some(ty.clone());
+                return Some(ty.ty.clone());
             }
         }
         None
@@ -90,7 +101,7 @@ impl Sema {
             self.scopes.last_mut().unwrap()
         };
         if let Some(old) = table.get(name) {
-            if old != &declaration.ty {
+            if old.ty != declaration.ty {
                 return Err(Diagnostic::new(
                     ErrorKind::Semantic,
                     format!("incompatible redeclaration of '{name}'"),
@@ -98,7 +109,18 @@ impl Sema {
                 ));
             }
         } else {
-            table.insert(name.clone(), declaration.ty.clone());
+            table.insert(
+                name.clone(),
+                Binding {
+                    ty: declaration.ty.clone(),
+                    declaration: declaration.id,
+                    category: if matches!(declaration.ty.kind, TypeKind::Function { .. }) {
+                        ValueCategory::Function
+                    } else {
+                        ValueCategory::LValue
+                    },
+                },
+            );
         }
         Ok(())
     }
@@ -107,10 +129,14 @@ impl Sema {
         self.enter_scope();
         for parameter in parameters {
             if let Some(name) = &parameter.name {
-                self.scopes
-                    .last_mut()
-                    .unwrap()
-                    .insert(name.clone(), parameter.ty.clone());
+                self.scopes.last_mut().unwrap().insert(
+                    name.clone(),
+                    Binding {
+                        ty: parameter.ty.clone(),
+                        declaration: parameter.id,
+                        category: ValueCategory::LValue,
+                    },
+                );
             }
         }
         self.current_return = Some(return_type);
@@ -139,12 +165,24 @@ impl Sema {
         id
     }
 
-    pub(crate) fn declare_enumerator(&mut self, name: String, value: i128) {
-        self.scopes
-            .last_mut()
-            .unwrap()
-            .insert(name.clone(), CType::int());
+    pub(crate) fn fresh_decl_id(&mut self) -> DeclId {
+        let id = DeclId(self.next_decl_id);
+        self.next_decl_id += 1;
+        id
+    }
+
+    pub(crate) fn declare_enumerator(&mut self, name: String, value: i128) -> DeclId {
+        let declaration = self.fresh_decl_id();
+        self.scopes.last_mut().unwrap().insert(
+            name.clone(),
+            Binding {
+                ty: CType::int(),
+                declaration,
+                category: ValueCategory::RValue,
+            },
+        );
         self.constants.last_mut().unwrap().insert(name, value);
+        declaration
     }
 
     pub(crate) fn is_file_scope(&self) -> bool {

@@ -294,3 +294,25 @@ fn tag_types_use_declaration_identity() {
     assert_eq!(ids[1], ids[2]);
     assert_ne!(ids[3], ids[4]);
 }
+
+#[test]
+fn identifier_expressions_are_bound_to_declaration_ids() {
+    let ast = parse("int source; int value = source;");
+    let ExternalDeclaration::Declaration(source) = &ast.declarations[0] else {
+        panic!()
+    };
+    let ExternalDeclaration::Declaration(value) = &ast.declarations[1] else {
+        panic!()
+    };
+    let Some(rcc::Initializer::Expression(expression)) = &value.initializer else {
+        panic!()
+    };
+    let ExpressionKind::ImplicitCast { expression, .. } = &expression.kind else {
+        panic!()
+    };
+    assert!(matches!(
+        expression.kind,
+        ExpressionKind::Identifier { declaration, .. } if declaration == source.id
+    ));
+    assert_eq!(std::mem::size_of::<rcc::DeclId>(), 4);
+}

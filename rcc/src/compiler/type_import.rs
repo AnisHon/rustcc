@@ -150,7 +150,7 @@ impl<'a> TypeImporter<'a> {
             | ExpressionKind::Floating(_)
             | ExpressionKind::Character { .. }
             | ExpressionKind::String { .. }
-            | ExpressionKind::Identifier(_)
+            | ExpressionKind::Identifier { .. }
             | ExpressionKind::SizeofType(_)
             | ExpressionKind::Alignof(_) => {}
             ExpressionKind::Unary { operand, .. }

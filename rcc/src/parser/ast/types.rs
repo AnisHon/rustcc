@@ -144,6 +144,7 @@ pub struct Field {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumVariant {
+    pub id: super::DeclId,
     pub name: String,
     pub value: i64,
     pub range: SourceRange,
@@ -151,6 +152,7 @@ pub struct EnumVariant {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Parameter {
+    pub id: super::DeclId,
     pub name: Option<String>,
     pub ty: CType,
     pub range: SourceRange,

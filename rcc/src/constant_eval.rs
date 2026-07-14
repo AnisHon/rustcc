@@ -67,7 +67,7 @@ impl<'a> ConstantEvaluator<'a> {
             ExpressionKind::Integer(value) => Ok(ConstantValue::Integer(*value)),
             ExpressionKind::Floating(value) => Ok(ConstantValue::Floating(*value)),
             ExpressionKind::Character { value, .. } => Ok(ConstantValue::Integer(*value as i128)),
-            ExpressionKind::Identifier(name) => (self.lookup_integer)(name)
+            ExpressionKind::Identifier { name, .. } => (self.lookup_integer)(name)
                 .map(ConstantValue::Integer)
                 .ok_or_else(|| EvaluationFailure::DependsOnRuntimeValue(name.clone())),
             ExpressionKind::Unary { op, operand } => self.unary(*op, operand),
