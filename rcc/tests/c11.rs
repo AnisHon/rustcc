@@ -135,6 +135,25 @@ fn validates_c11_declaration_specifier_combinations() {
 }
 
 #[test]
+fn validates_record_members_bitfields_and_flexible_arrays() {
+    parse(
+        "struct Bits { unsigned int flag : 1; unsigned int : 0; int values[]; }; struct Outer { struct { int promoted; }; }; int f(void) { struct Outer value; return value.promoted; }",
+    );
+    for source in [
+        "struct Bad { int named : 0; };",
+        "struct Bad { int wide : 100; };",
+        "struct Bad { double field : 1; };",
+        "struct Bad { int duplicate; int duplicate; };",
+        "struct Node { struct Node child; };",
+        "struct Bad { int values[]; };",
+        "union Bad { int fixed; int values[]; };",
+        "struct Bad { int values[]; int after; };",
+    ] {
+        assert!(compile(source).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn preprocesses_c11_macros_and_conditionals() {
     let ast = parse(
         r#"
@@ -348,6 +367,40 @@ fn typed_ast_records_decay_control_and_conditional_conversions() {
             ..
         }
     ));
+}
+
+#[test]
+fn calls_apply_default_argument_promotions() {
+    let ast = parse(
+        "int old_style(); int variadic(int, ...); int first = old_style(1.0f); int second = variadic(0, 1.0f);",
+    );
+    let call = |index: usize| {
+        let ExternalDeclaration::Declaration(declaration) = &ast.declarations[index] else {
+            panic!()
+        };
+        let Some(rcc::Initializer::Expression(expression)) = &declaration.initializer else {
+            panic!()
+        };
+        let ExpressionKind::Call { arguments, .. } = &expression.kind else {
+            panic!()
+        };
+        arguments
+    };
+    assert!(matches!(
+        call(2)[0].kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::FloatingConversion,
+            ..
+        }
+    ));
+    assert!(matches!(
+        call(3)[1].kind,
+        ExpressionKind::ImplicitCast {
+            kind: rcc::ImplicitCastKind::FloatingConversion,
+            ..
+        }
+    ));
+    assert!(matches!(call(2)[0].ty.kind, TypeKind::Double));
 }
 
 #[test]

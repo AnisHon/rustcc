@@ -371,6 +371,10 @@ impl Parser {
                             .assignment_conversion(&parameter.ty, argument.clone())?;
                     }
                 }
+                let promoted_start = if has_prototype { params.len() } else { 0 };
+                for argument in &mut args[promoted_start..] {
+                    *argument = self.sema.default_argument_promotion(argument.clone());
+                }
                 let span = e.range.join(r.range);
                 e = Expression {
                     kind: ExpressionKind::Call {
@@ -443,9 +447,7 @@ impl Parser {
                     );
                 }
             };
-            let f = fields
-                .iter()
-                .find(|x| x.name.as_deref() == Some(&field))
+            let f = find_field(&fields, &field)
                 .ok_or_else(|| self.sema_err(format!("no member named '{field}'"), t.range))?;
             let span = e.range.join(t.range);
             e = Expression {
@@ -641,6 +643,28 @@ impl Parser {
             range: start.join(r.range),
         })
     }
+}
+
+fn find_field<'a>(fields: &'a [Field], name: &str) -> Option<&'a Field> {
+    fields
+        .iter()
+        .find(|field| field.name.as_deref() == Some(name))
+        .or_else(|| {
+            fields
+                .iter()
+                .filter(|field| field.name.is_none())
+                .find_map(|field| match &field.ty.kind {
+                    TypeKind::Struct {
+                        fields: Some(fields),
+                        ..
+                    }
+                    | TypeKind::Union {
+                        fields: Some(fields),
+                        ..
+                    } => find_field(fields, name),
+                    _ => None,
+                })
+        })
 }
 fn parse_hex_float(raw: &str) -> Option<f64> {
     let raw = raw.strip_prefix("0x").or_else(|| raw.strip_prefix("0X"))?;

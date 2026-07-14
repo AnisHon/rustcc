@@ -99,6 +99,32 @@ impl Sema {
         Ok(())
     }
 
+    pub(crate) fn validate_bitfield(
+        &self,
+        ty: &CType,
+        name: Option<&str>,
+        width: i128,
+        range: SourceRange,
+    ) -> PResult<u32> {
+        let maximum = match ty.kind {
+            TypeKind::Bool => 1,
+            TypeKind::Int { .. } => self.target.int_width as i128,
+            _ => {
+                return Err(self.error(
+                    "bit-field type must be _Bool, signed int, or unsigned int",
+                    range,
+                ));
+            }
+        };
+        if width < 0 || width > maximum {
+            return Err(self.error("bit-field width is outside the type width", range));
+        }
+        if width == 0 && name.is_some() {
+            return Err(self.error("zero-width bit-field must be unnamed", range));
+        }
+        Ok(width as u32)
+    }
+
     pub(crate) fn scalar_conversion(
         &self,
         expression: Expression,
@@ -285,6 +311,21 @@ impl Sema {
             expression
         } else {
             self.implicit_cast(expression, promoted, ImplicitCastKind::IntegralPromotion)
+        }
+    }
+
+    pub(crate) fn default_argument_promotion(&self, expression: Expression) -> Expression {
+        let expression = self.default_conversion(expression);
+        if expression.ty.is_integer() {
+            self.integer_promotion(expression)
+        } else if matches!(expression.ty.kind, TypeKind::Float) {
+            self.implicit_cast(
+                expression,
+                CType::new(TypeKind::Double),
+                ImplicitCastKind::FloatingConversion,
+            )
+        } else {
+            expression
         }
     }
 

@@ -566,21 +566,58 @@ impl Parser {
                 return Err(self.sema_err("storage class is not allowed on a field", s));
             }
             if self.eat(&TokenKind::Semi).is_some() {
-                continue;
+                if matches!(
+                    spec.ty.kind,
+                    TypeKind::Struct {
+                        fields: Some(_),
+                        ..
+                    } | TypeKind::Union {
+                        fields: Some(_),
+                        ..
+                    }
+                ) {
+                    fields.push(Field {
+                        name: None,
+                        ty: spec.ty,
+                        bit_width: None,
+                        range: s.join(self.previous().range),
+                    });
+                    continue;
+                }
+                return Err(self.sema_err("member declaration declares no field", s));
             }
             loop {
                 let node = self.declarator(true)?;
                 let (n, ty, _) = self.apply_declarator(node, spec.ty.clone())?;
                 self.sema.validate_type(&ty, s)?;
-                let bit_width =
-                    if self.eat(&TokenKind::Colon).is_some() {
-                        let e = self.assignment_expression()?;
-                        Some(self.sema.const_int(&e).ok_or_else(|| {
-                            self.sema_err("bit-field width must be constant", e.range)
-                        })? as u32)
-                    } else {
-                        None
-                    };
+                if matches!(
+                    ty.kind,
+                    TypeKind::Void
+                        | TypeKind::Function { .. }
+                        | TypeKind::Struct { fields: None, .. }
+                        | TypeKind::Union { fields: None, .. }
+                ) {
+                    return Err(self.sema_err("field must have complete object type", s));
+                }
+                let bit_width = if self.eat(&TokenKind::Colon).is_some() {
+                    let e = self.assignment_expression()?;
+                    let width = self.sema.const_int(&e).ok_or_else(|| {
+                        self.sema_err("bit-field width must be constant", e.range)
+                    })?;
+                    Some(
+                        self.sema
+                            .validate_bitfield(&ty, n.as_deref(), width, e.range)?,
+                    )
+                } else {
+                    None
+                };
+                if let Some(name) = &n
+                    && fields
+                        .iter()
+                        .any(|field: &Field| field.name.as_ref() == Some(name))
+                {
+                    return Err(self.sema_err(format!("duplicate field '{name}'"), s));
+                }
                 fields.push(Field {
                     name: n,
                     ty,
@@ -594,6 +631,18 @@ impl Parser {
             self.expect(&TokenKind::Semi)?;
         }
         self.expect(&TokenKind::RBrace)?;
+        for (index, field) in fields.iter().enumerate() {
+            if matches!(
+                field.ty.kind,
+                TypeKind::Array {
+                    size: ArraySize::Unspecified,
+                    ..
+                }
+            ) && (union || index + 1 != fields.len() || fields.len() < 2)
+            {
+                return Err(self.sema_err("invalid flexible array member", field.range));
+            }
+        }
         let ty = CType::new(if union {
             TypeKind::Union {
                 id,
