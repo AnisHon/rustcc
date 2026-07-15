@@ -1,3 +1,9 @@
+//! Declarator-facing C type structures.
+//!
+//! Parser builds this recursive representation because C declarator binding is naturally
+//! recursive. After Sema succeeds, `TypeImporter` fills `CType::canonical` with the compact
+//! QualType owned by the compilation's TypeContext.
+
 use super::Expression;
 use crate::source::SourceRange;
 
@@ -13,6 +19,7 @@ pub struct Qualifiers {
 pub struct CType {
     pub kind: TypeKind,
     pub qualifiers: Qualifiers,
+    /// Canonical identity populated before the frontend returns `Compilation`.
     pub canonical: crate::QualType,
 }
 

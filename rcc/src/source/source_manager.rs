@@ -22,7 +22,9 @@ struct LineDirective {
 
 #[derive(Debug, Clone)]
 enum LocationEntry {
+    /// A byte boundary in an owned source buffer.
     File(FileLocation),
+    /// A logical location whose text was spelled elsewhere and expanded at `expansion`.
     Expansion {
         spelling: SourceLocation,
         expansion: SourceRange,
@@ -77,6 +79,8 @@ impl From<std::io::Error> for SourceError {
 /// It deliberately has no dependency on lexing, parsing, semantic analysis or IR.
 #[derive(Debug, Default)]
 pub struct SourceManager {
+    // Files and locations are append-only for the duration of a compilation. Their vector indices
+    // are therefore stable and can safely be compressed into FileId/SourceLocation handles.
     files: Vec<SourceFile>,
     locations: Vec<LocationEntry>,
 }
@@ -189,6 +193,8 @@ impl SourceManager {
         &self,
         location: SourceLocation,
     ) -> Result<SourceLocation, SourceError> {
+        // Nested macro replacements may form several expansion records. Spelling resolution walks
+        // outward until it reaches a physical file location.
         let mut current = location;
         while let LocationEntry::Expansion { spelling, .. } = self.location(current)? {
             current = *spelling;
@@ -200,6 +206,8 @@ impl SourceManager {
         &self,
         location: SourceLocation,
     ) -> Result<SourceLocation, SourceError> {
+        // Diagnostics normally point at the outermost user-visible invocation rather than a token
+        // inside a macro definition or an intermediate replacement list.
         let mut current = location;
         while let LocationEntry::Expansion { expansion, .. } = self.location(current)? {
             current = expansion.begin;
@@ -220,6 +228,8 @@ impl SourceManager {
         &self,
         location: SourceLocation,
     ) -> Result<PresumedLocation, SourceError> {
+        // Physical line lookup is binary search over precomputed byte offsets. #line directives
+        // affect only the displayed filename/line; columns always come from the physical buffer.
         let position = self.file_position(location)?;
         let file = self.file(position.file_id)?;
         let line_index = file

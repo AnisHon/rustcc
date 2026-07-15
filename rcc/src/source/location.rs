@@ -43,6 +43,9 @@ impl Debug for SourceLocation {
 
 /// Half-open source range `[begin, end)`. `end` points immediately after the
 /// final byte/token represented by the range.
+///
+/// Both endpoints are handles, so a range stays small even when it refers to a macro expansion
+/// carrying separate spelling and expansion locations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct SourceRange {
     pub begin: SourceLocation,

@@ -1,3 +1,9 @@
+//! Declaration nodes and declaration-identity metadata.
+//!
+//! `DeclId` identifies a particular declaration occurrence. Compatible redeclarations keep their
+//! own IDs and link backwards through `previous_declaration`; this is different from TypeId,
+//! which identifies a canonical type.
+
 use super::{CType, Expression, FunctionSpecifiers, Parameter, Statement, StorageClass};
 use crate::source::SourceRange;
 

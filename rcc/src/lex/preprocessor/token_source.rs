@@ -1,3 +1,9 @@
+//! Token-source C preprocessor.
+//!
+//! Macro replacement is expressed by pushing tokens back onto `queue`. The same queue therefore
+//! handles file tokens, include tokens, argument substitution, token pasting, and recursive
+//! rescanning without converting the stream back to text.
+
 use crate::lex::{PPToken, PPTokenKind, Punctuator, RawLexer};
 use crate::source::{FileId, SourceError, SourceManager, SourceRange};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -16,6 +22,7 @@ pub struct MacroDefinition {
 #[derive(Debug, Clone)]
 struct QueuedToken {
     token: PPToken,
+    /// Macro names disabled while rescanning this token, as required by C11 6.10.3.4.
     disabled_macros: Arc<HashSet<String>>,
 }
 
@@ -264,6 +271,9 @@ impl<'a> Preprocessor<'a> {
         tokens: &[PPToken],
         preserve_defined_operands: bool,
     ) -> Result<Vec<PPToken>, PreprocessorError> {
+        // Directives such as #if and #include need normal macro expansion on a finite token list.
+        // Temporarily swapping the queue lets them reuse the exact same expansion machinery as
+        // the main stream; restoring it preserves the caller's include/file position.
         let saved = std::mem::take(&mut self.queue);
         let mut defined_operand = false;
         self.queue = tokens
@@ -371,6 +381,8 @@ impl<'a> Preprocessor<'a> {
                 continue;
             }
             if token.kind == PPTokenKind::Punctuator(Punctuator::HashHash) {
+                // `None` is a C placemarker preprocessing token produced by an empty argument.
+                // It disappears after ## processing and is never exposed to Parser.
                 let Some(right_token) = replacement.get(index + 1) else {
                     return self.error(
                         "## cannot appear at the end of a replacement list",
@@ -445,6 +457,8 @@ impl<'a> Preprocessor<'a> {
         spelling: String,
         invocation: SourceRange,
     ) -> Result<PPToken, PreprocessorError> {
+        // Pasted and stringified spellings have no contiguous spelling in the input file. Put
+        // them in a SourceManager scratch buffer so their spelling locations remain resolvable.
         let file = self.sources.add_included_buffer(
             "<scratch space>",
             spelling.clone(),

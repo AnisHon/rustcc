@@ -13,6 +13,9 @@ mod type_system;
 
 /// Semantic state shared by declaration, expression and statement parsing.
 pub(crate) struct Sema {
+    // Ordinary identifiers, typedef names, enum constants, and tags have C-specific namespace
+    // interactions. Parallel scope stacks keep lookup rules explicit instead of hiding them in a
+    // generic symbol table.
     scopes: Vec<HashMap<String, Binding>>,
     typedefs: Vec<HashMap<String, Binding>>,
     constants: Vec<HashMap<String, i128>>,
@@ -85,6 +88,7 @@ impl Sema {
     }
 
     pub(crate) fn lookup_typedef(&self, name: &str) -> Option<CType> {
+        // An ordinary declaration in an inner scope hides an outer typedef of the same spelling.
         for index in (0..self.typedefs.len()).rev() {
             if self.scopes[index].contains_key(name) {
                 return None;
@@ -112,6 +116,8 @@ impl Sema {
         declaration: &mut Declaration,
         function_definition: bool,
     ) -> Result<(), Diagnostic> {
+        // Compatible declarations form a chain, but definitions and declarations without linkage
+        // have stricter duplication rules. Binding the newest declaration mirrors C visibility.
         let Some(name) = declaration.name.clone() else {
             return Ok(());
         };
@@ -183,6 +189,8 @@ impl Sema {
         parameters: &mut [Parameter],
         return_type: CType,
     ) -> DeclContextId {
+        // Labels have function scope, while parameters and local objects use ordinary lexical
+        // scopes. Both states are initialized here so Parser never owns semantic symbol tables.
         let context = self.fresh_context();
         self.labels.clear();
         self.unresolved_gotos.clear();
@@ -213,6 +221,8 @@ impl Sema {
             .find(|(name, _)| !self.labels.contains_key(name))
             .cloned();
         self.current_return = None;
+        // Truncate rather than pop once: a syntax error may have escaped several nested compound
+        // scopes. Restoring the translation-unit baseline is required before Parser recovery.
         self.scopes.truncate(1);
         self.typedefs.truncate(1);
         self.constants.truncate(1);

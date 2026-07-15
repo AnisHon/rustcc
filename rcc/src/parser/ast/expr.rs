@@ -1,3 +1,9 @@
+//! Typed expression nodes.
+//!
+//! Every expression records its result type, value category, and source range. `ImplicitCast`
+//! nodes are inserted by Sema and are intentionally visible to later constant evaluation and IR
+//! lowering.
+
 use super::{CType, DeclId, Initializer};
 use crate::lex::token::StringEncoding;
 use crate::source::SourceRange;
@@ -94,8 +100,11 @@ pub enum ExpressionKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImplicitCastKind {
+    /// Conversion of an object designator to the stored value of that object.
     LValueToRValue,
+    /// Conversion of an array expression to a pointer to its first element.
     ArrayToPointerDecay,
+    /// Conversion of a function designator to a function pointer.
     FunctionToPointerDecay,
     IntegralPromotion,
     FloatingConversion,

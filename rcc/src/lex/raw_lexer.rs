@@ -1,3 +1,8 @@
+//! Translation phases 1-3 and raw preprocessing-token formation.
+//!
+//! This lexer deliberately leaves keywords as identifiers. Macro replacement happens later,
+//! and only the post-preprocessing language-token classifier assigns keyword meaning.
+
 use super::pp_token::{PPToken, PPTokenKind, Punctuator};
 use crate::source::{FileId, SourceError, SourceManager, SourceRange};
 use std::sync::Arc;
@@ -123,6 +128,8 @@ impl<'a> RawLexer<'a> {
     }
 
     fn lex_pp_number(&mut self) {
+        // A pp-number is intentionally more permissive than a C numeric literal. Literal syntax
+        // and suffix validity are checked only after preprocessing has finished.
         self.bump();
         while let Some(c) = self.peek() {
             if c.is_ascii_alphanumeric()
@@ -285,6 +292,9 @@ impl<'a> RawLexer<'a> {
 }
 
 fn translate_phase_one_and_two(source: &str) -> (Arc<str>, Vec<u32>) {
+    // C11 replaces trigraphs before removing escaped newlines. `physical_offsets[n]` maps a byte
+    // boundary in the translated buffer back to the original SourceManager buffer, allowing a
+    // token to cross a splice while diagnostics still point at physical source bytes.
     let bytes = source.as_bytes();
     let mut logical = String::with_capacity(source.len());
     let mut offsets = vec![0_u32];

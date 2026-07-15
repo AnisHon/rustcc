@@ -42,6 +42,8 @@ impl std::error::Error for TypeError {}
 /// Owns and canonicalizes all types for one compilation context.
 #[derive(Debug)]
 pub struct TypeContext {
+    // `kinds` owns nodes; `interned` provides structural uniquing. A TypeId is an index into
+    // `kinds`, so references between type nodes are compact and relocation-independent.
     kinds: Vec<TypeKind>,
     interned: HashMap<TypeKind, TypeId>,
     builtins: HashMap<BuiltinType, TypeId>,
@@ -128,6 +130,8 @@ impl TypeContext {
     }
 
     pub fn fresh_record(&mut self, kind: RecordKind) -> QualType {
+        // Records are nominal C types. Never structurally merge two declarations, even if their
+        // names and field layouts are identical.
         let id = RecordId(self.next_record);
         self.next_record += 1;
         QualType::unqualified(self.intern(TypeKind::Record { id, kind }))
@@ -163,6 +167,8 @@ impl TypeContext {
     }
 
     fn intern(&mut self, kind: TypeKind) -> TypeId {
+        // Structural types (pointer/array/function/atomic) share one node whenever all operands
+        // are identical. This makes canonical type comparison a TypeId comparison.
         if let Some(id) = self.interned.get(&kind) {
             return *id;
         }

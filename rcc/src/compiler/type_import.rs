@@ -1,3 +1,8 @@
+//! Bridges declarator-built recursive types to the canonical `TypeContext`.
+//!
+//! This belongs to compiler orchestration rather than `type_system`: the canonical type layer
+//! must not depend on Parser AST node definitions.
+
 use crate::parser::ast::*;
 use crate::type_system::{
     ArrayBound, BuiltinType, FunctionType, QualType, Qualifiers as CanonicalQualifiers, RecordKind,
@@ -5,6 +10,10 @@ use crate::type_system::{
 };
 use std::collections::HashMap;
 
+/// Walks every type-bearing AST edge and fills `CType::canonical`.
+///
+/// Tag maps are keyed by declaration identity, not spelling. Two shadowed `struct S`
+/// declarations therefore remain different even when their field lists happen to match.
 pub(super) struct TypeImporter<'a> {
     types: &'a mut TypeContext,
     records: HashMap<TagId, QualType>,
@@ -144,6 +153,8 @@ impl<'a> TypeImporter<'a> {
     }
 
     fn expression(&mut self, expression: &mut Expression) {
+        // Import the result type before children. Cyclic record graphs terminate because record
+        // types are interned by TagId and fields contain only finite recursive CType values.
         self.ty(&mut expression.ty);
         match &mut expression.kind {
             ExpressionKind::Integer(_)
@@ -212,6 +223,8 @@ impl<'a> TypeImporter<'a> {
     }
 
     fn ty(&mut self, ty: &mut CType) -> QualType {
+        // Qualifiers are applied after interning the unqualified shape. This mirrors Clang's
+        // QualType split and prevents `const int` from allocating another BuiltinType node.
         let unqualified = match &mut ty.kind {
             TypeKind::Void => self.types.builtin(BuiltinType::Void),
             TypeKind::Bool => self.types.builtin(BuiltinType::Bool),

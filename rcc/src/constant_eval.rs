@@ -27,6 +27,8 @@ pub enum EvaluationFailure {
 }
 
 pub struct ConstantEvaluator<'a> {
+    // Name lookup is injected by Sema. The evaluator remains independent of scopes and parser
+    // token streams while still being able to read enum constants.
     target: &'a TargetInfo,
     lookup_integer: &'a dyn Fn(&str) -> Option<i128>,
 }
@@ -44,6 +46,8 @@ impl<'a> ConstantEvaluator<'a> {
         expression: &Expression,
         context: EvaluationContext,
     ) -> Result<ConstantValue, EvaluationFailure> {
+        // First compute a value, then enforce the stricter requirements of the use site. This
+        // keeps "not evaluatable" separate from "evaluatable but disallowed here".
         let value = self.evaluate_value(expression)?;
         if context == EvaluationContext::IntegerConstantExpression
             && !matches!(value, ConstantValue::Integer(_))
@@ -120,6 +124,8 @@ impl<'a> ConstantEvaluator<'a> {
         right: &Expression,
     ) -> Result<ConstantValue, EvaluationFailure> {
         let left = self.integer(left)?;
+        // Preserve C short-circuiting: the unevaluated operand must not introduce a false
+        // runtime dependency or undefined-behavior diagnostic.
         if operator == BinaryOp::LogicalAnd && left == 0 {
             return Ok(ConstantValue::Integer(0));
         }

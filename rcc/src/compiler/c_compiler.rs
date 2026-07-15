@@ -1,3 +1,8 @@
+//! Frontend orchestration and ownership of per-compilation state.
+//!
+//! The phase implementations live in their own modules. This module only wires them together
+//! and makes sure location/type handles never outlive the managers that allocated them.
+
 use super::type_import::TypeImporter;
 use crate::err::Diagnostic;
 use crate::err::ErrorKind;
@@ -9,6 +14,11 @@ use std::ops::Deref;
 use std::path::Path;
 
 #[derive(Debug)]
+/// A successful frontend invocation.
+///
+/// `ast` contains compact source and canonical-type handles, so the corresponding managers are
+/// intentionally returned in the same object. Keeping only the AST would make those handles
+/// impossible to resolve.
 pub struct Compilation {
     pub source_manager: SourceManager,
     pub target: TargetInfo,
@@ -25,6 +35,7 @@ impl Deref for Compilation {
 }
 
 #[derive(Debug)]
+/// Diagnostics together with the source buffers needed to render them.
 pub struct CompileError {
     pub source_manager: SourceManager,
     pub diagnostics: Vec<Diagnostic>,
@@ -106,6 +117,8 @@ fn finish_compilation(
 ) -> Result<Compilation, CompileError> {
     match compile_source_manager(&mut source_manager, main_file, &target) {
         Ok(mut ast) => {
+            // Declarators are easiest to build as recursive types. Once Sema has accepted the
+            // translation unit, replace those structural identities with interned TypeIds.
             let mut types = TypeContext::new();
             TypeImporter::new(&mut types).import_translation_unit(&mut ast);
             Ok(Compilation {
@@ -131,6 +144,8 @@ fn compile_source_manager(
     main_file: crate::source::FileId,
     target: &TargetInfo,
 ) -> Result<TranslationUnit, Vec<Diagnostic>> {
+    // Preprocessor borrows SourceManager mutably because includes and macro expansions allocate
+    // new buffers/location records. Drain it before language-token classification and parsing.
     let mut preprocessor = match Preprocessor::new(sources, main_file) {
         Ok(preprocessor) => preprocessor,
         Err(error) => return Err(vec![preprocessor_diagnostic(error)]),

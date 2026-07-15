@@ -142,6 +142,7 @@ impl Sema {
         target: &CType,
         expression: Expression,
     ) -> PResult<Expression> {
+        // Test null-pointer-constant status before lvalue/default conversion changes the AST shape.
         let null_pointer_constant = self.const_int(&expression) == Some(0);
         let expression = self.default_conversion(expression);
         let source = expression.ty.clone();
@@ -208,6 +209,8 @@ impl Sema {
         left: Expression,
         right: Expression,
     ) -> PResult<Expression> {
+        // This semantic action both validates operands and materializes every conversion required
+        // by C11. Parser supplies only precedence and the syntactic operator.
         use BinaryOp::*;
         let span = left.range.join(right.range);
         let mut left = self.default_conversion(left);
@@ -285,6 +288,8 @@ impl Sema {
     }
 
     pub(crate) fn default_conversion(&self, expression: Expression) -> Expression {
+        // C11 6.3.2.1: these conversions occur in most value contexts, but callers intentionally
+        // omit them for sizeof, unary &, assignment LHS, and the other standard exceptions.
         let (kind, ty) = match &expression.ty.kind {
             TypeKind::Array { element, .. } => (
                 ImplicitCastKind::ArrayToPointerDecay,
@@ -334,6 +339,7 @@ impl Sema {
         left: Expression,
         right: Expression,
     ) -> (Expression, Expression, CType) {
+        // Promotions are distinct AST nodes from the later conversion to the common real type.
         let left = if left.ty.is_integer() {
             self.integer_promotion(left)
         } else {
@@ -505,6 +511,7 @@ impl Sema {
         let b = self.integer_promote(b);
         let (ra, sa) = self.rank(&a);
         let (rb, sb) = self.rank(&b);
+        // C11 6.3.1.8 signed/unsigned resolution depends on both rank and target widths.
         let (rank, signed) = if sa == sb {
             (ra.max(rb), sa)
         } else {
