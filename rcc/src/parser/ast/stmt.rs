@@ -2,12 +2,14 @@ use super::{Declaration, Expression, StaticAssertion};
 use crate::source::SourceRange;
 
 #[derive(Debug, Clone, PartialEq)]
+/// Statement payload paired with the full source range that produced it.
 pub struct Statement {
     pub kind: StatementKind,
     pub range: SourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// The two grammar alternatives allowed in the first clause of a `for` loop.
 pub enum ForInit {
     Expression(Option<Expression>),
     Declaration(Vec<Declaration>),
@@ -15,6 +17,7 @@ pub enum ForInit {
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
+/// C11 statement forms after condition and return conversions are inserted.
 pub enum StatementKind {
     Empty,
     Expression(Expression),
@@ -61,6 +64,7 @@ pub enum StatementKind {
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
+/// Items that may occur directly inside a compound statement.
 pub enum BlockItem {
     Declaration(Declaration),
     Statement(Statement),

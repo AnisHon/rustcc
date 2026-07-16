@@ -4,6 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
+/// Owned source buffer and the indexes needed to resolve locations efficiently.
 struct SourceFile {
     name: String,
     buffer: Arc<str>,
@@ -13,6 +14,7 @@ struct SourceFile {
 }
 
 #[derive(Debug, Clone)]
+/// One `#line` remapping, effective from `offset` onward in a physical file.
 struct LineDirective {
     offset: u32,
     physical_line: u32,
@@ -21,6 +23,7 @@ struct LineDirective {
 }
 
 #[derive(Debug, Clone)]
+/// Internal payload addressed by a compact `SourceLocation`.
 enum LocationEntry {
     /// A byte boundary in an owned source buffer.
     File(FileLocation),
@@ -33,12 +36,14 @@ enum LocationEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// One step in the chain of files introduced by `#include`.
 pub struct IncludeFrame {
     pub included_file: FileId,
     pub include_location: SourceLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// One macro-expansion note containing both spelling and invocation sites.
 pub struct ExpansionFrame {
     pub macro_name: String,
     pub spelling_location: SourceLocation,
@@ -46,6 +51,7 @@ pub struct ExpansionFrame {
 }
 
 #[derive(Debug)]
+/// Buffer and location lookup failures independent of diagnostics policy.
 pub enum SourceError {
     Io(std::io::Error),
     BufferTooLarge,

@@ -5,6 +5,10 @@ use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Construction failures for type combinations forbidden by C11.
+///
+/// Keeping these errors in the type-system module lets Sema attach source
+/// ranges and wording without making `TypeContext` depend on diagnostics.
 pub enum TypeError {
     ArrayOfFunction,
     ArrayOfVoid,

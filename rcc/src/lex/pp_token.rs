@@ -1,5 +1,9 @@
 use crate::source::SourceRange;
 
+/// C punctuators as recognized during preprocessing.
+///
+/// Alternative spellings such as digraphs map to the same semantic variant;
+/// the original spelling remains available on `PPToken` for macro operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Punctuator {
     LBracket,
@@ -53,6 +57,10 @@ pub enum Punctuator {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// The deliberately small set of preprocessing-token categories from C11 6.4.
+///
+/// Identifiers are not classified as keywords yet, and numeric spelling is not
+/// parsed yet. Those decisions happen after macro expansion.
 pub enum PPTokenKind {
     Invalid,
     Identifier,
@@ -65,6 +73,10 @@ pub enum PPTokenKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// A raw or macro-produced preprocessing token.
+///
+/// Whitespace flags are semantic input to directives, stringification, and
+/// function-like macro recognition; `range` preserves spelling/expansion provenance.
 pub struct PPToken {
     pub kind: PPTokenKind,
     pub spelling: String,

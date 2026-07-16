@@ -6,19 +6,28 @@ use crate::parser::ast::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// C semantic context that determines which otherwise evaluatable forms are legal.
 pub enum EvaluationContext {
+    /// Required by cases, enumerators, bit-fields, and similar C11 constraints.
     IntegerConstantExpression,
+    /// Arithmetic constant expression, which may have integer or floating type.
     ArithmeticConstantExpression,
+    /// Constant form permitted for an object with static storage duration.
     StaticInitializer,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Successfully computed compile-time value before IR-specific lowering.
 pub enum ConstantValue {
     Integer(i128),
     Floating(f64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Why constant evaluation did not produce a value acceptable to its caller.
+///
+/// The variants intentionally distinguish non-constant syntax, runtime
+/// dependency, undefined behavior, and a context-specific C11 restriction.
 pub enum EvaluationFailure {
     NotConstantExpression,
     DependsOnRuntimeValue(String),
@@ -26,6 +35,9 @@ pub enum EvaluationFailure {
     DisallowedInContext(&'static str),
 }
 
+/// Evaluates already-bound and typed AST expressions under target C rules.
+///
+/// It borrows target and lookup policy but owns no parser, token, scope, or IR state.
 pub struct ConstantEvaluator<'a> {
     // Name lookup is injected by Sema. The evaluator remains independent of scopes and parser
     // token streams while still being able to read enum constants.

@@ -68,12 +68,20 @@ impl SourceRange {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A resolved physical position inside one source buffer.
+///
+/// This is produced on demand from a compact `SourceLocation`; AST nodes should
+/// keep the handle rather than caching this expanded representation.
 pub struct FileLocation {
     pub file_id: FileId,
     pub byte_offset: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// User-facing position after applying `#line` directives.
+///
+/// Diagnostics use this view for filenames and line numbers while retaining
+/// the physical location for rendering the actual source line.
 pub struct PresumedLocation {
     pub filename: String,
     pub line: u32,

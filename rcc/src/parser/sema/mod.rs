@@ -33,12 +33,17 @@ pub(crate) struct Sema {
 }
 
 #[derive(Default)]
+/// Per-switch state used to enforce unique converted case values and one default.
 struct SwitchState {
     cases: HashMap<i128, SourceRange>,
     default: Option<SourceRange>,
 }
 
 #[derive(Clone)]
+/// Ordinary-namespace lookup result stored by Sema scopes.
+///
+/// It connects a spelling to its declaration identity, declared type, value
+/// category, and definition state without putting symbol tables in Parser.
 pub(crate) struct Binding {
     pub(crate) ty: CType,
     pub(crate) declaration: DeclId,

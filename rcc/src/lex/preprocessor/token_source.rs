@@ -11,6 +11,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
+/// Stored replacement-list form of an object-like or function-like macro.
+///
+/// `parameters == None` means object-like; `Some`, including an empty vector,
+/// means invocation requires parentheses. Tokens retain their definition ranges.
 pub struct MacroDefinition {
     pub name: String,
     pub parameters: Option<Vec<String>>,
@@ -20,6 +24,7 @@ pub struct MacroDefinition {
 }
 
 #[derive(Debug, Clone)]
+/// One token awaiting directive handling or macro rescan.
 struct QueuedToken {
     token: PPToken,
     /// Macro names disabled while rescanning this token, as required by C11 6.10.3.4.
@@ -27,6 +32,7 @@ struct QueuedToken {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// State for one nested `#if`/`#ifdef` conditional group.
 struct Conditional {
     parent_active: bool,
     active: bool,
@@ -35,6 +41,7 @@ struct Conditional {
 }
 
 #[derive(Debug)]
+/// Preprocessing failure before language-token classification.
 pub struct PreprocessorError {
     pub message: String,
     pub range: SourceRange,

@@ -9,13 +9,21 @@ use crate::lex::token::StringEncoding;
 use crate::source::SourceRange;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How an expression denotes a value before context-dependent conversions.
 pub enum ValueCategory {
+    /// Designates an object and may be a modifiable assignment target.
     LValue,
+    /// Computes a value rather than designating an object.
     RValue,
+    /// Designates a function; most value contexts decay this to a pointer.
     Function,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Semantic expression wrapper shared by every expression form.
+///
+/// Sema guarantees that `ty` and `category` describe the expression after the
+/// conversions represented inside `kind` have been made explicit.
 pub struct Expression {
     pub kind: ExpressionKind,
     pub ty: CType,
@@ -24,6 +32,7 @@ pub struct Expression {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Payload variants for all currently represented C11 expressions.
 pub enum ExpressionKind {
     Integer(i128),
     Floating(f64),
@@ -99,6 +108,7 @@ pub enum ExpressionKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Exact semantic conversion represented by an implicit AST node.
 pub enum ImplicitCastKind {
     /// Conversion of an object designator to the stored value of that object.
     LValueToRValue,
@@ -106,9 +116,13 @@ pub enum ImplicitCastKind {
     ArrayToPointerDecay,
     /// Conversion of a function designator to a function pointer.
     FunctionToPointerDecay,
+    /// Integer promotion of `_Bool`, narrow integer, bit-field, or enum operands.
     IntegralPromotion,
+    /// Conversion between real floating types selected by arithmetic rules.
     FloatingConversion,
+    /// Non-promotion conversion between integer types.
     IntegralConversion,
+    /// Qualified, null, `void *`, or compatible object-pointer conversion.
     PointerConversion,
 }
 

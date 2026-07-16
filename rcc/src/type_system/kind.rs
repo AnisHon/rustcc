@@ -25,6 +25,10 @@ impl fmt::Debug for TypeId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+/// Compact top-level C qualifier set carried alongside a canonical `TypeId`.
+///
+/// Qualifiers are not part of the unqualified type identity, so `const int`
+/// and `int` share a `TypeId` but have different `QualType` values.
 pub struct Qualifiers(u8);
 
 impl Qualifiers {
@@ -51,6 +55,9 @@ impl Qualifiers {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Canonical C type reference: interned unqualified identity plus qualifiers.
+///
+/// This is the normal type handle exchanged by Sema and later compiler phases.
 pub struct QualType {
     pub ty: TypeId,
     pub qualifiers: Qualifiers,
@@ -83,6 +90,7 @@ impl QualType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Fundamental arithmetic and `void` types supplied by the target C implementation.
 pub enum BuiltinType {
     Void,
     Bool,
@@ -109,18 +117,22 @@ pub enum BuiltinType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Nominal identity of one canonical `struct` or `union` type.
 pub struct RecordId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Nominal identity of one canonical enumeration type.
 pub struct EnumId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Selects the distinct layout and member-overlap rules of records.
 pub enum RecordKind {
     Struct,
     Union,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Canonical array-bound category; VLA expressions remain owned by the AST.
 pub enum ArrayBound {
     Constant(u64),
     Incomplete,
@@ -129,12 +141,17 @@ pub enum ArrayBound {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+/// Target calling convention attached to a function type.
+///
+/// Only standard C is modeled now; the enum leaves a controlled extension point
+/// for target-specific conventions without changing function-type structure.
 pub enum CallingConvention {
     #[default]
     C,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Canonical function signature after C parameter type adjustments.
 pub struct FunctionType {
     pub result: QualType,
     pub parameters: Vec<QualType>,
@@ -144,6 +161,10 @@ pub struct FunctionType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Interned type-system nodes.
+///
+/// Pointer, array, function, and atomic nodes are structurally uniqued. Record
+/// and enum nodes contain nominal IDs and therefore never merge by layout.
 pub enum TypeKind {
     Builtin(BuiltinType),
     Pointer(QualType),

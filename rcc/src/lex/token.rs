@@ -1,5 +1,6 @@
 use crate::source::SourceRange;
 
+/// Encoding prefix attached to a character or string literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StringEncoding {
     Narrow,
@@ -10,6 +11,10 @@ pub enum StringEncoding {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Reserved C11 words after preprocessing has completed.
+///
+/// Keeping keyword classification out of `RawLexer` allows macro names and
+/// replacement lists to follow preprocessing-token rules.
 pub enum Keyword {
     Auto,
     Break,
@@ -111,6 +116,10 @@ impl Keyword {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Literal spelling classified for Parser/Sema consumption.
+///
+/// Numeric values stay textual here so Sema can choose a C type using suffix,
+/// radix, target widths, and overflow rules.
 pub enum Literal {
     Integer(String),
     Floating(String),
@@ -125,6 +134,7 @@ pub enum Literal {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Language-token categories consumed by the C parser.
 pub enum TokenKind {
     Identifier(String),
     Keyword(Keyword),
@@ -179,6 +189,7 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// A post-preprocessing token with its original spelling and compact range.
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,

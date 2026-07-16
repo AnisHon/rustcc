@@ -8,6 +8,10 @@ use super::Expression;
 use crate::source::SourceRange;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+/// C type qualifiers written on one declarator-facing type layer.
+///
+/// These booleans are convenient while parsing recursive declarators. They are
+/// converted to the compact qualifier bitset in the canonical type system.
 pub struct Qualifiers {
     pub is_const: bool,
     pub is_volatile: bool,
@@ -16,6 +20,10 @@ pub struct Qualifiers {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Complete type information attached directly to a typed AST node.
+///
+/// `kind` retains inspectable declaration structure for clients, while
+/// `canonical` provides cheap identity and compatibility queries after import.
 pub struct CType {
     pub kind: TypeKind,
     pub qualifiers: Qualifiers,
@@ -79,6 +87,10 @@ impl CType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Declarator-facing C type variants.
+///
+/// Record and enum definitions live inline here because this layer is the
+/// public, inspectable AST. Their `TagId` still supplies nominal identity.
 pub enum TypeKind {
     Void,
     Bool,
@@ -131,17 +143,26 @@ pub enum TypeKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Nominal identity of one `struct`, `union`, or `enum` declaration.
+///
+/// Equal spellings in different scopes receive different IDs.
 pub struct TagId(pub u32);
 
 #[derive(Debug, Clone, PartialEq)]
+/// The four array-bound forms distinguished by C declarator syntax.
 pub enum ArraySize {
+    /// A constant-size array such as `int a[4]`.
     Constant(usize),
+    /// A variable length array whose bound is evaluated at runtime.
     Variable(Box<Expression>),
+    /// An omitted bound, commonly completed by an initializer or prior declaration.
     Unspecified,
+    /// The `[*]` form allowed in function prototype scope.
     Star,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// A record member, including anonymous members and optional bit-field width.
 pub struct Field {
     pub name: Option<String>,
     pub ty: CType,
@@ -150,6 +171,7 @@ pub struct Field {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// One bound enumerator declaration and its computed integer value.
 pub struct EnumVariant {
     pub id: super::DeclId,
     pub name: String,
@@ -158,6 +180,7 @@ pub struct EnumVariant {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// A function parameter declaration after declarator adjustment and binding.
 pub struct Parameter {
     pub id: super::DeclId,
     pub context: super::DeclContextId,
@@ -167,6 +190,10 @@ pub struct Parameter {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Valid normalized combinations of C storage-class specifiers.
+///
+/// Thread-local combinations are explicit variants so illegal combinations do
+/// not leak into later semantic phases as independent flags.
 pub enum StorageClass {
     Typedef,
     Extern,
@@ -181,6 +208,7 @@ pub enum StorageClass {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Function-only declaration specifiers introduced or retained by C11.
 pub struct FunctionSpecifiers {
     pub is_inline: bool,
     pub is_noreturn: bool,

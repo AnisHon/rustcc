@@ -1,6 +1,9 @@
 //! Properties of the C implementation's compilation target.
 
 /// Integer and pointer layout used by semantic analysis and constant evaluation.
+///
+/// Width and alignment fields are in bits. Keeping target facts here prevents
+/// Parser and AST construction from hard-coding the host Rust platform.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetInfo {
     pub char_is_signed: bool,
